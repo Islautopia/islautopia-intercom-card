@@ -273,6 +273,24 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   check('un talk_denied ajeno no cierra el micro', c.intercomActive === true);
   check('ni molesta con un aviso', c._flashes.length === flashesBefore);
 
+  console.log('\n== 11. Ajustes de contrato del 2026-07-26 ==');
+  c = newCard();
+  await c.handleNativeSignal({ type: 'session_info', clients: 2, slot: 0, talker: 1 });
+  await c.handleNativeSignal({ type: 'talk_state', slot: 3, talker: 1 });
+  check('un talk_state ajeno NO sobrescribe nuestro slot', c._slot === 0);
+  await c.toggleIntercom();
+  await c.handleNativeSignal({ type: 'talk_granted', slot: 2 }); // granted para OTRO slot
+  check('talk_granted con slot ajeno no abre el micro', c.intercomActive === false);
+  check('la peticion propia sigue en vuelo', c._talkPending === true);
+  await c.handleNativeSignal({ type: 'talk_denied', slot: 0, reason: 'channel_busy' });
+  check('solo escucha tras la denegacion', c._listenOnly === true);
+  await c.handleNativeSignal({ type: 'talk_state', slot: 0, talker: -1 });
+  check('avisa de que el canal quedo libre', c._flashes.includes('talk_free_retry'));
+  check('pero NO reabre el micro solo', c.intercomActive === false);
+  const flashesAfterHint = c._flashes.length;
+  await c.handleNativeSignal({ type: 'talk_state', slot: 0, talker: -1 });
+  check('no repite el aviso en cada talk_state', c._flashes.length === flashesAfterHint);
+
   console.log(failures === 0 ? '\nTODO OK\n' : `\n${failures} COMPROBACIONES FALLIDAS\n`);
   process.exit(failures === 0 ? 0 : 1);
 })();

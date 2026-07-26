@@ -30,6 +30,8 @@ const islautopiaLocales = {
     talk_legacy: "Este portero no confirma el turno de voz (firmware anterior)", lbl_mic_listen: "Escucha", clients_tip: "Clientes conectados",
     q_label: "Calidad", q_auto: "Auto", q_full: "Alta", q_low: "Baja", q_audio_only: "Solo audio",
     q_auto_loss: "Calidad ajustada automáticamente: pérdida de paquetes", q_auto_bw: "Calidad ajustada automáticamente: ancho de banda insuficiente",
+    q_auto_sub: "El portero decide", q_full_sub: "Vídeo completo", q_low_sub: "~1 imagen/s (solo claves)", q_audio_only_sub: "Sin vídeo, solo sonido",
+    q_low_warn: "Calidad baja: ~1 imagen por segundo. No es una avería.", talk_free_retry: "Canal de voz libre — ya puedes hablar",
     ed_device_id: "Device ID nativo IG Doorbell (recomendado - ver Ajustes > Dispositivos y servicios)",
     ed_mode_entity: "Entidad de Modo (Opcional - select.* para mostrar los chips Normal/Ausente/Noche/Custom)",
     ed_motion_entity: "Entidad de Movimiento (Opcional - binary_sensor.* para el aviso de movimiento sobre el vídeo)",
@@ -44,6 +46,8 @@ const islautopiaLocales = {
     talk_legacy: "This doorbell doesn't confirm voice turns (older firmware)", lbl_mic_listen: "Listening", clients_tip: "Connected clients",
     q_label: "Quality", q_auto: "Auto", q_full: "High", q_low: "Low", q_audio_only: "Audio only",
     q_auto_loss: "Quality auto-adjusted: packet loss", q_auto_bw: "Quality auto-adjusted: not enough bandwidth",
+    q_auto_sub: "The doorbell decides", q_full_sub: "Full video", q_low_sub: "~1 frame/s (keyframes only)", q_audio_only_sub: "No video, sound only",
+    q_low_warn: "Low quality: about 1 frame per second. This is not a fault.", talk_free_retry: "Voice channel free — you can talk now",
     ed_device_id: "Native IG Doorbell Device ID (recommended - see Settings > Devices & services)",
     ed_mode_entity: "Mode Entity (Optional - select.* to show the Normal/Away/Night/Custom chips)",
     ed_motion_entity: "Motion Entity (Optional - binary_sensor.* for the motion badge over the video)",
@@ -58,6 +62,8 @@ const islautopiaLocales = {
     talk_legacy: "Este porteiro não confirma a vez de voz (firmware anterior)", lbl_mic_listen: "A ouvir", clients_tip: "Clientes ligados",
     q_label: "Qualidade", q_auto: "Auto", q_full: "Alta", q_low: "Baixa", q_audio_only: "Só áudio",
     q_auto_loss: "Qualidade ajustada automaticamente: perda de pacotes", q_auto_bw: "Qualidade ajustada automaticamente: largura de banda insuficiente",
+    q_auto_sub: "O porteiro decide", q_full_sub: "Vídeo completo", q_low_sub: "~1 imagem/s (só chaves)", q_audio_only_sub: "Sem vídeo, só som",
+    q_low_warn: "Qualidade baixa: ~1 imagem por segundo. Não é avaria.", talk_free_retry: "Canal de voz livre — já pode falar",
     ed_device_id: "Device ID nativo do IG Doorbell (recomendado)",
     ed_mode_entity: "Entidade de Modo (Opcional - select.* para mostrar os chips Normal/Ausente/Noite/Custom)",
     ed_motion_entity: "Entidade de Movimento (Opcional - binary_sensor.* para o aviso de movimento sobre o vídeo)",
@@ -72,6 +78,8 @@ const islautopiaLocales = {
     talk_legacy: "Diese Türsprechanlage bestätigt kein Sprechrecht (ältere Firmware)", lbl_mic_listen: "Zuhören", clients_tip: "Verbundene Clients",
     q_label: "Qualität", q_auto: "Auto", q_full: "Hoch", q_low: "Niedrig", q_audio_only: "Nur Audio",
     q_auto_loss: "Qualität automatisch angepasst: Paketverlust", q_auto_bw: "Qualität automatisch angepasst: zu wenig Bandbreite",
+    q_auto_sub: "Die Türsprechanlage entscheidet", q_full_sub: "Volles Video", q_low_sub: "~1 Bild/s (nur Keyframes)", q_audio_only_sub: "Kein Video, nur Ton",
+    q_low_warn: "Niedrige Qualität: ca. 1 Bild pro Sekunde. Kein Defekt.", talk_free_retry: "Sprachkanal frei — du kannst jetzt sprechen",
     ed_device_id: "Native IG Doorbell Device ID (empfohlen)",
     ed_mode_entity: "Modus-Entität (Optional - select.* für die Chips Normal/Abwesend/Nacht/Custom)",
     ed_motion_entity: "Bewegungs-Entität (Optional - binary_sensor.* für den Bewegungshinweis über dem Video)",
@@ -86,6 +94,8 @@ const islautopiaLocales = {
     talk_legacy: "Ce portier ne confirme pas le tour de parole (firmware antérieur)", lbl_mic_listen: "Écoute", clients_tip: "Clients connectés",
     q_label: "Qualité", q_auto: "Auto", q_full: "Haute", q_low: "Basse", q_audio_only: "Audio seul",
     q_auto_loss: "Qualité ajustée automatiquement : perte de paquets", q_auto_bw: "Qualité ajustée automatiquement : bande passante insuffisante",
+    q_auto_sub: "Le portier décide", q_full_sub: "Vidéo complète", q_low_sub: "~1 image/s (images clés)", q_audio_only_sub: "Pas de vidéo, son seul",
+    q_low_warn: "Qualité basse : environ 1 image par seconde. Ce n'est pas une panne.", talk_free_retry: "Canal vocal libre — vous pouvez parler",
     ed_device_id: "Device ID natif IG Doorbell (recommandé)",
     ed_mode_entity: "Entité de Mode (Optionnel - select.* pour afficher les puces Normal/Absent/Nuit/Custom)",
     ed_motion_entity: "Entité de Mouvement (Optionnel - binary_sensor.* pour l'alerte de mouvement sur la vidéo)",
@@ -100,6 +110,8 @@ const islautopiaLocales = {
     talk_legacy: "Этот домофон не подтверждает очередь речи (старая прошивка)", lbl_mic_listen: "Прослушивание", clients_tip: "Подключенные клиенты",
     q_label: "Качество", q_auto: "Авто", q_full: "Высокое", q_low: "Низкое", q_audio_only: "Только звук",
     q_auto_loss: "Качество изменено автоматически: потеря пакетов", q_auto_bw: "Качество изменено автоматически: недостаточно полосы",
+    q_auto_sub: "Решает домофон", q_full_sub: "Полное видео", q_low_sub: "~1 кадр/с (только ключевые)", q_audio_only_sub: "Без видео, только звук",
+    q_low_warn: "Низкое качество: около 1 кадра в секунду. Это не неисправность.", talk_free_retry: "Голосовой канал свободен — можно говорить",
     ed_device_id: "Собственный Device ID IG Doorbell (рекомендуется)",
     ed_mode_entity: "Объект режима (Необязательно - select.* для чипов Обычный/Отсутствие/Ночь/Custom)",
     ed_motion_entity: "Объект движения (Необязательно - binary_sensor.* для значка движения поверх видео)",
@@ -114,6 +126,8 @@ const islautopiaLocales = {
     talk_legacy: "该门口机不确认发言权（旧固件）", lbl_mic_listen: "收听中", clients_tip: "已连接客户端",
     q_label: "画质", q_auto: "自动", q_full: "高", q_low: "低", q_audio_only: "仅音频",
     q_auto_loss: "画质已自动调整：丢包", q_auto_bw: "画质已自动调整：带宽不足",
+    q_auto_sub: "由门口机决定", q_full_sub: "完整视频", q_low_sub: "约1帧/秒（仅关键帧）", q_audio_only_sub: "无视频，仅声音",
+    q_low_warn: "低画质：约每秒1帧，这不是故障。", talk_free_retry: "语音通道已空闲 — 现在可以讲话",
     ed_device_id: "原生 IG Doorbell 设备 ID (推荐)",
     ed_mode_entity: "模式实体 (可选 - select.* 用于显示 正常/离开/夜间/自定义 标签)",
     ed_motion_entity: "移动实体 (可选 - binary_sensor.* 用于视频上的移动提示)",
@@ -128,6 +142,8 @@ const islautopiaLocales = {
     talk_legacy: "यह डोरबेल बोलने की बारी की पुष्टि नहीं करता (पुराना फर्मवेयर)", lbl_mic_listen: "सुन रहे हैं", clients_tip: "जुड़े क्लाइंट",
     q_label: "गुणवत्ता", q_auto: "ऑटो", q_full: "उच्च", q_low: "निम्न", q_audio_only: "केवल ऑडियो",
     q_auto_loss: "गुणवत्ता स्वतः समायोजित: पैकेट हानि", q_auto_bw: "गुणवत्ता स्वतः समायोजित: अपर्याप्त बैंडविड्थ",
+    q_auto_sub: "डोरबेल तय करता है", q_full_sub: "पूरा वीडियो", q_low_sub: "~1 फ्रेम/सेकंड (केवल कीफ्रेम)", q_audio_only_sub: "वीडियो नहीं, केवल ध्वनि",
+    q_low_warn: "कम गुणवत्ता: लगभग 1 फ्रेम प्रति सेकंड। यह खराबी नहीं है।", talk_free_retry: "वॉइस चैनल खाली — अब आप बोल सकते हैं",
     ed_device_id: "नेटिव IG Doorbell डिवाइस ID (अनुशंसित)",
     ed_mode_entity: "मोड एंटिटी (वैकल्पिक - select.* सामान्य/अनुपस्थित/रात/कस्टम चिप्स दिखाने के लिए)",
     ed_motion_entity: "मोशन एंटिटी (वैकल्पिक - binary_sensor.* वीडियो पर मोशन बैज के लिए)",
@@ -142,6 +158,8 @@ const islautopiaLocales = {
     talk_legacy: "هذا الجهاز لا يؤكد دور التحدث (إصدار سابق)", lbl_mic_listen: "استماع", clients_tip: "العملاء المتصلون",
     q_label: "الجودة", q_auto: "تلقائي", q_full: "عالية", q_low: "منخفضة", q_audio_only: "صوت فقط",
     q_auto_loss: "تم ضبط الجودة تلقائياً: فقد الحزم", q_auto_bw: "تم ضبط الجودة تلقائياً: عرض نطاق غير كافٍ",
+    q_auto_sub: "الجهاز يقرر", q_full_sub: "فيديو كامل", q_low_sub: "~إطار واحد/ث (إطارات مفتاحية فقط)", q_audio_only_sub: "بدون فيديو، صوت فقط",
+    q_low_warn: "جودة منخفضة: إطار واحد تقريباً في الثانية. ليس عطلاً.", talk_free_retry: "قناة الصوت متاحة — يمكنك التحدث الآن",
     ed_device_id: "معرّف الجهاز الأصلي IG Doorbell (موصى به)",
     ed_mode_entity: "كيان الوضع (اختياري - select.* لعرض رقائق عادي/غائب/ليلي/مخصص)",
     ed_motion_entity: "كيان الحركة (اختياري - binary_sensor.* لشارة الحركة فوق الفيديو)",
@@ -175,11 +193,17 @@ function getLocalText(hass, key) {
 // paquete de video a este cliente, asi que el vigilante de vida (que mide progreso de
 // packetsReceived del INBOUND-RTP DE VIDEO) interpretaria ese silencio esperado como una sesion
 // muerta y reconectaria en bucle cada 20s. Ver _checkLifeWatchdog().
+// Cada modo lleva ADEMAS una linea explicativa (`sub`) que se pinta bajo su nombre en el menu -
+// paridad con la app Android, y por un motivo concreto: "Baja" NO es video fluido de menos
+// calidad, es ~1 imagen por segundo (el dispositivo manda solo keyframes, §1.4-ter). Sin
+// explicarlo, un usuario que lo active pensara que el aparato se ha averiado. Por lo mismo se
+// evitan a proposito etiquetas tipo HD/SD: sugieren un cambio de RESOLUCION cuando lo que cambia
+// es la CADENCIA.
 const QUALITY_MODES = [
-  { wire: 'auto', key: 'q_auto', icon: 'mdi:auto-fix', expectsVideo: true },
-  { wire: 'full', key: 'q_full', icon: 'mdi:high-definition', expectsVideo: true },
-  { wire: 'low', key: 'q_low', icon: 'mdi:image-filter-tilt-shift', expectsVideo: true },
-  { wire: 'audio_only', key: 'q_audio_only', icon: 'mdi:volume-high', expectsVideo: false },
+  { wire: 'auto', key: 'q_auto', sub: 'q_auto_sub', icon: 'mdi:auto-fix', expectsVideo: true },
+  { wire: 'full', key: 'q_full', sub: 'q_full_sub', icon: 'mdi:video', expectsVideo: true },
+  { wire: 'low', key: 'q_low', sub: 'q_low_sub', icon: 'mdi:image-filter-tilt-shift', expectsVideo: true },
+  { wire: 'audio_only', key: 'q_audio_only', sub: 'q_audio_only_sub', icon: 'mdi:volume-high', expectsVideo: false },
 ];
 
 function qualityModeMeta(wire) {
@@ -272,6 +296,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._talkGrantedAt = 0;      // para la gracia anti-revocacion-de-carrera, ver _reconcileTalkTurn
     this._talkUnsupported = false; // firmware anterior al contrato: no contesta a talk_request
     this._listenOnly = false;     // turno denegado: se oye al portero pero el micro sigue cerrado
+    this._talkFreeHintShown = false; // ya se aviso de "canal libre" en esta espera concreta
     this._talkerSlot = -1;        // slot que tiene el turno segun el dispositivo (-1 = libre)
     this._clients = null;         // null = el dispositivo nunca mando session_info (firmware viejo)
     this._quality = 'auto';       // modo pedido por esta card
@@ -683,7 +708,18 @@ class IslautopiaIntercomCard extends HTMLElement {
     }, 3000);
   }
 
-  _handleTalkGranted() {
+  // Comprueba que un talk_granted/talk_denied es REALMENTE para nosotros. `talk_granted` lleva
+  // `slot` desde el ajuste de contrato del 2026-07-26; combinado con el guardia de "peticion
+  // propia en vuelo" cubre el fan-out del relay por dos vias independientes. Si el mensaje no
+  // trae slot (firmware intermedio) o aun no conocemos el nuestro, se acepta - el guardia de
+  // _talkPending sigue en pie.
+  _talkMsgIsForUs(msg) {
+    if (typeof msg.slot !== 'number' || this._slot === null) return true;
+    return msg.slot === this._slot;
+  }
+
+  _handleTalkGranted(msg) {
+    if (msg && !this._talkMsgIsForUs(msg)) return;
     // NUNCA abrir el micro sin que el usuario lo haya pedido. Un talk_granted que no responde a
     // un talk_request nuestro puede ser (a) la reconfirmacion de un turno que ya teniamos
     // (§1.4-ter: repetir talk_request es la forma natural de decir "sigo aqui"), o (b) - camino
@@ -702,14 +738,15 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._startIntercom();
   }
 
-  _handleTalkDenied(reason) {
+  _handleTalkDenied(msg) {
     // Mismo razonamiento que en _handleTalkGranted: sin peticion propia en vuelo, esto no es
     // nuestro (fan-out del relay) - ignorarlo en vez de cerrarle el micro al usuario.
+    if (msg && !this._talkMsgIsForUs(msg)) return;
     if (!this._talkPending) return;
     if (this._talkTimer) { clearTimeout(this._talkTimer); this._talkTimer = null; }
     this._talkPending = false;
     this._talkHeld = false;
-    console.warn(`[islautopia-intercom-card] turno de palabra denegado por el dispositivo (reason=${reason || 'sin motivo'})`);
+    console.warn(`[islautopia-intercom-card] turno de palabra denegado por el dispositivo (reason=${(msg && msg.reason) || 'sin motivo'})`);
     // Estado intermedio HONESTO, no un fallo silencioso: se desmutea el altavoz (se OYE al
     // portero) pero el micro sigue cerrado, y se dice por que. Sin este estado, "ocupado" seria
     // un boton que no hace nada.
@@ -718,9 +755,25 @@ class IslautopiaIntercomCard extends HTMLElement {
   }
 
   // talk_state llega a TODOS los clientes en cada cambio. Es tambien como el dispositivo avisa
-  // de que nos ha QUITADO el turno por su cuenta (5s sin voz real, §1.4-ter) - que te corten el
-  // micro a media frase sin decir nada seria justo el fallo silencioso a evitar.
+  // de que nos ha QUITADO el turno por su cuenta - que te corten el micro a media frase sin decir
+  // nada seria justo el fallo silencioso a evitar. Plazos reales tras el ajuste de contrato del
+  // 2026-07-26: 60s de silencio ABSOLUTO si el turno se pidio con talk_request (lo que hace esta
+  // card), y solo 5s para quien lo tomo implicitamente hablando sin pedirlo - o sea, esta misma
+  // card cuando habla contra un portero con firmware anterior (_talkUnsupported). Esa asimetria
+  // es justo el motivo por el que merece la pena pedir el turno explicitamente.
   _reconcileTalkTurn() {
+    // Reintento tras un talk_denied: el dispositivo empuja SIEMPRE talk_state{talker:-1} al
+    // quedar libre el canal (ajuste de contrato 2026-07-26), asi que se puede avisar al usuario
+    // en el momento exacto en que ya puede hablar, en vez de dejarle probando a ciegas. NO se
+    // reabre el micro solo: el usuario pidio hablar hace rato y podria no estar ya delante -
+    // abrirle el microfono sin que vuelva a pulsar seria una sorpresa desagradable, no una
+    // comodidad.
+    if (this._listenOnly && this._talkerSlot < 0 && !this._talkFreeHintShown) {
+      this._talkFreeHintShown = true;
+      this._flashStatusLine('talk_free_retry', 5000);
+    }
+    if (this._talkerSlot >= 0) this._talkFreeHintShown = false; // rearma el aviso para la proxima
+
     if (!this.intercomActive) { this._paintMicState(); return; }
     if (this._slot === null) { this._paintMicState(); return; } // sin slot propio no se puede afirmar nada
     if (this._talkerSlot === this._slot) { this._paintMicState(); return; }
@@ -873,13 +926,19 @@ class IslautopiaIntercomCard extends HTMLElement {
   _renderQualityMenu() {
     if (!this.qualityMenu) return;
     this.qualityMenu.innerHTML = QUALITY_MODES.map((m) => (
-      `<button type="button" class="q-opt" data-mode="${m.wire}"><ha-icon icon="${m.icon}"></ha-icon><span>${getLocalText(this._hass, m.key)}</span></button>`
+      `<button type="button" class="q-opt" data-mode="${m.wire}"><ha-icon icon="${m.icon}"></ha-icon>` +
+      `<span class="q-txt"><b>${getLocalText(this._hass, m.key)}</b><i>${getLocalText(this._hass, m.sub)}</i></span></button>`
     )).join('');
     this.qualityMenu.querySelectorAll('.q-opt').forEach((btn) => {
       btn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         this._toggleQualityMenu(false);
-        this._sendQuality(btn.getAttribute('data-mode'), false);
+        const mode = btn.getAttribute('data-mode');
+        this._sendQuality(mode);
+        // Aviso explicito al activar "Baja": ~1 imagen/s se percibe como una averia si nadie ha
+        // dicho que es lo esperado (mismo criterio que la app Android). Solo al ACTIVARLO, no en
+        // cada repintado.
+        if (mode === 'low') this._flashStatusLine('q_low_warn', 6000);
       });
     });
   }
@@ -927,6 +986,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     // es como mucho una espera de 3s la primera vez que se pulsa el micro contra un portero viejo.
     this._talkUnsupported = false;
     this._listenOnly = false;
+    this._talkFreeHintShown = false;
     this._talkerSlot = -1;
     this._clients = null;
     this._quality = 'auto';
@@ -1520,12 +1580,16 @@ class IslautopiaIntercomCard extends HTMLElement {
   }
 
   async handleNativeSignal(msg) {
-    // El slot propio se aprende de CUALQUIER mensaje que lo traiga, no solo de la oferta
-    // (2026-07-26): el contrato garantiza que todo mensaje del dispositivo por el canal LOCAL lo
-    // lleva, y en el canal REMOTO (donde el relay enruta 1:1 y no hace falta devolverlo) llega
-    // igualmente dentro de session_info. Sin conocer el slot propio no se puede interpretar
-    // `talker` de talk_state - que es como se sabe si el turno de palabra es tuyo o de otro.
-    if (typeof msg.slot === 'number') this._slot = msg.slot;
+    // El slot propio se aprende SOLO de 'offer' y 'session_info' (2026-07-26). Todo mensaje del
+    // dispositivo lleva `slot`, pero aprenderlo de cualquiera de ellos seria peligroso en el
+    // camino REMOTO: el relay hace fan-out a todos los clientes del mismo device_id, asi que un
+    // mensaje ajeno nos sobrescribiria nuestro propio slot y a partir de ahi interpretariamos mal
+    // `talker` (creernos dueños del turno de otro, o al reves). Estos dos mensajes SI son
+    // inequivocamente "para mi": la oferta abre nuestra sesion y session_info es el
+    // resincronizador por destinatario.
+    if ((msg.type === 'offer' || msg.type === 'session_info') && typeof msg.slot === 'number') {
+      this._slot = msg.slot;
+    }
 
     switch (msg.type) {
       case 'offer':
@@ -1572,10 +1636,10 @@ class IslautopiaIntercomCard extends HTMLElement {
         break;
       // ---- Multicliente / calidad (API_CONTRACT.md §1.4-ter, 2026-07-26) --------------------
       case 'talk_granted':
-        this._handleTalkGranted();
+        this._handleTalkGranted(msg);
         break;
       case 'talk_denied':
-        this._handleTalkDenied(msg.reason);
+        this._handleTalkDenied(msg);
         break;
       case 'talk_state':
         if (typeof msg.talker === 'number') this._talkerSlot = msg.talker;
@@ -1986,7 +2050,13 @@ class IslautopiaIntercomCard extends HTMLElement {
         background: transparent; border: none; border-radius: 8px; padding: 7px 9px;
         color: var(--ig-muted); font-size: 11.5px; font-weight: 600; font-family: inherit; text-align: left;
       }
-      .q-menu .q-opt ha-icon { --mdc-icon-size: 15px; }
+      .q-menu .q-opt ha-icon { --mdc-icon-size: 15px; flex-shrink: 0; }
+      /* Segunda linea explicativa por opcion: "Baja" es ~1 imagen/s, no video fluido de menos
+         calidad - sin decirlo, se percibe como averia (ver QUALITY_MODES). */
+      .q-menu .q-txt { display: flex; flex-direction: column; line-height: 1.25; }
+      .q-menu .q-txt b { font-weight: 700; }
+      .q-menu .q-txt i { font-style: normal; font-size: 10px; font-weight: 500; color: var(--ig-dim); }
+      .q-menu .q-opt.sel .q-txt i { color: rgba(0,196,212,0.75); }
       .q-menu .q-opt:hover { background: rgba(255,255,255,0.06); color: var(--ig-text); }
       .q-menu .q-opt.sel { background: rgba(0,196,212,0.16); color: var(--ig-cyan); }
       .hud-vol {
