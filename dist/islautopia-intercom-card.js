@@ -16,7 +16,7 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_BUILD_ID = '2026-07-12-jsep-addtrack-fix';
+const CARD_BUILD_ID = '2026-07-26-multicliente-calidad';
 console.log(`[islautopia-intercom-card] modulo cargado - build=${CARD_BUILD_ID} (compara este valor contra CARD_BUILD_ID en el repo si tienes dudas de si el navegador esta sirviendo una copia cacheada vieja)`);
 
 // Diccionario global de traducciones para Tarjeta y Editor (Top 9 Idiomas + HA Community)
@@ -25,6 +25,11 @@ const islautopiaLocales = {
     connecting: "Conectando...", live: "En directo", open: "Comms Abiertas", error_cam: "Error", no_lock: "Sin cerradura configurada",
     motion_detected: "Movimiento detectado", audio_active: "Audio activo", idle_status: "Sistema operativo", door_open_prefix: "Puerta abierta · Cerrando en",
     lbl_mic_off: "Micrófono", lbl_mic_on: "Activo", lbl_door_idle: "Puerta", lbl_door_open: "Abierta",
+    talk_requesting: "Pidiendo turno...", talk_denied_msg: "Canal de voz ocupado por otro usuario", talk_busy: "Canal de voz en uso",
+    talk_taken: "Otro usuario ha tomado el canal de voz", talk_silence: "El portero cerró el canal de voz por silencio",
+    talk_legacy: "Este portero no confirma el turno de voz (firmware anterior)", lbl_mic_listen: "Escucha", clients_tip: "Clientes conectados",
+    q_label: "Calidad", q_auto: "Auto", q_full: "Alta", q_low: "Baja", q_audio_only: "Solo audio",
+    q_auto_loss: "Calidad ajustada automáticamente: pérdida de paquetes", q_auto_bw: "Calidad ajustada automáticamente: ancho de banda insuficiente",
     ed_device_id: "Device ID nativo IG Doorbell (recomendado - ver Ajustes > Dispositivos y servicios)",
     ed_mode_entity: "Entidad de Modo (Opcional - select.* para mostrar los chips Normal/Ausente/Noche/Custom)",
     ed_motion_entity: "Entidad de Movimiento (Opcional - binary_sensor.* para el aviso de movimiento sobre el vídeo)",
@@ -34,6 +39,11 @@ const islautopiaLocales = {
     connecting: "Connecting...", live: "Live", open: "Comms Open", error_cam: "Error", no_lock: "No lock configured",
     motion_detected: "Motion detected", audio_active: "Audio active", idle_status: "System idle", door_open_prefix: "Door open · Closing in",
     lbl_mic_off: "Microphone", lbl_mic_on: "Active", lbl_door_idle: "Door", lbl_door_open: "Open",
+    talk_requesting: "Requesting turn...", talk_denied_msg: "Voice channel busy (another user)", talk_busy: "Voice channel in use",
+    talk_taken: "Another user took the voice channel", talk_silence: "The doorbell closed the voice channel after silence",
+    talk_legacy: "This doorbell doesn't confirm voice turns (older firmware)", lbl_mic_listen: "Listening", clients_tip: "Connected clients",
+    q_label: "Quality", q_auto: "Auto", q_full: "High", q_low: "Low", q_audio_only: "Audio only",
+    q_auto_loss: "Quality auto-adjusted: packet loss", q_auto_bw: "Quality auto-adjusted: not enough bandwidth",
     ed_device_id: "Native IG Doorbell Device ID (recommended - see Settings > Devices & services)",
     ed_mode_entity: "Mode Entity (Optional - select.* to show the Normal/Away/Night/Custom chips)",
     ed_motion_entity: "Motion Entity (Optional - binary_sensor.* for the motion badge over the video)",
@@ -43,6 +53,11 @@ const islautopiaLocales = {
     connecting: "Conectando...", live: "Ao vivo", open: "Comms Abertas", error_cam: "Erro", no_lock: "Sem fechadura configurada",
     motion_detected: "Movimento detectado", audio_active: "Áudio ativo", idle_status: "Sistema em repouso", door_open_prefix: "Porta aberta · Fechando em",
     lbl_mic_off: "Microfone", lbl_mic_on: "Ativo", lbl_door_idle: "Porta", lbl_door_open: "Aberta",
+    talk_requesting: "A pedir a vez...", talk_denied_msg: "Canal de voz ocupado por outro utilizador", talk_busy: "Canal de voz em uso",
+    talk_taken: "Outro utilizador tomou o canal de voz", talk_silence: "O porteiro fechou o canal de voz por silêncio",
+    talk_legacy: "Este porteiro não confirma a vez de voz (firmware anterior)", lbl_mic_listen: "A ouvir", clients_tip: "Clientes ligados",
+    q_label: "Qualidade", q_auto: "Auto", q_full: "Alta", q_low: "Baixa", q_audio_only: "Só áudio",
+    q_auto_loss: "Qualidade ajustada automaticamente: perda de pacotes", q_auto_bw: "Qualidade ajustada automaticamente: largura de banda insuficiente",
     ed_device_id: "Device ID nativo do IG Doorbell (recomendado)",
     ed_mode_entity: "Entidade de Modo (Opcional - select.* para mostrar os chips Normal/Ausente/Noite/Custom)",
     ed_motion_entity: "Entidade de Movimento (Opcional - binary_sensor.* para o aviso de movimento sobre o vídeo)",
@@ -52,6 +67,11 @@ const islautopiaLocales = {
     connecting: "Verbinde...", live: "Live", open: "Komm. offen", error_cam: "Fehler", no_lock: "Kein Schloss konfiguriert",
     motion_detected: "Bewegung erkannt", audio_active: "Audio aktiv", idle_status: "System im Ruhezustand", door_open_prefix: "Tür offen · Schließt in",
     lbl_mic_off: "Mikrofon", lbl_mic_on: "Aktiv", lbl_door_idle: "Tür", lbl_door_open: "Offen",
+    talk_requesting: "Sprechrecht wird angefragt...", talk_denied_msg: "Sprachkanal von einem anderen Nutzer belegt", talk_busy: "Sprachkanal belegt",
+    talk_taken: "Ein anderer Nutzer hat den Sprachkanal übernommen", talk_silence: "Die Türsprechanlage hat den Sprachkanal wegen Stille geschlossen",
+    talk_legacy: "Diese Türsprechanlage bestätigt kein Sprechrecht (ältere Firmware)", lbl_mic_listen: "Zuhören", clients_tip: "Verbundene Clients",
+    q_label: "Qualität", q_auto: "Auto", q_full: "Hoch", q_low: "Niedrig", q_audio_only: "Nur Audio",
+    q_auto_loss: "Qualität automatisch angepasst: Paketverlust", q_auto_bw: "Qualität automatisch angepasst: zu wenig Bandbreite",
     ed_device_id: "Native IG Doorbell Device ID (empfohlen)",
     ed_mode_entity: "Modus-Entität (Optional - select.* für die Chips Normal/Abwesend/Nacht/Custom)",
     ed_motion_entity: "Bewegungs-Entität (Optional - binary_sensor.* für den Bewegungshinweis über dem Video)",
@@ -61,6 +81,11 @@ const islautopiaLocales = {
     connecting: "Connexion...", live: "En direct", open: "Comms Ouvertes", error_cam: "Erreur", no_lock: "Aucune serrure configurée",
     motion_detected: "Mouvement détecté", audio_active: "Audio actif", idle_status: "Système au repos", door_open_prefix: "Porte ouverte · Fermeture dans",
     lbl_mic_off: "Microphone", lbl_mic_on: "Actif", lbl_door_idle: "Porte", lbl_door_open: "Ouverte",
+    talk_requesting: "Demande de parole...", talk_denied_msg: "Canal vocal occupé par un autre utilisateur", talk_busy: "Canal vocal occupé",
+    talk_taken: "Un autre utilisateur a pris le canal vocal", talk_silence: "Le portier a fermé le canal vocal après un silence",
+    talk_legacy: "Ce portier ne confirme pas le tour de parole (firmware antérieur)", lbl_mic_listen: "Écoute", clients_tip: "Clients connectés",
+    q_label: "Qualité", q_auto: "Auto", q_full: "Haute", q_low: "Basse", q_audio_only: "Audio seul",
+    q_auto_loss: "Qualité ajustée automatiquement : perte de paquets", q_auto_bw: "Qualité ajustée automatiquement : bande passante insuffisante",
     ed_device_id: "Device ID natif IG Doorbell (recommandé)",
     ed_mode_entity: "Entité de Mode (Optionnel - select.* pour afficher les puces Normal/Absent/Nuit/Custom)",
     ed_motion_entity: "Entité de Mouvement (Optionnel - binary_sensor.* pour l'alerte de mouvement sur la vidéo)",
@@ -70,6 +95,11 @@ const islautopiaLocales = {
     connecting: "Подключение...", live: "В прямом эфире", open: "Связь открыта", error_cam: "Ошибка", no_lock: "Замок не настроен",
     motion_detected: "Обнаружено движение", audio_active: "Аудио активно", idle_status: "Система в режиме ожидания", door_open_prefix: "Дверь открыта · Закрытие через",
     lbl_mic_off: "Микрофон", lbl_mic_on: "Активен", lbl_door_idle: "Дверь", lbl_door_open: "Открыта",
+    talk_requesting: "Запрос очереди...", talk_denied_msg: "Голосовой канал занят другим пользователем", talk_busy: "Голосовой канал занят",
+    talk_taken: "Другой пользователь занял голосовой канал", talk_silence: "Домофон закрыл голосовой канал из-за тишины",
+    talk_legacy: "Этот домофон не подтверждает очередь речи (старая прошивка)", lbl_mic_listen: "Прослушивание", clients_tip: "Подключенные клиенты",
+    q_label: "Качество", q_auto: "Авто", q_full: "Высокое", q_low: "Низкое", q_audio_only: "Только звук",
+    q_auto_loss: "Качество изменено автоматически: потеря пакетов", q_auto_bw: "Качество изменено автоматически: недостаточно полосы",
     ed_device_id: "Собственный Device ID IG Doorbell (рекомендуется)",
     ed_mode_entity: "Объект режима (Необязательно - select.* для чипов Обычный/Отсутствие/Ночь/Custom)",
     ed_motion_entity: "Объект движения (Необязательно - binary_sensor.* для значка движения поверх видео)",
@@ -79,6 +109,11 @@ const islautopiaLocales = {
     connecting: "连接中...", live: "直播中", open: "通话中", error_cam: "错误", no_lock: "未配置门锁",
     motion_detected: "检测到移动", audio_active: "音频已激活", idle_status: "系统待机", door_open_prefix: "门已开 · 关闭倒计时",
     lbl_mic_off: "麦克风", lbl_mic_on: "已激活", lbl_door_idle: "门", lbl_door_open: "已开",
+    talk_requesting: "正在请求发言权...", talk_denied_msg: "语音通道被其他用户占用", talk_busy: "语音通道占用中",
+    talk_taken: "其他用户已接管语音通道", talk_silence: "门口机因静音已关闭语音通道",
+    talk_legacy: "该门口机不确认发言权（旧固件）", lbl_mic_listen: "收听中", clients_tip: "已连接客户端",
+    q_label: "画质", q_auto: "自动", q_full: "高", q_low: "低", q_audio_only: "仅音频",
+    q_auto_loss: "画质已自动调整：丢包", q_auto_bw: "画质已自动调整：带宽不足",
     ed_device_id: "原生 IG Doorbell 设备 ID (推荐)",
     ed_mode_entity: "模式实体 (可选 - select.* 用于显示 正常/离开/夜间/自定义 标签)",
     ed_motion_entity: "移动实体 (可选 - binary_sensor.* 用于视频上的移动提示)",
@@ -88,6 +123,11 @@ const islautopiaLocales = {
     connecting: "कनेक्ट हो रहा है...", live: "लाइव", open: "संचार चालू", error_cam: "त्रुटि", no_lock: "कोई लॉक कॉन्फ़िगर नहीं",
     motion_detected: "गति का पता चला", audio_active: "ऑडियो सक्रिय", idle_status: "सिस्टम निष्क्रिय", door_open_prefix: "दरवाज़ा खुला · बंद हो रहा है",
     lbl_mic_off: "माइक्रोफ़ोन", lbl_mic_on: "सक्रिय", lbl_door_idle: "दरवाज़ा", lbl_door_open: "खुला",
+    talk_requesting: "बोलने की बारी मांगी जा रही है...", talk_denied_msg: "वॉइस चैनल किसी अन्य उपयोगकर्ता के पास है", talk_busy: "वॉइस चैनल व्यस्त",
+    talk_taken: "किसी अन्य उपयोगकर्ता ने वॉइस चैनल ले लिया", talk_silence: "खामोशी के कारण डोरबेल ने वॉइस चैनल बंद कर दिया",
+    talk_legacy: "यह डोरबेल बोलने की बारी की पुष्टि नहीं करता (पुराना फर्मवेयर)", lbl_mic_listen: "सुन रहे हैं", clients_tip: "जुड़े क्लाइंट",
+    q_label: "गुणवत्ता", q_auto: "ऑटो", q_full: "उच्च", q_low: "निम्न", q_audio_only: "केवल ऑडियो",
+    q_auto_loss: "गुणवत्ता स्वतः समायोजित: पैकेट हानि", q_auto_bw: "गुणवत्ता स्वतः समायोजित: अपर्याप्त बैंडविड्थ",
     ed_device_id: "नेटिव IG Doorbell डिवाइस ID (अनुशंसित)",
     ed_mode_entity: "मोड एंटिटी (वैकल्पिक - select.* सामान्य/अनुपस्थित/रात/कस्टम चिप्स दिखाने के लिए)",
     ed_motion_entity: "मोशन एंटिटी (वैकल्पिक - binary_sensor.* वीडियो पर मोशन बैज के लिए)",
@@ -97,6 +137,11 @@ const islautopiaLocales = {
     connecting: "جارٍ الاتصال...", live: "مباشر", open: "اتصال مفتوح", error_cam: "خطأ", no_lock: "لا يوجد قفل مُهيأ",
     motion_detected: "تم اكتشاف حركة", audio_active: "الصوت نشط", idle_status: "النظام في وضع الخمول", door_open_prefix: "الباب مفتوح · يُغلق خلال",
     lbl_mic_off: "الميكروفون", lbl_mic_on: "نشط", lbl_door_idle: "الباب", lbl_door_open: "مفتوح",
+    talk_requesting: "جارٍ طلب الدور...", talk_denied_msg: "قناة الصوت مشغولة بمستخدم آخر", talk_busy: "قناة الصوت مشغولة",
+    talk_taken: "استحوذ مستخدم آخر على قناة الصوت", talk_silence: "أغلق الجهاز قناة الصوت بسبب الصمت",
+    talk_legacy: "هذا الجهاز لا يؤكد دور التحدث (إصدار سابق)", lbl_mic_listen: "استماع", clients_tip: "العملاء المتصلون",
+    q_label: "الجودة", q_auto: "تلقائي", q_full: "عالية", q_low: "منخفضة", q_audio_only: "صوت فقط",
+    q_auto_loss: "تم ضبط الجودة تلقائياً: فقد الحزم", q_auto_bw: "تم ضبط الجودة تلقائياً: عرض نطاق غير كافٍ",
     ed_device_id: "معرّف الجهاز الأصلي IG Doorbell (موصى به)",
     ed_mode_entity: "كيان الوضع (اختياري - select.* لعرض رقائق عادي/غائب/ليلي/مخصص)",
     ed_motion_entity: "كيان الحركة (اختياري - binary_sensor.* لشارة الحركة فوق الفيديو)",
@@ -108,8 +153,37 @@ function getLocalText(hass, key) {
   // 1. Si no hay idioma configurado en HA, asumimos inglés ('en')
   const lang = (hass && hass.language) ? hass.language.substring(0, 2) : 'en';
 
-  // 2. Si el idioma detectado NO existe en nuestro diccionario (ej. 'fr' o 'de'), forzamos inglés ('en')
-  return islautopiaLocales[islautopiaLocales[lang] ? lang : 'en'][key];
+  // 2. Si el idioma detectado NO existe en nuestro diccionario, forzamos inglés ('en')
+  const table = islautopiaLocales[lang] || islautopiaLocales.en;
+  // 3. Respaldo POR CLAVE, no solo por idioma (2026-07-26): antes, una clave presente en 'en'
+  //    pero olvidada en otro idioma devolvia `undefined` y se pintaba literalmente "undefined" en
+  //    la UI. Con 15 claves nuevas x 9 idiomas en este mismo cambio (multicliente/calidad), el
+  //    riesgo real de que a alguien se le escape una en el futuro deja de ser teorico - mejor un
+  //    texto en ingles que un "undefined" en pantalla.
+  return (table[key] !== undefined) ? table[key] : islautopiaLocales.en[key];
+}
+
+// ==============================================================================
+// MULTICLIENTE / CALIDAD (contrato de señalización 2026-07-26, API_CONTRACT.md §1.4-ter):
+// turno de palabra, contador de clientes y calidad por destinatario. Los tres viajan por el
+// MISMO canal de señalización que ya usaba la card (SSE+POST local / WS del relay remoto), sin
+// ningun endpoint ni transporte nuevo - ver handleNativeSignal() mas abajo.
+//
+// Modos de calidad, en el orden exacto en que se pintan en el selector sobre el video. `wire` es
+// el valor literal del campo `mode` del JSON; `key` es la clave de traduccion. `expectsVideo`
+// existe para un motivo real y no cosmetico: en 'audio_only' el dispositivo NO manda ni un
+// paquete de video a este cliente, asi que el vigilante de vida (que mide progreso de
+// packetsReceived del INBOUND-RTP DE VIDEO) interpretaria ese silencio esperado como una sesion
+// muerta y reconectaria en bucle cada 20s. Ver _checkLifeWatchdog().
+const QUALITY_MODES = [
+  { wire: 'auto', key: 'q_auto', icon: 'mdi:auto-fix', expectsVideo: true },
+  { wire: 'full', key: 'q_full', icon: 'mdi:high-definition', expectsVideo: true },
+  { wire: 'low', key: 'q_low', icon: 'mdi:image-filter-tilt-shift', expectsVideo: true },
+  { wire: 'audio_only', key: 'q_audio_only', icon: 'mdi:volume-high', expectsVideo: false },
+];
+
+function qualityModeMeta(wire) {
+  return QUALITY_MODES.find((m) => m.wire === wire) || null;
 }
 
 // Chips de modo (2026-07-10, ver COORDINATION.md Q22-bis en ig_hassio_addons) - mismo
@@ -188,6 +262,25 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._lastLifeSignalAt = null;
     this._prevPacketsReceived = null;
 
+    // ---- Multicliente / calidad (2026-07-26, API_CONTRACT.md §1.4-ter) ----------------------
+    // Todo esto se resetea ademas en _resetMulticlientState() en cada teardown/sesion nueva: el
+    // turno de palabra y la calidad son estado POR SESION en el dispositivo (una sesion nueva
+    // arranca siempre en 'full' y sin turno), asi que la card no debe heredar nada de la anterior.
+    this._talkHeld = false;       // el dispositivo nos concedio el turno (talk_granted)
+    this._talkPending = false;    // hay un talk_request en vuelo
+    this._talkTimer = null;
+    this._talkGrantedAt = 0;      // para la gracia anti-revocacion-de-carrera, ver _reconcileTalkTurn
+    this._talkUnsupported = false; // firmware anterior al contrato: no contesta a talk_request
+    this._listenOnly = false;     // turno denegado: se oye al portero pero el micro sigue cerrado
+    this._talkerSlot = -1;        // slot que tiene el turno segun el dispositivo (-1 = libre)
+    this._clients = null;         // null = el dispositivo nunca mando session_info (firmware viejo)
+    this._quality = 'auto';       // modo pedido por esta card
+    this._qualityEffective = null; // modo CONFIRMADO por el dispositivo (unica fuente de verdad)
+    this._qualitySupported = null; // null = sin confirmar todavia; false = firmware sin calidad
+    this._qualityProbeTimer = null;
+    this._qualityProbeAttempts = 0;
+    this._qualityMenuOpen = false;
+
     this.render();
   }
 
@@ -207,6 +300,10 @@ class IslautopiaIntercomCard extends HTMLElement {
     }
     if (this.loader) this.loader.style.opacity = '1';
     if (this._hudClockTimer) { clearInterval(this._hudClockTimer); this._hudClockTimer = null; }
+    if (this._onDocClickForQuality) {
+      document.removeEventListener('click', this._onDocClickForQuality);
+      this._onDocClickForQuality = null;
+    }
   }
 
   // ==============================================================================
@@ -241,12 +338,13 @@ class IslautopiaIntercomCard extends HTMLElement {
       this.localAudioStream = null;
     }
     this.intercomActive = false;
+    // Turno de palabra / contador / calidad: estado por SESION, nunca heredado (2026-07-26,
+    // §1.4-ter). Va ANTES de repintar el boton para que _paintMicState() vea ya el estado limpio.
+    this._resetMulticlientState();
     if (this.intercomButton) {
-      this.intercomButton.classList.remove('active-intercom');
       this.intercomButton.setAttribute('disabled', '');
-      if (this.intercomIcon) this.intercomIcon.setAttribute('icon', 'mdi:microphone-off');
       if (this.videoEl) this.videoEl.muted = true;
-      this._setMicLabel(false);
+      this._paintMicState();
     }
     if (this.audioPill) this.audioPill.style.display = 'none';
     this._updateMotionPill(); // la regla "nunca con el mic activo" ya no aplica tras este reset
@@ -327,9 +425,17 @@ class IslautopiaIntercomCard extends HTMLElement {
 
     try {
       const stats = await this.pc.getStats();
+      // Con calidad 'audio_only' (§1.4-ter #3) el dispositivo NO manda ni un paquete de video a
+      // este cliente A PROPOSITO - medir el video ahi haria que este vigilante interpretara un
+      // silencio esperado como sesion muerta y reconectara en bucle cada 20s, rompiendo justo la
+      // funcion que el usuario acaba de pedir. En ese modo (y solo en ese) la señal de vida es el
+      // audio, que sigue fluyendo intacto. En 'low' (~1 fps) el video sigue progresando de sobra
+      // entre chequeos de 5s, asi que no necesita ningun trato especial.
+      const effectiveMeta = qualityModeMeta(this._qualityEffective || this._quality);
+      const watchKind = (effectiveMeta && !effectiveMeta.expectsVideo) ? 'audio' : 'video';
       let packetsReceived = null;
       stats.forEach((report) => {
-        if (report.type === 'inbound-rtp' && report.kind === 'video') {
+        if (report.type === 'inbound-rtp' && report.kind === watchKind) {
           packetsReceived = (typeof report.packetsReceived === 'number')
             ? report.packetsReceived
             : (typeof report.framesReceived === 'number' ? report.framesReceived : null);
@@ -485,11 +591,11 @@ class IslautopiaIntercomCard extends HTMLElement {
     this.hudTimeDate.textContent = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${String(now.getFullYear()).slice(-2)}`;
   }
 
-  _setMicLabel(active) {
-    if (!this.micLabel) return;
-    this.micLabel.textContent = getLocalText(this._hass, active ? 'lbl_mic_on' : 'lbl_mic_off');
-    this.micLabel.classList.toggle('on-cyan', !!active);
-  }
+  // NOTA (2026-07-26): el antiguo _setMicLabel(active) desaparecio al introducirse el turno de
+  // palabra - el boton de micro ya no tiene dos estados (on/off) sino cinco (apagado, pidiendo
+  // turno, hablando, solo escucha, ocupado por otro), y tenerlos repartidos entre varias
+  // funciones era la receta para que se desincronizaran. Todo eso vive ahora en un unico
+  // _paintMicState(), mas abajo.
 
   _setDoorLabel(active) {
     if (!this.unlockLabel) return;
@@ -536,6 +642,292 @@ class IslautopiaIntercomCard extends HTMLElement {
     this.statusLine.textContent = getLocalText(this._hass, 'idle_status');
   }
 
+  // ==============================================================================
+  // MULTICLIENTE: TURNO DE PALABRA (API_CONTRACT.md §1.4-ter #1)
+  //
+  // El portero tiene UN solo canal de voz: hasta el contrato de 2026-07-26, dos clientes con el
+  // micro abierto metian sus dos flujos CONCATENADOS en el mismo buffer del altavoz
+  // (ininteligible, y al doble del ritmo al que el altavoz drena). Ahora el arbitraje es por
+  // slot: esta card pide el turno ANTES de desmutear y solo abre el micro con un talk_granted
+  // real - nunca "abre el micro y a ver si suena".
+  //
+  // Degradacion con firmware ANTERIOR al contrato (requisito explicito): ese firmware
+  // simplemente NO CONTESTA a talk_request - no hay error, hay silencio. Un cliente que esperara
+  // indefinidamente dejaria el boton de micro inservible para siempre contra el parque ya
+  // instalado. Por eso: 3s de espera (mismo plazo que la app Android, para que el producto se
+  // comporte igual en los tres clientes) y, si no llega nada, se abre el micro igualmente
+  // avisando UNA vez, y se marca _talkUnsupported para que las siguientes pulsaciones de ESA
+  // sesion sean instantaneas. El propio firmware nuevo respalda esta eleccion: implementa "toma
+  // implicita del turno" precisamente para que los clientes que nunca piden turno sigan
+  // funcionando (§1.4-ter, "Compatibilidad").
+  // ==============================================================================
+  _requestTalkTurn() {
+    if (this._talkUnsupported) {
+      // Ya sabemos (en ESTA sesion) que este portero no arbitra el turno - micro directo, sin
+      // hacer esperar al usuario 3s otra vez.
+      this._startIntercom();
+      return;
+    }
+    this._talkPending = true;
+    this._paintMicState();
+    this.sendNativeSignal({ type: 'talk_request' });
+    if (this._talkTimer) clearTimeout(this._talkTimer);
+    this._talkTimer = setTimeout(() => {
+      this._talkTimer = null;
+      if (!this._talkPending) return;
+      this._talkPending = false;
+      this._talkUnsupported = true;
+      console.warn('[islautopia-intercom-card] el dispositivo no contesto a talk_request en 3s - se asume firmware anterior al contrato de turno de palabra (2026-07-26) y se abre el micro sin arbitraje');
+      this._flashStatusLine('talk_legacy', 5000);
+      this._startIntercom();
+    }, 3000);
+  }
+
+  _handleTalkGranted() {
+    if (this._talkTimer) { clearTimeout(this._talkTimer); this._talkTimer = null; }
+    this._talkHeld = true;
+    this._talkGrantedAt = performance.now();
+    if (!this._talkPending && this.intercomActive) {
+      // Reconfirmacion de un turno que ya teniamos (§1.4-ter: un talk_request repetido del que
+      // ya lo tiene se responde con otro talk_granted) - nada que hacer.
+      return;
+    }
+    this._talkPending = false;
+    this._startIntercom();
+  }
+
+  _handleTalkDenied(reason) {
+    if (this._talkTimer) { clearTimeout(this._talkTimer); this._talkTimer = null; }
+    this._talkPending = false;
+    this._talkHeld = false;
+    console.warn(`[islautopia-intercom-card] turno de palabra denegado por el dispositivo (reason=${reason || 'sin motivo'})`);
+    // Estado intermedio HONESTO, no un fallo silencioso: se desmutea el altavoz (se OYE al
+    // portero) pero el micro sigue cerrado, y se dice por que. Sin este estado, "ocupado" seria
+    // un boton que no hace nada.
+    this._enterListenOnly();
+    this._flashStatusLine('talk_denied_msg', 5000);
+  }
+
+  // talk_state llega a TODOS los clientes en cada cambio. Es tambien como el dispositivo avisa
+  // de que nos ha QUITADO el turno por su cuenta (5s sin voz real, §1.4-ter) - que te corten el
+  // micro a media frase sin decir nada seria justo el fallo silencioso a evitar.
+  _reconcileTalkTurn() {
+    if (!this.intercomActive) { this._paintMicState(); return; }
+    if (this._slot === null) { this._paintMicState(); return; } // sin slot propio no se puede afirmar nada
+    if (this._talkerSlot === this._slot) { this._paintMicState(); return; }
+    // Gracia anti-carrera: un talk_state "viejo" (emitido justo antes de nuestro talk_granted)
+    // no debe cerrarnos el micro que acabamos de abrir.
+    if (performance.now() - this._talkGrantedAt < 1500) return;
+
+    const takenByOther = this._talkerSlot >= 0;
+    this._talkHeld = false;
+    this._enterListenOnly();
+    this._flashStatusLine(takenByOther ? 'talk_taken' : 'talk_silence', 5000);
+  }
+
+  // Se oye al portero, pero sin micro. Reutiliza el mismo camino de cierre de micro que
+  // _stopIntercom() para no duplicar la logica de replaceTrack/stop de pistas.
+  _enterListenOnly() {
+    this._closeMicHardware();
+    this.intercomActive = false;
+    this._listenOnly = true;
+    if (this.videoEl) this.videoEl.muted = false;
+    this._setLiveState('live');
+    if (this.audioPill) this.audioPill.style.display = 'none';
+    this._paintMicState();
+    this._updateMotionPill();
+  }
+
+  // Pinta el boton de micro segun el estado real del turno. Un unico sitio que decide
+  // icono/clase/etiqueta, para que no puedan desincronizarse entre los 6 caminos que lo tocan.
+  _paintMicState() {
+    if (!this.intercomButton) return;
+    const btn = this.intercomButton;
+    btn.classList.toggle('active-intercom', !!this.intercomActive);
+    btn.classList.toggle('requesting', !!this._talkPending);
+    btn.classList.toggle('listen-only', !!this._listenOnly);
+    // "Ocupado por otro" = alguien tiene el turno y no somos nosotros. NO deshabilita el boton a
+    // proposito (se puede pulsar y recibir un talk_denied explicito con su aviso) - un boton
+    // deshabilitado por un estado remoto es exactamente el "bloqueado para siempre" a evitar si
+    // el aviso de liberacion se perdiera.
+    const busyByOther = this._talkerSlot >= 0 && this._slot !== null && this._talkerSlot !== this._slot;
+    btn.classList.toggle('busy-other', !!busyByOther && !this.intercomActive);
+    btn.title = busyByOther && !this.intercomActive ? getLocalText(this._hass, 'talk_busy') : '';
+
+    if (this.intercomIcon) {
+      this.intercomIcon.setAttribute('icon',
+        this._talkPending ? 'mdi:microphone-question'
+          : this.intercomActive ? 'mdi:microphone'
+            : this._listenOnly ? 'mdi:ear-hearing'
+              : 'mdi:microphone-off');
+    }
+    if (this.micLabel) {
+      const key = this._talkPending ? 'talk_requesting'
+        : this.intercomActive ? 'lbl_mic_on'
+          : this._listenOnly ? 'lbl_mic_listen'
+            : 'lbl_mic_off';
+      this.micLabel.textContent = getLocalText(this._hass, key);
+      this.micLabel.classList.toggle('on-cyan', !!this.intercomActive);
+      this.micLabel.classList.toggle('on-amber', !!this._listenOnly || !!this._talkPending);
+    }
+  }
+
+  // ==============================================================================
+  // MULTICLIENTE: CONTADOR DE CLIENTES (API_CONTRACT.md §1.4-ter #2, mensaje session_info)
+  // Cuenta SOLO sesiones WebRTC - los clientes RTSP/NVR no salen aqui a proposito (son
+  // grabadores de terceros, no personas mirando).
+  // ==============================================================================
+  _handleSessionInfo(msg) {
+    if (typeof msg.clients === 'number') this._clients = msg.clients;
+    if (typeof msg.talker === 'number') this._talkerSlot = msg.talker;
+    this._paintClients();
+    this._reconcileTalkTurn();
+  }
+
+  _paintClients() {
+    if (!this.clientsPill) return;
+    if (this._clients === null) { this.clientsPill.style.display = 'none'; return; }
+    this.clientsPill.style.display = 'flex';
+    this.clientsCount.textContent = String(this._clients);
+    // Resaltado solo cuando hay MAS de uno: "hay alguien mas mirando" es el dato que cambia como
+    // te comportas; "estas tu solo" es el caso normal y no debe llamar la atencion.
+    this.clientsPill.classList.toggle('multi', this._clients > 1);
+  }
+
+  // ==============================================================================
+  // MULTICLIENTE: CALIDAD POR DESTINATARIO (API_CONTRACT.md §1.4-ter #3)
+  //
+  // Sonda de capacidad: nada mas negociar la sesion se manda {"type":"quality","mode":"auto"}.
+  // Sirve para dos cosas a la vez: (1) dejar la sesion en 'auto' desde el principio (el
+  // dispositivo arranca cada slot en 'full', y 'auto' es lo que queremos por defecto para que el
+  // dia que el firmware consuma RTCP RR pueda degradar solo sin que el usuario toque nada), y
+  // (2) descubrir SIN que el usuario tenga que pulsar nada si este firmware entiende el mensaje.
+  // Solo si llega el quality_state de vuelta se muestra el selector. Un reintento antes de darse
+  // por vencido porque el contrato advierte que los avisos de estado pueden descartarse si la
+  // cola de salida de esa sesion esta llena.
+  // ==============================================================================
+  _probeQualitySupport() {
+    this._qualityProbeAttempts = 0;
+    this._quality = 'auto';
+    this._sendQuality('auto');
+  }
+
+  _sendQuality(mode) {
+    this._quality = mode;
+    this.sendNativeSignal({ type: 'quality', mode });
+    if (this._qualityProbeTimer) { clearTimeout(this._qualityProbeTimer); this._qualityProbeTimer = null; }
+    if (this._qualitySupported === true) {
+      this._paintQuality();
+      return;
+    }
+    this._qualityProbeTimer = setTimeout(() => {
+      this._qualityProbeTimer = null;
+      if (this._qualitySupported === true) return;
+      this._qualityProbeAttempts += 1;
+      if (this._qualityProbeAttempts < 2) {
+        this._sendQuality(mode);
+        return;
+      }
+      this._qualitySupported = false;
+      this._paintQuality();
+      // Sin aviso en la UI a proposito: el unico camino que llega aqui es la sonda automatica del
+      // arranque (una vez _qualitySupported es true el selector aparece y este temporizador ya no
+      // se arma; mientras no lo es, el selector esta oculto y el usuario no puede pedir nada). Un
+      // portero con firmware anterior funciona perfectamente sin esta funcion - molestar al
+      // usuario con un aviso por algo que el no ha pedido seria ruido, no informacion.
+      console.warn('[islautopia-intercom-card] el dispositivo no confirmo ningun quality_state tras 2 intentos - firmware anterior al contrato de calidad (2026-07-26): el selector de calidad no se muestra en esta sesion');
+    }, 4000);
+  }
+
+  _handleQualityState(msg) {
+    if (this._qualityProbeTimer) { clearTimeout(this._qualityProbeTimer); this._qualityProbeTimer = null; }
+    this._qualitySupported = true;
+    if (typeof msg.mode === 'string' && msg.mode !== this._qualityEffective) {
+      this._qualityEffective = msg.mode;
+      // El vigilante de vida cambia de contador (video <-> audio) segun el modo efectivo, ver
+      // _checkLifeWatchdog(): la linea base anterior es de OTRO contador, asi que compararlas
+      // daria un falso "no progresa". Se reinicia la medida y se cuenta el propio cambio como
+      // señal de vida (acaba de llegar un mensaje del dispositivo, por definicion esta vivo).
+      this._prevPacketsReceived = null;
+      this._recordLifeSignal();
+    }
+    // Si el dispositivo ha decidido por su cuenta (auto_loss/auto_bandwidth), el modo pedido por
+    // el usuario NO cambia (sigue en 'auto'): lo que cambia es el modo EFECTIVO. Un cambio de
+    // calidad inexplicado se percibe como un fallo, asi que se dice el motivo.
+    const reason = msg.reason;
+    if (reason === 'auto_loss' || reason === 'auto_bandwidth') {
+      this._flashStatusLine(reason === 'auto_loss' ? 'q_auto_loss' : 'q_auto_bw', 6000);
+    }
+    this._paintQuality();
+  }
+
+  _renderQualityMenu() {
+    if (!this.qualityMenu) return;
+    this.qualityMenu.innerHTML = QUALITY_MODES.map((m) => (
+      `<button type="button" class="q-opt" data-mode="${m.wire}"><ha-icon icon="${m.icon}"></ha-icon><span>${getLocalText(this._hass, m.key)}</span></button>`
+    )).join('');
+    this.qualityMenu.querySelectorAll('.q-opt').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        this._toggleQualityMenu(false);
+        this._sendQuality(btn.getAttribute('data-mode'), false);
+      });
+    });
+  }
+
+  _toggleQualityMenu(force) {
+    const open = (typeof force === 'boolean') ? force : !this._qualityMenuOpen;
+    this._qualityMenuOpen = open;
+    if (this.qualityMenu) this.qualityMenu.style.display = open ? 'flex' : 'none';
+  }
+
+  _paintQuality() {
+    if (!this.qualityCtl) return;
+    this.qualityCtl.style.display = this._qualitySupported === true ? 'block' : 'none';
+    if (this._qualitySupported !== true) { this._toggleQualityMenu(false); return; }
+    // Se muestra el modo PEDIDO, y si el efectivo confirmado por el dispositivo es distinto (hoy
+    // solo puede pasar con 'auto', que se comporta como 'full', o cuando el automatico degrade
+    // solo en el futuro) se añade entre parentesis: la card nunca debe afirmar que estas viendo
+    // algo distinto de lo que el dispositivo dice estar mandando.
+    const req = qualityModeMeta(this._quality) || QUALITY_MODES[0];
+    const eff = qualityModeMeta(this._qualityEffective);
+    const showEff = eff && this._quality === 'auto' && this._qualityEffective !== 'auto';
+    if (this.qualityIcon) this.qualityIcon.setAttribute('icon', req.icon);
+    if (this.qualityLabel) {
+      this.qualityLabel.textContent = showEff
+        ? `${getLocalText(this._hass, req.key)} · ${getLocalText(this._hass, eff.key)}`
+        : getLocalText(this._hass, req.key);
+    }
+    this.qualityMenu.querySelectorAll('.q-opt').forEach((btn) => {
+      btn.classList.toggle('sel', btn.getAttribute('data-mode') === this._quality);
+    });
+  }
+
+  // Estado por SESION: el turno de palabra y la calidad viven en el dispositivo por slot, y una
+  // sesion nueva arranca siempre sin turno y en 'full' (§1.4-ter). Heredar cualquiera de las dos
+  // cosas de la sesion anterior seria mentir sobre el estado real del otro extremo.
+  _resetMulticlientState() {
+    if (this._talkTimer) { clearTimeout(this._talkTimer); this._talkTimer = null; }
+    if (this._qualityProbeTimer) { clearTimeout(this._qualityProbeTimer); this._qualityProbeTimer = null; }
+    this._talkHeld = false;
+    this._talkPending = false;
+    this._talkGrantedAt = 0;
+    // _talkUnsupported / _qualitySupported se resetean tambien a proposito: si el usuario
+    // actualiza el firmware, el dispositivo se reinicia y la card reconecta - re-sondear en cada
+    // sesion nueva es lo que hace que la card se entere sola, sin recargar el navegador. El coste
+    // es como mucho una espera de 3s la primera vez que se pulsa el micro contra un portero viejo.
+    this._talkUnsupported = false;
+    this._listenOnly = false;
+    this._talkerSlot = -1;
+    this._clients = null;
+    this._quality = 'auto';
+    this._qualityEffective = null;
+    this._qualitySupported = null;
+    this._qualityProbeAttempts = 0;
+    this._paintClients();
+    this._paintQuality();
+  }
+
   render() {
     if (!this.content) {
       // Lenguaje visual alineado con el mockup real de Figma (android_app/ios_app, 2026-07-10 -
@@ -562,9 +954,19 @@ class IslautopiaIntercomCard extends HTMLElement {
               </div>
 
               <div class="hud-top">
-                <div class="live-tag" id="live-tag" data-state="connecting">
-                  <div class="reddot"></div>
-                  <span class="status-badge">${getLocalText(this._hass, 'connecting')}</span>
+                <div class="hud-top-left">
+                  <div class="live-tag" id="live-tag" data-state="connecting">
+                    <div class="reddot"></div>
+                    <span class="status-badge">${getLocalText(this._hass, 'connecting')}</span>
+                  </div>
+                  <!-- Contador de clientes WebRTC (API_CONTRACT.md §1.4-ter #2, mensaje
+                       session_info). Oculto mientras el dispositivo no lo haya mandado NUNCA -
+                       un firmware anterior al contrato no lo manda, y un "1" inventado seria
+                       peor que no enseñar nada. -->
+                  <div class="clients-pill" id="clients-pill" style="display:none;" title="${getLocalText(this._hass, 'clients_tip')}">
+                    <ha-icon icon="mdi:account-multiple"></ha-icon>
+                    <span id="clients-count">1</span>
+                  </div>
                 </div>
                 <div class="hud-time" id="hud-time">
                   <div class="hm" id="hud-time-hm">--:--</div>
@@ -583,6 +985,18 @@ class IslautopiaIntercomCard extends HTMLElement {
                   <span>${getLocalText(this._hass, 'audio_active')}</span>
                 </div>
                 <div class="hud-bottom-right">
+                  <!-- Selector de calidad por destinatario (API_CONTRACT.md §1.4-ter #3). Solo
+                       aparece cuando el dispositivo ha CONFIRMADO al menos un quality_state (ver
+                       _probeQualitySupport): un firmware anterior al contrato ignora el mensaje
+                       'quality' en silencio, y un selector que no hace nada seria un boton que
+                       miente. El menu se pinta desde QUALITY_MODES en _renderQualityMenu(). -->
+                  <div class="hud-quality" id="hud-quality" style="display:none;">
+                    <button type="button" class="q-btn" id="q-btn" title="${getLocalText(this._hass, 'q_label')}">
+                      <ha-icon id="q-icon" icon="mdi:auto-fix"></ha-icon>
+                      <span id="q-label">${getLocalText(this._hass, 'q_auto')}</span>
+                    </button>
+                    <div class="q-menu" id="q-menu" style="display:none;"></div>
+                  </div>
                   <div class="hud-vol" id="hud-vol">
                     <ha-icon icon="mdi:volume-high" id="vol-icon"></ha-icon>
                     <input type="range" id="vol-slider" min="0" max="1" step="0.05" value="1">
@@ -634,6 +1048,23 @@ class IslautopiaIntercomCard extends HTMLElement {
       this.loader = this.querySelector('#ig-loader');
       this.hudTimeHm = this.querySelector('#hud-time-hm');
       this.hudTimeDate = this.querySelector('#hud-time-date');
+      this.clientsPill = this.querySelector('#clients-pill');
+      this.clientsCount = this.querySelector('#clients-count');
+      this.qualityCtl = this.querySelector('#hud-quality');
+      this.qualityBtn = this.querySelector('#q-btn');
+      this.qualityIcon = this.querySelector('#q-icon');
+      this.qualityLabel = this.querySelector('#q-label');
+      this.qualityMenu = this.querySelector('#q-menu');
+
+      this._renderQualityMenu();
+      this.qualityBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        this._toggleQualityMenu();
+      });
+      // Cerrar el menu al tocar en cualquier otro sitio (incluido el propio video) - un popup
+      // sobre el video que no se cierra solo tapa la imagen, justo lo que el usuario quiere ver.
+      this._onDocClickForQuality = () => { if (this._qualityMenuOpen) this._toggleQualityMenu(false); };
+      document.addEventListener('click', this._onDocClickForQuality);
 
       // Reloj superpuesto arriba-dcha (HH:MM + fecha, mono) - decorativo (hora del propio
       // navegador, no del dispositivo), pero es parte real del HUD del mockup Figma (valores
@@ -1065,15 +1496,26 @@ class IslautopiaIntercomCard extends HTMLElement {
   }
 
   async handleNativeSignal(msg) {
+    // El slot propio se aprende de CUALQUIER mensaje que lo traiga, no solo de la oferta
+    // (2026-07-26): el contrato garantiza que todo mensaje del dispositivo por el canal LOCAL lo
+    // lleva, y en el canal REMOTO (donde el relay enruta 1:1 y no hace falta devolverlo) llega
+    // igualmente dentro de session_info. Sin conocer el slot propio no se puede interpretar
+    // `talker` de talk_state - que es como se sabe si el turno de palabra es tuyo o de otro.
+    if (typeof msg.slot === 'number') this._slot = msg.slot;
+
     switch (msg.type) {
       case 'offer':
-        if (typeof msg.slot === 'number') this._slot = msg.slot;
         this._mark('handleNativeSignal(offer): procesando oferta SDP');
         await this.pc.setRemoteDescription({ type: 'offer', sdp: msg.sdp });
         const answer = await this.pc.createAnswer();
         await this.pc.setLocalDescription(answer);
         this.sendNativeSignal({ type: 'answer', sdp: answer.sdp });
         this._mark('handleNativeSignal(offer): respuesta SDP enviada (ICE/DTLS empieza ahora)');
+        // Sonda de calidad en cuanto hay slot asignado (no hace falta esperar a que ICE/DTLS
+        // termine: el dispositivo asigna el slot al procesar la conexion/request_offer, y el
+        // canal de señalización ya esta vivo - es el mismo criterio que el contrato documenta
+        // para el mensaje 'open'). Ver _probeQualitySupport().
+        this._probeQualitySupport();
         // Diagnostico real (2026-07-11, ver COORDINATION.md - investigando backchannel de audio
         // silencioso reportado por el usuario, confirmado exclusivo de esta card: dashboard web y
         // apps SI funcionan bidireccional). Sin acceso a navegador real en esta sesion, esto deja
@@ -1103,6 +1545,23 @@ class IslautopiaIntercomCard extends HTMLElement {
         break;
       case 'open_result':
         this.handleNativeOpenResult(msg);
+        break;
+      // ---- Multicliente / calidad (API_CONTRACT.md §1.4-ter, 2026-07-26) --------------------
+      case 'talk_granted':
+        this._handleTalkGranted();
+        break;
+      case 'talk_denied':
+        this._handleTalkDenied(msg.reason);
+        break;
+      case 'talk_state':
+        if (typeof msg.talker === 'number') this._talkerSlot = msg.talker;
+        this._reconcileTalkTurn();
+        break;
+      case 'session_info':
+        this._handleSessionInfo(msg);
+        break;
+      case 'quality_state':
+        this._handleQualityState(msg);
         break;
       case 'error':
         console.warn('[islautopia-intercom-card] error de senalizacion nativa:', msg.reason);
@@ -1148,9 +1607,22 @@ class IslautopiaIntercomCard extends HTMLElement {
     }
   }
 
+  // Punto de entrada del boton de micro. Desde 2026-07-26 NO abre el micro directamente: pide
+  // antes el turno de palabra (§1.4-ter) y solo _startIntercom() al recibir talk_granted - o
+  // tras comprobar que este portero no arbitra turnos (firmware anterior). Ver _requestTalkTurn().
   async toggleIntercom() {
-    this.intercomActive = !this.intercomActive;
-    if (this.intercomActive) {
+    if (this._talkPending) return; // ya hay una peticion en vuelo, no encolar otra
+    if (this.intercomActive || this._listenOnly) {
+      await this._stopIntercom();
+      return;
+    }
+    this._requestTalkTurn();
+  }
+
+  async _startIntercom() {
+    this.intercomActive = true;
+    this._listenOnly = false;
+    {
       try {
         this.videoEl.muted = false;
         console.log('[islautopia-intercom-card DIAG audio] toggleIntercom: pidiendo getUserMedia({audio:true})...');
@@ -1187,33 +1659,60 @@ class IslautopiaIntercomCard extends HTMLElement {
         }
         this._startAudioSendDiagnostics();
 
-        this.intercomButton.classList.add('active-intercom');
-        this.intercomIcon.setAttribute('icon', 'mdi:microphone');
-        this._setMicLabel(true);
         this._setLiveState('open');
         if (this.audioPill) this.audioPill.style.display = 'flex';
+        this._paintMicState();
         this._updateMotionPill(); // regla: nunca visible con el mic activo
       } catch (err) {
         console.warn('[islautopia-intercom-card] no se pudo activar el microfono', err);
         this.intercomActive = false;
         this.videoEl.muted = true;
+        // Soltar el turno que el dispositivo acababa de concedernos: quedarnos con el canal de
+        // voz reservado sin poder usarlo (permiso de microfono denegado, sin dispositivo de
+        // captura, pagina servida por HTTP plano...) dejaria a los DEMAS clientes sin poder
+        // hablar hasta que el portero lo libere solo a los 5s. Es justo el fallo que el turno de
+        // palabra existe para evitar.
+        if (this._talkHeld) {
+          this.sendNativeSignal({ type: 'talk_release' });
+          this._talkHeld = false;
+        }
+        this._paintMicState();
       }
-    } else {
-      this.videoEl.muted = true;
-      this._stopAudioSendDiagnostics();
-      if (this.localAudioStream) {
-        this.localAudioStream.getTracks().forEach(track => track.stop());
-        this.localAudioStream = null;
-      }
-      if (this.audioTransceiver && this.audioTransceiver.sender) await this.audioTransceiver.sender.replaceTrack(this.dummyAudioTrack);
-
-      this.intercomButton.classList.remove('active-intercom');
-      this.intercomIcon.setAttribute('icon', 'mdi:microphone-off');
-      this._setMicLabel(false);
-      this._setLiveState('live');
-      if (this.audioPill) this.audioPill.style.display = 'none';
-      this._updateMotionPill();
     }
+  }
+
+  // Cierre real del microfono (hardware + sender), sin tocar el estado logico del turno - lo
+  // comparten _stopIntercom() (el usuario lo apaga) y _enterListenOnly() (el dispositivo nos
+  // quita el turno). Extraido para que ninguno de los dos caminos pueda olvidarse un paso.
+  _closeMicHardware() {
+    this._stopAudioSendDiagnostics();
+    if (this.localAudioStream) {
+      this.localAudioStream.getTracks().forEach((track) => track.stop());
+      this.localAudioStream = null;
+    }
+    if (this.audioTransceiver && this.audioTransceiver.sender && this.dummyAudioTrack) {
+      // Vuelve a la pista MUDA en vez de a null: el transceiver debe seguir con una pista viva
+      // (mismo patron pista-muda+replaceTrack que evita renegociar SDP, ver
+      // buildNativePeerConnection).
+      try { this.audioTransceiver.sender.replaceTrack(this.dummyAudioTrack); } catch (err) { /* best effort */ }
+    }
+  }
+
+  async _stopIntercom() {
+    // Suelta el turno explicitamente (§1.4-ter): sin esto el portero lo mantendria reservado
+    // hasta agotar sus 5s de silencio, y otro cliente que quisiera hablar en ese hueco recibiria
+    // un talk_denied injusto. Se manda incluso en modo "solo escucha" (turno denegado) por si el
+    // dispositivo nos lo hubiera concedido justo despues - es idempotente.
+    this.sendNativeSignal({ type: 'talk_release' });
+    this._talkHeld = false;
+    this._listenOnly = false;
+    this.intercomActive = false;
+    this.videoEl.muted = true;
+    this._closeMicHardware();
+    this._setLiveState('live');
+    if (this.audioPill) this.audioPill.style.display = 'none';
+    this._paintMicState();
+    this._updateMotionPill();
   }
 
   // ==============================================================================
@@ -1397,6 +1896,19 @@ class IslautopiaIntercomCard extends HTMLElement {
       @keyframes ig-spin { 100% { transform: rotate(360deg); } }
 
       .hud-top { position: absolute; top: 12px; left: 14px; right: 14px; display: flex; align-items: flex-start; justify-content: space-between; z-index: 5; pointer-events: none; }
+      .hud-top-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+      /* Contador de clientes WebRTC (§1.4-ter #2). Discreto cuando estas solo (el caso normal),
+         resaltado en cian solo cuando hay MAS de uno - que es el dato que cambia como te
+         comportas ("alguien mas esta mirando/puede hablar"). */
+      .clients-pill {
+        display: flex; align-items: center; gap: 4px; pointer-events: auto;
+        background: rgba(7,13,26,0.72); backdrop-filter: blur(6px);
+        border: 1px solid rgba(255,255,255,0.12); border-radius: 999px; padding: 4px 9px;
+        font-size: 10.5px; font-weight: 700; color: var(--ig-muted); font-variant-numeric: tabular-nums;
+      }
+      .clients-pill ha-icon { --mdc-icon-size: 13px; }
+      .clients-pill.multi { color: var(--ig-cyan); border-color: rgba(0,196,212,0.45); background: rgba(0,196,212,0.16); }
 
       .live-tag {
         display: flex; align-items: center; gap: 6px; pointer-events: auto;
@@ -1419,6 +1931,35 @@ class IslautopiaIntercomCard extends HTMLElement {
       .hud-time .ymd { font-size: 10px; color: rgba(232,240,254,0.75); text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
 
       .hud-bottom-right { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+
+      /* Selector de calidad (§1.4-ter #3), en el mismo cluster de controles reales de la esquina
+         inferior-dcha que el volumen y las barras de señal. El menu se abre HACIA ARRIBA
+         (bottom:100%) para no salirse del marco de video en una card baja, y con
+         position:absolute para no empujar el resto del HUD al abrirse. */
+      .hud-quality { position: relative; pointer-events: auto; }
+      .q-btn {
+        display: flex; align-items: center; gap: 5px; cursor: pointer; font-family: inherit;
+        background: rgba(7,13,26,0.55); border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 999px; padding: 5px 10px; color: var(--ig-text);
+        font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em;
+      }
+      .q-btn ha-icon { --mdc-icon-size: 14px; }
+      .q-btn:hover { border-color: rgba(0,196,212,0.5); }
+      .q-menu {
+        position: absolute; bottom: calc(100% + 6px); right: 0; z-index: 20;
+        display: flex; flex-direction: column; gap: 2px; padding: 5px;
+        background: rgba(13,27,46,0.96); backdrop-filter: blur(8px);
+        border: 1px solid rgba(255,255,255,0.12); border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.5); min-width: 132px;
+      }
+      .q-menu .q-opt {
+        display: flex; align-items: center; gap: 8px; width: 100%; cursor: pointer;
+        background: transparent; border: none; border-radius: 8px; padding: 7px 9px;
+        color: var(--ig-muted); font-size: 11.5px; font-weight: 600; font-family: inherit; text-align: left;
+      }
+      .q-menu .q-opt ha-icon { --mdc-icon-size: 15px; }
+      .q-menu .q-opt:hover { background: rgba(255,255,255,0.06); color: var(--ig-text); }
+      .q-menu .q-opt.sel { background: rgba(0,196,212,0.16); color: var(--ig-cyan); }
       .hud-vol {
         display: flex; align-items: center; gap: 6px; background: rgba(7,13,26,0.55);
         border-radius: 999px; padding: 5px 10px; pointer-events: auto;
@@ -1492,6 +2033,17 @@ class IslautopiaIntercomCard extends HTMLElement {
       .action .lbl { font-size: 12px; font-weight: 500; color: var(--ig-dim); }
       .action .lbl.on-cyan { color: var(--ig-cyan); }
       .action .lbl.on-green { color: var(--ig-green); }
+      .action .lbl.on-amber { color: var(--ig-amber); }
+
+      /* ---- estados del boton de micro introducidos por el turno de palabra (§1.4-ter #1) ----
+         Los tres son visualmente DISTINTOS entre si y del "hablando" (cian): pidiendo turno
+         (ambar pulsante), solo escucha (ambar fijo, turno denegado pero se oye al portero) y
+         ocupado por otro (contorno ambar tenue, sin llegar a parecer deshabilitado - se puede
+         pulsar, y el portero contesta con un talk_denied explicito). */
+      .action .btn.requesting { border-color: var(--ig-amber); color: var(--ig-amber); animation: ig-breathe 1.1s ease-in-out infinite; }
+      .action .btn.listen-only { background: linear-gradient(135deg, var(--ig-surf3), #2a3a52); border-color: var(--ig-amber); color: var(--ig-amber); }
+      .action .btn.busy-other { border-color: rgba(255,179,0,0.45); color: rgba(255,179,0,0.8); }
+      @keyframes ig-breathe { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
     `;
     this.appendChild(style);
   }
