@@ -301,5 +301,105 @@ sirve por Nabu Casa/HTTPS o por la app). **Estado**: negociación SDP CERRADA; e
 end-to-end pendiente de un entorno con TLS real — no cerrado del todo. Yo tampoco tengo forma de
 completar esta última pieza (cero acceso a navegador en esta sesión, ni siquiera Playwright).
 
+---
+
+# NOTA DE TRASPASO — rama `feature-multicliente-calidad` (2026-07-26)
+
+Escrita para que otra persona (u otro agente) siga sin mí. El **contrato** es
+`API_CONTRACT.md` §1.4-ter en el repo del firmware — esto es solo el estado del trabajo.
+
+## Aviso importante sobre el estado de git de este repo
+
+`main` seguía apuntando a `v1.0.0` y **todo el rediseño nativo posterior estaba sin
+commitear** (meses de trabajo viviendo solo en el directorio de trabajo de este PC). El
+primer commit de esta rama (`Base: trabajo previo…`) lo captura tal cual, sin tocar una
+línea, para que los commits de multicliente tengan un diff legible. **Nada de esta rama está
+en `main` todavía.** Lo mismo pasaba, aún peor, en `islautopia-doorbell-integration`: ese
+repo tenía CERO commits.
+
+## Qué se ha hecho
+
+Los tres mecanismos del contrato, por el canal de señalización que la card ya usaba (SSE+POST
+local con `?token=`, WS del relay en remoto) — sin endpoint ni transporte nuevos:
+
+| Mecanismo | Estado en la card |
+|---|---|
+| Turno de palabra | `talk_request`/`talk_release` salientes; `talk_granted`/`talk_denied`/`talk_state` entrantes. El micro **solo** se abre con un `talk_granted` real |
+| Contador de clientes | Píldora `👥 N` arriba-izq, junto al *live-tag*. Solo aparece cuando llega `session_info` |
+| Calidad | Selector Auto/Alta/Baja/Solo audio abajo-dcha, con `quality`/`quality_state` y motivo de los cambios automáticos |
+
+**Decisiones de diseño que conviene no deshacer sin leer esto:**
+
+1. **Denegado ≠ mudo.** Un `talk_denied` deja al usuario en **solo escucha** (oye al portero,
+   micro cerrado) con el motivo escrito, no en un estado ambiguo. Micro y escucha son dos
+   ejes, no uno. Detalle real: el `<video>` nace `muted` **por obligación** (política de
+   autoplay del navegador — con sonido, `play()` sería rechazado y no habría ni imagen);
+   desmutear exige un gesto del usuario, y la pulsación del botón de micro **es** ese gesto.
+   Por eso "solo escucha" solo puede activarse a partir de una pulsación, nunca sola.
+2. **Nunca abrir el micro por un mensaje que no hemos pedido.** El relay hace **fan-out** a
+   todos los clientes del mismo `device_id`: un `talk_granted` ajeno podía abrirle el
+   micrófono a este usuario sin que tocara nada — fallo de privacidad, no de UI. Doble
+   guardia: petición propia en vuelo (`_talkPending`) **y** `slot` del mensaje == el nuestro.
+   Por lo mismo, el slot propio solo se aprende de `offer` y `session_info`.
+3. **Degradación con firmware antiguo = silencio, no error.** 3s sin respuesta a
+   `talk_request` ⇒ se abre el micro igualmente avisando una vez, y las siguientes
+   pulsaciones de esa sesión son instantáneas. La calidad se sondea sola al conectar
+   (`quality:auto`, con un reintento) y el selector **no aparece** si no hay confirmación —
+   un control que no hace nada es un botón que miente. Todo se re-sondea en cada sesión
+   nueva, así que la card se entera sola de una actualización de firmware sin recargar.
+4. **`audio_only` y el vigilante de vida.** En ese modo el dispositivo deja de mandar vídeo
+   *a propósito*; el vigilante (que mide `packetsReceived` del inbound-rtp de **vídeo**)
+   habría reconectado en bucle cada 20s. En ese modo, y solo en ese, la señal de vida pasa a
+   ser el audio. Le pasó de verdad a la app Android.
+5. **"Baja" se etiqueta, no se abrevia.** Es ~1 imagen/s (solo keyframes), no vídeo fluido de
+   menos calidad: cada opción lleva segunda línea explicativa y activar "Baja" avisa. Nada de
+   HD/SD — sugieren cambio de resolución cuando lo que cambia es la cadencia.
+6. **Responsive por `@container`, no por `@media`.** El ancho de una card en HA no tiene nada
+   que ver con el de la ventana.
+
+## Qué falta / siguiente paso
+
+- [ ] **Probar en un navegador real contra un portero real.** Nada de esto se ha visto
+      funcionar: en esta sesión no hubo navegador ni hardware. El firmware con estos mensajes
+      tampoco estaba desplegado. Guion mínimo: dos pestañas → contador a 2 en ambas; micro en
+      A → B ve "ocupado" y recibe `talk_denied` al pulsar; soltar A → B ve el aviso de canal
+      libre; `low` → ~1 fps limpio; `audio_only` → imagen congelada, audio intacto y **sin
+      reconexiones** en 60s; y con un portero de firmware antiguo, que el micro siga
+      abriéndose a los 3s y no aparezca el selector de calidad.
+- [ ] Verificar en HA con **tema claro**: la card es una isla oscura a propósito (identidad
+      del producto, decisión de Q22-bis), pero el menú de calidad es nuevo y no se ha visto.
+- [ ] Cuando el firmware consuma RTCP RR, llegarán `quality_state` no solicitados con
+      `auto_loss`/`auto_bandwidth`: la card ya los pinta, pero nunca se han recibido de verdad.
+- [ ] Publicar release HACS. Ojo con la caché del recurso `/local/` (ver `CARD_BUILD_ID`,
+      ahora `2026-07-26-multicliente-calidad`): si en las DevTools no ves ese valor, el
+      navegador está sirviendo una copia vieja.
+
+## Cómo verificar sin navegador
+
+```
+node --check dist/islautopia-intercom-card.js
+node test/sim_multicliente.js dist/islautopia-intercom-card.js     # 60 comprobaciones
+```
+
+`test/` es nuevo (2026-07-26): carga el fichero real de `dist/`, captura la clase por
+`customElements.define` y ejercita la máquina de estados contra dobles mínimos de DOM.
+**No sustituye** a una prueba real: no toca WebRTC, ni SSE, ni el relay. Cuando cambies el
+turno de palabra o la calidad, ejecútalo — tiene casos para los caminos de firmware antiguo,
+que son justo los que nadie prueba a mano.
+
+## Problemas del contrato detectados (reportados, no corregidos por mí)
+
+- **En remoto solo cabe UN cliente**, no N. El firmware guarda un único `g_remote_slot` y un
+  `request_offer` nuevo cierra la sesión remota anterior. El arbitraje del turno entre dos
+  clientes **remotos** no puede funcionar, y el contador solo puede llegar a "sesiones
+  locales + 1". Es preexistente, no lo introduce el contrato de multicliente, pero lo limita.
+- **`webrtc_clients` de `GET /api/get_states` es inalcanzable para la integración de HA**
+  (esa ruta exige cookie de sesión; la integración solo tiene la credencial de `pair_app`).
+  Para la card no importa — le llega por `session_info` — pero invalida ese campo como fuente
+  para cualquier entidad de HA. Ver la decisión razonada en el CLAUDE.md de
+  `islautopia-doorbell-integration`.
+
+---
+
 **No hacer commit/push sin autorización explícita.** Trabaja directo en esta carpeta, sin
 worktree aislado.
