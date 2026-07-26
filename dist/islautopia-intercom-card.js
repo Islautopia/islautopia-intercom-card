@@ -708,13 +708,47 @@ class IslautopiaIntercomCard extends HTMLElement {
     }, 3000);
   }
 
-  // Comprueba que un talk_granted/talk_denied es REALMENTE para nosotros. `talk_granted` lleva
-  // `slot` desde el ajuste de contrato del 2026-07-26; combinado con el guardia de "peticion
-  // propia en vuelo" cubre el fan-out del relay por dos vias independientes. Si el mensaje no
-  // trae slot (firmware intermedio) o aun no conocemos el nuestro, se acepta - el guardia de
-  // _talkPending sigue en pie.
+  // ¿Es este talk_granted/talk_denied REALMENTE para nosotros?
+  //
+  // RESOLUCION DE CONTRATO COMUN A LOS TRES CLIENTES (card, Android, iOS - 2026-07-26, decidida
+  // por el lider tras revisar el codigo de los tres). Tres reglas, y las tres importan:
+  //
+  //   1. NUNCA aprender la identidad propia de un mensaje que se esta validando. Es circular: si
+  //      `talk_granted` pudiera fijar `this._slot`, entonces `msg.slot === this._slot` seria
+  //      verdadero SIEMPRE y la comprobacion no comprobaria nada. La app Android tenia
+  //      exactamente ese fallo (`_mySlot ??= msg.slot` dentro del propio handler). Por eso el
+  //      slot propio se aprende SOLO en `offer`/`session_info` - ver handleNativeSignal(), y NO
+  //      lo muevas de ahi por comodidad.
+  //   2. Se exigen LAS DOS guardias, no una: peticion propia en vuelo (`_talkPending`) Y slot
+  //      coincidente. Cada una tapa un agujero distinto (ver el caso de abajo).
+  //   3. Slot propio desconocido => RECHAZAR. Esta funcion devolvia `true` en ese caso hasta esta
+  //      resolucion; era el eslabon debil.
+  //
+  // Por que rechazar es correcto y no rompe nada, con el firmware real delante: `sig_out_push()`
+  // añade `slot` a TODOS los mensajes del dispositivo por AMBOS transportes, incluida la propia
+  // oferta. Cuando el usuario puede pulsar el boton de micro (habilitado solo al llegar el video,
+  // mucho despues de la oferta) el slot propio ya se conoce SIEMPRE => cero falsos negativos.
+  //
+  // Y el caso peligroso de verdad, que SOLO cubre esta regla: dos usuarios pulsando el micro a la
+  // vez, los dos con peticion en vuelo, y el `talk_granted` de uno llegandole al otro por el
+  // fan-out del relay. Ahi `_talkPending` es true en AMBOS, asi que la guardia de la peticion
+  // propia no para nada - solo lo para comparar el slot. Aceptar "porque no se quien soy" seria
+  // abrirle el microfono al usuario equivocado justo en el momento de mayor concurrencia.
+  //
+  // Asimetria deliberada con el mensaje SIN `slot` (firmware intermedio, entre el contrato viejo
+  // y este): ese si se acepta apoyandose solo en `_talkPending`. No es el mismo caso: ahi el dato
+  // no existe, y rechazar dejaria el micro inservible contra ese firmware - justo la degradacion
+  // que este proyecto no acepta. En el caso de arriba el dato SI existe y somos nosotros los que
+  // no sabemos con que compararlo, que es sintoma de un estado corrupto, no de un portero viejo.
+  // Consecuencia honesta del rechazo, documentada para que nadie la descubra por sorpresa: si se
+  // rechaza un talk_granted, la peticion sigue "en vuelo" y a los 3s salta el temporizador de
+  // firmware-antiguo, que abre el micro sin arbitraje. En la practica es inalcanzable (el slot
+  // propio se conoce siempre antes de que el boton de micro se habilite, ver arriba) y aun asi
+  // no es peor que el comportamiento anterior al contrato; añadir mas maquinaria para un camino
+  // que no puede darse costaria mas de lo que arregla.
   _talkMsgIsForUs(msg) {
-    if (typeof msg.slot !== 'number' || this._slot === null) return true;
+    if (typeof msg.slot !== 'number') return true; // firmware intermedio: no hay slot que comparar
+    if (this._slot === null) return false;         // no sabemos quienes somos: no es asumible
     return msg.slot === this._slot;
   }
 

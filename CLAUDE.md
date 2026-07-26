@@ -338,9 +338,25 @@ local con `?token=`, WS del relay en remoto) — sin endpoint ni transporte nuev
    Por eso "solo escucha" solo puede activarse a partir de una pulsación, nunca sola.
 2. **Nunca abrir el micro por un mensaje que no hemos pedido.** El relay hace **fan-out** a
    todos los clientes del mismo `device_id`: un `talk_granted` ajeno podía abrirle el
-   micrófono a este usuario sin que tocara nada — fallo de privacidad, no de UI. Doble
-   guardia: petición propia en vuelo (`_talkPending`) **y** `slot` del mensaje == el nuestro.
-   Por lo mismo, el slot propio solo se aprende de `offer` y `session_info`.
+   micrófono a este usuario sin que tocara nada — fallo de privacidad, no de UI. Este hallazgo
+   destapó el mismo fallo en las tres apps y acabó en una **resolución de contrato común a
+   card/Android/iOS** (2026-07-26) con tres reglas que **no hay que revertir "simplificando"**
+   (`_talkMsgIsForUs()`; los casos del bloque 12 de `test/sim_multicliente.js` fallan si se
+   quita cualquiera de ellas):
+   1. **Nunca aprender la identidad propia de un mensaje que se está validando** — es circular:
+      si `talk_granted` pudiera fijar `_slot`, la comparación sería cierta siempre y no
+      validaría nada. Android tenía exactamente ese fallo (`_mySlot ??= msg.slot`).
+   2. El slot propio se aprende **solo** de `offer` y `session_info`.
+   3. Se exigen **las dos** guardias (petición propia en vuelo **y** slot coincidente), y con
+      slot propio **desconocido se rechaza**. Esto último era el eslabón débil de esta card
+      hasta la resolución: cubre el único caso que `_talkPending` **no** puede parar — dos
+      usuarios pulsando el micro a la vez, ambos con petición en vuelo, y el `talk_granted` de
+      uno llegándole al otro. Verificado en el firmware que `sig_out_push()` pone `slot` en
+      todos los mensajes por ambos transportes (incluida la oferta), así que rechazar no da
+      falsos negativos: el slot ya se conoce antes de que el botón de micro se habilite.
+      Excepción documentada: un mensaje **sin** `slot` (firmware intermedio) sí se acepta
+      apoyándose en `_talkPending` — ahí el dato no existe y rechazar dejaría el micro
+      inservible contra ese firmware.
 3. **Degradación con firmware antiguo = silencio, no error.** 3s sin respuesta a
    `talk_request` ⇒ se abre el micro igualmente avisando una vez, y las siguientes
    pulsaciones de esa sesión son instantáneas. La calidad se sondea sola al conectar
@@ -360,8 +376,10 @@ local con `?token=`, WS del relay en remoto) — sin endpoint ni transporte nuev
 ## Qué falta / siguiente paso
 
 - [ ] **Probar en un navegador real contra un portero real.** Nada de esto se ha visto
-      funcionar: en esta sesión no hubo navegador ni hardware. El firmware con estos mensajes
-      tampoco estaba desplegado. Guion mínimo: dos pestañas → contador a 2 en ambas; micro en
+      funcionar desde aquí: en esta sesión no hubo navegador ni hardware. **El firmware con
+      todo el contrato SÍ está ya flasheado y validado en el dispositivo real por el líder
+      (2026-07-26, regresión limpia)** — o sea, el otro extremo existe y funciona; lo único
+      que falta es ejercitar ESTA card contra él. Guion mínimo: dos pestañas → contador a 2 en ambas; micro en
       A → B ve "ocupado" y recibe `talk_denied` al pulsar; soltar A → B ve el aviso de canal
       libre; `low` → ~1 fps limpio; `audio_only` → imagen congelada, audio intacto y **sin
       reconexiones** en 60s; y con un portero de firmware antiguo, que el micro siga

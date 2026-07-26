@@ -291,6 +291,45 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   await c.handleNativeSignal({ type: 'talk_state', slot: 0, talker: -1 });
   check('no repite el aviso en cada talk_state', c._flashes.length === flashesAfterHint);
 
+  // ============================================================================================
+  // 12. RESOLUCION DE CONTRATO DEL 2026-07-26, comun a card/Android/iOS. Estos casos existen para
+  //     que nadie revierta las guardias "simplificando": cada uno falla si se quita una regla.
+  // ============================================================================================
+  console.log('\n== 12. Validacion del destinatario del turno (regla comun a los 3 clientes) ==');
+
+  // (a) Slot propio DESCONOCIDO => rechazar. El caso peligroso real: dos usuarios pulsan el micro
+  //     a la vez, los dos con peticion en vuelo, y el talk_granted de uno le llega al otro por el
+  //     fan-out del relay. `_talkPending` es true en AMBOS, asi que esa guardia no para nada:
+  //     solo lo para comparar el slot. Si se acepta "porque no se quien soy", se le abre el
+  //     microfono al usuario equivocado.
+  c = newCard();
+  c._slot = null;
+  await c.toggleIntercom();
+  check('con peticion en vuelo pero slot propio desconocido, se RECHAZA', c._talkPending === true);
+  await c.handleNativeSignal({ type: 'talk_granted', slot: 1 });
+  check('  -> el micro sigue cerrado', c.intercomActive === false);
+
+  // (b) La validacion NO debe ser circular: `talk_granted` no puede enseñarnos nuestro propio
+  //     slot (si pudiera, msg.slot === this._slot seria cierto SIEMPRE y no validaria nada). Es
+  //     el fallo que tenia la app Android (`_mySlot ??= msg.slot` dentro del propio handler).
+  check('  -> y talk_granted NO nos ha enseñado un slot propio', c._slot === null);
+  await c.handleNativeSignal({ type: 'session_info', clients: 2, slot: 0, talker: -1 });
+  check('solo session_info (u offer) fija el slot propio', c._slot === 0);
+
+  // (c) Con el slot ya conocido, el ajeno se rechaza y el propio se acepta.
+  await c.handleNativeSignal({ type: 'talk_granted', slot: 1 });
+  check('talk_granted ajeno rechazado con slot propio conocido', c.intercomActive === false);
+  await c.handleNativeSignal({ type: 'talk_granted', slot: 0 });
+  check('talk_granted propio aceptado', c.intercomActive === true);
+
+  // (d) Asimetria deliberada: un mensaje SIN `slot` (firmware intermedio) se acepta apoyandose
+  //     solo en _talkPending - rechazarlo dejaria el micro inservible contra ese firmware.
+  c = newCard();
+  c._slot = 0;
+  await c.toggleIntercom();
+  await c.handleNativeSignal({ type: 'talk_granted' }); // sin campo slot
+  check('mensaje sin slot (firmware intermedio) sigue aceptandose', c.intercomActive === true);
+
   console.log(failures === 0 ? '\nTODO OK\n' : `\n${failures} COMPROBACIONES FALLIDAS\n`);
   process.exit(failures === 0 ? 0 : 1);
 })();
