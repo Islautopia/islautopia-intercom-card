@@ -1906,6 +1906,11 @@ class IslautopiaIntercomCard extends HTMLElement {
 
       /* ---- marco de video redondeado + HUD superpuesto ---- */
       .feed-wrap {
+        /* Container query, no media query (2026-07-26): el HUD tiene que adaptarse al ancho de
+           la CARD, que en Home Assistant no tiene nada que ver con el ancho de la ventana - una
+           card estrecha en una columna de un dashboard de escritorio ancho es un caso normal, y
+           una @media la habria tratado como "pantalla grande". Ver reglas @container abajo. */
+        container-type: inline-size; container-name: igfeed;
         position: relative; width: 100%; border-radius: 22px; overflow: hidden;
         border: 1px solid rgba(255,255,255,0.06);
         background: radial-gradient(ellipse at 30% 20%, rgba(60,80,110,0.35), transparent 60%),
@@ -2020,13 +2025,30 @@ class IslautopiaIntercomCard extends HTMLElement {
          a la derecha donde debe estar el cluster de volumen+señal siempre. margin-left:auto en
          .hud-bottom-right lo empuja al borde derecho de forma robusta pase lo que pase con
          audio-pill. */
-      .hud-bottom { position: absolute; bottom: 12px; left: 14px; right: 14px; display: flex; align-items: center; justify-content: flex-start; gap: 8px; z-index: 5; }
+      .hud-bottom { position: absolute; bottom: 12px; left: 14px; right: 14px; display: flex; align-items: center; justify-content: flex-start; gap: 8px; z-index: 5; flex-wrap: wrap; }
       .audio-pill {
         display: flex; align-items: center; gap: 6px; background: rgba(0,196,212,0.18);
         border: 1px solid rgba(0,196,212,0.4); border-radius: 999px; padding: 5px 10px;
       }
       .audio-pill ha-icon { --mdc-icon-size: 13px; color: #bdf3f8; }
       .audio-pill span { font-size: 10px; font-weight: 600; color: #bdf3f8; }
+
+      /* ---- HUD en cards estrechas (movil en vertical, o una columna estrecha en escritorio) ----
+         El cluster inferior-derecho paso de 2 piezas (volumen + señal) a 3 al añadirse el
+         selector de calidad, y con la pildora "Audio activo" a la izquierda ya no cabe todo en
+         ~360px. Prioridad al desalojar: primero las barras de señal (decorativas, su informacion
+         ya esta en el live-tag de arriba), luego se encoge el slider de volumen, y en el ultimo
+         escalon el selector de calidad se queda solo con el icono. Nada se oculta si es la unica
+         forma de acceder a una funcion. */
+      @container igfeed (max-width: 460px) {
+        .hud-sig { display: none; }
+        .hud-vol input[type=range] { width: 40px; }
+      }
+      @container igfeed (max-width: 340px) {
+        .q-btn span { display: none; }
+        .hud-vol input[type=range] { width: 28px; }
+        .hud-time .ymd { display: none; }
+      }
 
       /* ---- linea de estado bajo el video (puerta), distinta del live-tag (conexion) ---- */
       .status-line { font-size: 12px; text-align: center; color: var(--ig-dim); font-weight: 500; }
