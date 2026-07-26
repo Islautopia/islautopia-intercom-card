@@ -684,19 +684,28 @@ class IslautopiaIntercomCard extends HTMLElement {
   }
 
   _handleTalkGranted() {
+    // NUNCA abrir el micro sin que el usuario lo haya pedido. Un talk_granted que no responde a
+    // un talk_request nuestro puede ser (a) la reconfirmacion de un turno que ya teniamos
+    // (§1.4-ter: repetir talk_request es la forma natural de decir "sigo aqui"), o (b) - camino
+    // REMOTO - un mensaje destinado a OTRA sesion: el relay es un reenviador con fan-out a TODOS
+    // los clientes conectados a ese device_id (§3.2, verificado en relay.py), asi que un cliente
+    // remoto puede recibir mensajes que no son suyos. Abrir el microfono de alguien por un
+    // mensaje ajeno seria un fallo de privacidad, no solo un bug de UI.
+    if (!this._talkPending) {
+      if (this.intercomActive) { this._talkHeld = true; this._talkGrantedAt = performance.now(); }
+      return;
+    }
     if (this._talkTimer) { clearTimeout(this._talkTimer); this._talkTimer = null; }
     this._talkHeld = true;
     this._talkGrantedAt = performance.now();
-    if (!this._talkPending && this.intercomActive) {
-      // Reconfirmacion de un turno que ya teniamos (§1.4-ter: un talk_request repetido del que
-      // ya lo tiene se responde con otro talk_granted) - nada que hacer.
-      return;
-    }
     this._talkPending = false;
     this._startIntercom();
   }
 
   _handleTalkDenied(reason) {
+    // Mismo razonamiento que en _handleTalkGranted: sin peticion propia en vuelo, esto no es
+    // nuestro (fan-out del relay) - ignorarlo en vez de cerrarle el micro al usuario.
+    if (!this._talkPending) return;
     if (this._talkTimer) { clearTimeout(this._talkTimer); this._talkTimer = null; }
     this._talkPending = false;
     this._talkHeld = false;
@@ -1409,20 +1418,28 @@ class IslautopiaIntercomCard extends HTMLElement {
 
       // No hay forma fiable de distinguir desde JS "bloqueado por CORS" de "red inalcanzable"
       // u "otro fallo de red" - EventSource.onerror (igual que fetch()) no expone el motivo real
-      // por diseño del navegador, ni siquiera cuando la causa es CORS. Encontrado en pruebas
-      // reales embebido en un dashboard de HA (2026-07-10, ver COORDINATION.md): el doorbell no
-      // manda Access-Control-Allow-Origin en :8443, así que el origen de HA (distinto del origen
-      // del doorbell) hace que el navegador bloquee la conexion - la card cae correctamente al
-      // camino remoto (comportamiento correcto), pero sin ninguna pista de POR QUE en la consola.
-      // El aviso de abajo no puede confirmar la causa exacta, solo señalar la mas probable y
-      // dirigir a las DevTools reales (unico sitio donde el navegador SI muestra el motivo).
+      // por diseño del navegador, ni siquiera cuando la causa es CORS.
+      //
+      // ACTUALIZADO 2026-07-26: el texto anterior de este aviso decia que el doorbell "no manda
+      // Access-Control-Allow-Origin en :8443" y señalaba a CORS como causa mas probable. Eso
+      // dejo de ser cierto el 2026-07-10 - el firmware manda `Access-Control-Allow-Origin: *` en
+      // toda respuesta de /webrtc/signal y /webrtc/signal/post (incluidos los 401) y contesta al
+      // preflight OPTIONS con Allow-Methods GET/POST/OPTIONS + Allow-Headers Content-Type (que
+      // es justo lo que necesita el POST de señalización, que va con Content-Type:
+      // application/json y por tanto NO es una peticion "simple"). Verificado leyendo el
+      // firmware real, no asumido. Mantener aqui el diagnostico viejo mandaria a quien depure
+      // esto en el futuro directo a una pista falsa - hoy las causas realistas son otras.
       this.nativeSSE.onerror = () => {
         if (this.nativeSSE) { this.nativeSSE.close(); this.nativeSSE = null; }
         console.warn(
           '[islautopia-intercom-card] señalización local (%s) fallo o no respondió a tiempo - cayendo al relay remoto. ' +
-          'Motivo mas probable si el doorbell SÍ es alcanzable en la LAN: CORS (el doorbell no manda ' +
-          'Access-Control-Allow-Origin en :8443 y el origen de esta pagina es distinto). El navegador no expone ' +
-          'el motivo exacto a este script - revisa la pestaña Network/Console de las DevTools para confirmarlo.',
+          'El navegador NO expone a este script el motivo exacto (revisa la pestaña Network/Console de las DevTools). ' +
+          'Causas realistas, en orden: (1) el doorbell no es alcanzable desde la red de HA (VLAN/subred distinta, o ' +
+          'HA visto desde fuera de casa via Nabu Casa) - es el caso normal y el fallback remoto lo cubre; ' +
+          '(2) el hostname <device_id>.doorbell.islautopia.com no resuelve o resuelve a una IP que este resolutor ' +
+          'bloquea (iCloud Private Relay bloquea hostnames publicos que apuntan a IPs privadas); ' +
+          '(3) token de pair_app invalido/revocado (401); (4) certificado del doorbell caducado. ' +
+          'CORS ya NO es sospechoso desde 2026-07-10: el firmware manda Access-Control-Allow-Origin en estas rutas.',
           `${this._localBase}/webrtc/signal`
         );
         finish(false);
@@ -1483,6 +1500,13 @@ class IslautopiaIntercomCard extends HTMLElement {
       // saliente (API_CONTRACT.md §1.4/§3.3). "?token=" obligatorio desde 2026-07-09 (misma
       // credencial que abrio el EventSource en tryLocalSignaling) - sin el, 401.
       if (this._slot !== null) payload.slot = this._slot;
+      else if (msg.type !== 'bye') {
+        // El firmware DESCARTA en silencio (solo un log en el puerto serie del portero, invisible
+        // desde aqui) cualquier POST de señalización local sin un "slot" valido - verificado en
+        // el codigo real, no asumido. Sin este aviso, un mensaje perdido asi se manifestaria como
+        // "el turno de palabra/la calidad no funcionan" sin ninguna pista en el navegador.
+        console.warn(`[islautopia-intercom-card] mensaje local "${msg.type}" enviado sin slot asignado todavia - el dispositivo lo descartara`);
+      }
       const token = this._connInfo ? encodeURIComponent(this._connInfo.credential) : '';
       fetch(`${this._localBase}/webrtc/signal/post?token=${token}`, {
         method: 'POST',

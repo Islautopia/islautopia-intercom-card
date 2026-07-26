@@ -260,6 +260,19 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   check('calidad vuelve a auto/sin confirmar', c._quality === 'auto' && c._qualitySupported === null);
   check('se vuelve a sondear el soporte de turno', c._talkUnsupported === false);
 
+  console.log('\n== 10. Mensajes ajenos (fan-out del relay en el camino remoto) ==');
+  c = newCard();
+  c._slot = 0;
+  await c.handleNativeSignal({ type: 'talk_granted', slot: 1 }); // no lo hemos pedido nosotros
+  check('un talk_granted NO solicitado no abre el micro', c.intercomActive === false);
+  await c.toggleIntercom();
+  await c.handleNativeSignal({ type: 'talk_granted', slot: 0 });
+  check('el talk_granted propio si abre el micro', c.intercomActive === true);
+  const flashesBefore = c._flashes.length;
+  await c.handleNativeSignal({ type: 'talk_denied', slot: 1, reason: 'channel_busy' });
+  check('un talk_denied ajeno no cierra el micro', c.intercomActive === true);
+  check('ni molesta con un aviso', c._flashes.length === flashesBefore);
+
   console.log(failures === 0 ? '\nTODO OK\n' : `\n${failures} COMPROBACIONES FALLIDAS\n`);
   process.exit(failures === 0 ? 0 : 1);
 })();
