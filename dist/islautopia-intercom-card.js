@@ -383,16 +383,20 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._fsUnavailable = false; // ni API nativa ni respaldo utilizable: el icono se esconde
     this._wakeLock = null;
 
-    // Cerradura no configurada en el portero (modo "sin cerradura"): el boton de abrir NO debe
-    // dibujarse, en vez de dibujarse y fallar. El firmware no expone ese ajuste por ningun
-    // camino que esta card pueda leer - `/api/get_states` exige cookie de sesion de administrador,
-    // y la card solo tiene la credencial de emparejamiento (mismo motivo por el que el contador de
-    // clientes llegue por MQTT). Asi que se APRENDE del unico sitio donde el dispositivo lo
-    // dice: el `open_result` con `no_lock_configured`, y se recuerda por device_id para que el
-    // fallo ocurra UNA vez y no en cada carga. Ver _rememberNoLock()/_applyDoorAvailability().
-    this._noLockKey = `islautopia-nolock-${config.device_id}`;
-    this._noLock = false;
-    try { this._noLock = (localStorage.getItem(this._noLockKey) === '1'); } catch (err) { /* modo privado */ }
+    // Tipo de cerradura del portero: 0 = rele fisico, 1 = entidad de Home Assistant, 2 = ninguna.
+    // Con 2, el boton de abrir NO debe dibujarse, en vez de dibujarse y fallar.
+    //
+    // El dato llega en CADA `session_info` (2026-07-29), no solo en el primero, y eso permite dos
+    // cosas: si un aviso se pierde -- se descartan cuando la cola de salida esta llena -- el
+    // siguiente reconstruye el dato; y si alguien cambia el tipo de cerradura desde el dashboard
+    // del portero con esta card abierta, se refleja en <=4s en vez de arrastrar un boton
+    // equivocado hasta la siguiente reconexion.
+    //
+    // `null` = todavia no lo ha dicho (o firmware anterior, que no manda el campo). En ese caso, y
+    // SOLO en ese caso, sigue valiendo la red de seguridad de aprenderlo fallando: ver
+    // _noLockLegacy y handleNativeOpenResult(). Un `door_m` recibido manda siempre sobre ella.
+    this._doorMode = null;
+    this._noLockLegacy = false;
 
     this.render();
   }
@@ -1020,6 +1024,13 @@ class IslautopiaIntercomCard extends HTMLElement {
   _handleSessionInfo(msg) {
     if (typeof msg.clients === 'number') this._clients = msg.clients;
     if (typeof msg.talker === 'number') this._talkerSlot = msg.talker;
+    // Tipo de cerradura, desde 2026-07-29. Llega en cada session_info (~4s), asi que un cambio
+    // hecho en el dashboard del portero con esta card abierta se refleja sin reconectar. Solo se
+    // repinta cuando cambia de verdad: esto se ejecuta varias veces por minuto.
+    if (typeof msg.door_m === 'number' && msg.door_m !== this._doorMode) {
+      this._doorMode = msg.door_m;
+      this._applyDoorAvailability();
+    }
     this._paintClients();
     this._reconcileTalkTurn();
   }
@@ -1150,8 +1161,14 @@ class IslautopiaIntercomCard extends HTMLElement {
   }
 
   // Estado por SESION: el turno de palabra y la calidad viven en el dispositivo por slot, y una
-  // sesion nueva arranca siempre sin turno y en 'full' (§1.4-ter). Heredar cualquiera de las dos
-  // cosas de la sesion anterior seria mentir sobre el estado real del otro extremo.
+  // sesion nueva arranca siempre sin turno y en 'full'. Heredar cualquiera de las dos cosas de la
+  // sesion anterior seria mentir sobre el estado real del otro extremo.
+  //
+  // `_doorMode` NO se resetea aqui, y es deliberado: no es estado de sesion sino CONFIGURACION del
+  // portero, que no cambia porque se caiga la conexion. Olvidarlo en cada reconexion haria
+  // reaparecer el boton de abrir unos segundos en un portero sin cerradura, cada vez - justo el
+  // parpadeo que este mecanismo existe para evitar. Si de verdad ha cambiado, el primer
+  // session_info de la sesion nueva lo corrige.
   _resetMulticlientState() {
     if (this._talkTimer) { clearTimeout(this._talkTimer); this._talkTimer = null; }
     if (this._qualityProbeTimer) { clearTimeout(this._qualityProbeTimer); this._qualityProbeTimer = null; }
@@ -1398,25 +1415,19 @@ class IslautopiaIntercomCard extends HTMLElement {
   }
 
   // ==============================================================================
-  // Cerradura no configurada en el portero: el boton de abrir no se dibuja.
-  // Se aprende del `open_result` y se recuerda por device_id, para que el intento fallido ocurra
-  // una sola vez en la vida de ese navegador y no en cada carga de la pagina.
+  // Visibilidad del boton de abrir. Fuente de verdad: el `door_m` que el portero manda en cada
+  // `session_info`. La red de seguridad de aprenderlo fallando SOLO se usa mientras ese dato no
+  // haya llegado nunca - o sea, contra un firmware anterior a que existiera el campo.
   // ==============================================================================
-  _rememberNoLock(noLock) {
-    if (this._noLock === noLock) return;
-    this._noLock = noLock;
-    try {
-      if (noLock) localStorage.setItem(this._noLockKey, '1');
-      else localStorage.removeItem(this._noLockKey);
-    } catch (err) { /* modo privado: se queda solo en memoria, es aceptable */ }
-    this._applyDoorAvailability();
-  }
-
   _applyDoorAvailability() {
     if (!this.unlockButton) return;
     // Con `unlock_entity` configurada la apertura NO pasa por el portero, sino por una entidad de
     // Home Assistant: lo que el portero opine de su propia cerradura es irrelevante ahi.
-    const hide = this._noLock && !this.config.unlock_entity;
+    const hide = !this.config.unlock_entity && (
+      (this._doorMode !== null)
+        ? this._doorMode === 2          // dato autoritativo del portero: manda siempre
+        : this._noLockLegacy            // firmware anterior: lo unico que se sabe es que fallo
+    );
     const action = this.unlockButton.closest('.action') || this.unlockButton;
     action.style.display = hide ? 'none' : '';
   }
@@ -2121,10 +2132,9 @@ class IslautopiaIntercomCard extends HTMLElement {
     if (!this.unlockButton) return;
     const duration = parseInt(this.config.unlock_duration) || 3;
     if (msg.status === 'opened') {
-      // Si el portero abre, es que SI tiene cerradura: se olvida cualquier `no_lock` aprendido
-      // antes (el usuario pudo configurarla despues). Sin esto, un `door_m=2` de hace meses
-      // dejaria el boton escondido para siempre en ese navegador.
-      this._rememberNoLock(false);
+      // Si el portero abre, es que SI tiene cerradura: se olvida lo aprendido a base de fallar
+      // (solo aplica contra un firmware anterior, ver _applyDoorAvailability).
+      if (this._noLockLegacy) { this._noLockLegacy = false; this._applyDoorAvailability(); }
       this._startDoorCountdown(duration);
       setTimeout(() => {
         this.unlockButton.classList.remove('active-unlock');
@@ -2138,10 +2148,12 @@ class IslautopiaIntercomCard extends HTMLElement {
       console.warn('[islautopia-intercom-card] no se pudo abrir la puerta:', msg.error);
       if (msg.error === 'no_lock_configured') {
         this._flashStatusLine('no_lock', 3000);
-        // Y ademas se recuerda, para que el boton deje de dibujarse: un boton que ya
-        // sabemos que va a fallar no debe seguir ofreciendose. El aviso de esta vez si se enseña
-        // - el usuario acaba de pulsar y merece saber por que no pasa nada.
-        this._rememberNoLock(true);
+        // Red de seguridad para un firmware anterior a que `door_m` viajara en session_info: si
+        // ese dato ya ha llegado, esto no cambia nada (manda el dato) y el boton no deberia
+        // haberse ofrecido siquiera. El aviso de esta vez SI se enseña: el usuario acaba de
+        // pulsar y merece saber por que no pasa nada.
+        this._noLockLegacy = true;
+        this._applyDoorAvailability();
       }
     }
   }
