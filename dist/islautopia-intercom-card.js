@@ -16,7 +16,7 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_BUILD_ID = '2026-07-29-pantalla-completa';
+const CARD_BUILD_ID = '2026-07-29-sonda-de-alcance';
 console.log(`[islautopia-intercom-card] modulo cargado - build=${CARD_BUILD_ID} (compara este valor contra CARD_BUILD_ID en el repo si tienes dudas de si el navegador esta sirviendo una copia cacheada vieja)`);
 
 // Diccionario global de traducciones para Tarjeta y Editor (Top 9 Idiomas + HA Community)
@@ -1905,11 +1905,19 @@ class IslautopiaIntercomCard extends HTMLElement {
       this._localBase = `https://${hostname}:8443`;
       const token = encodeURIComponent(this._connInfo.credential);
       let settled = false;
+      let probeTimer = null;
+      const probeCtl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+
+      const stopProbe = () => {
+        if (probeTimer) { clearTimeout(probeTimer); probeTimer = null; }
+        if (probeCtl) { try { probeCtl.abort(); } catch (err) { /* ya terminada */ } }
+      };
 
       const finish = (ok) => {
         if (settled) return;
         settled = true;
         clearTimeout(timeout);
+        stopProbe();
         resolve(ok);
       };
 
@@ -1928,6 +1936,58 @@ class IslautopiaIntercomCard extends HTMLElement {
         this._mark('tryLocalSignaling: EventSource lanzo excepcion al crearse');
         resolve(false);
         return;
+      }
+
+      // ==========================================================================================
+      // SONDA DE ALCANCE, en paralelo con la SSE (2026-07-29). Resuelve un problema real medido:
+      // cuando el camino local no cuaja, se pagaban los 3000ms COMPLETOS del timeout de arriba
+      // antes de que el camino remoto empezara siquiera, y el reloj de ICE/DTLS arranca despues de
+      // eso. Con un iPhone en la MISMA red que el portero, que es el mejor caso posible, la
+      // conexion tardaba de mas por esta espera a ciegas.
+      //
+      // La sonda no acorta el timeout: lo sustituye por una respuesta. Pregunta exactamente lo que
+      // el camino local necesita -- DNS + TLS + ruta hasta el portero -- contra la unica ruta que
+      // se puede tocar sin coste: `/api/device_id` existe en el 8443, no exige sesion y NO reserva
+      // ningun slot de sesion WebRTC. Si algo bloquea el camino local, la sonda falla igual que
+      // fallaria la SSE, pero en 1200ms en vez de 3000.
+      //
+      // `mode:'no-cors'` es OBLIGATORIO: esa ruta no lleva cabeceras CORS (solo las llevan
+      // /webrtc/signal y /webrtc/signal/post). No hace falta leer la respuesta -- solo saber si la
+      // peticion llega. Una respuesta opaca ya significa "alcanzable"; un rechazo, "no".
+      // `cache:'no-store'` para que una respuesta cacheada no de un veredicto rancio.
+      //
+      // Las dos reglas, y la segunda importa tanto como la primera:
+      //  1. La sonda falla o expira -> se abandona el local YA, sin esperar el resto del timeout.
+      //  2. La sonda responde -> el portero es alcanzable, asi que se SIGUE esperando la oferta
+      //     hasta los 3000ms de siempre. Que responda la sonda no garantiza que la SSE entregue
+      //     rapido, y cortar aqui cambiaria un fallo lento por un fallo prematuro.
+      //
+      // Sospechoso principal de este caso concreto, y por eso la sonda es del mismo tipo que la
+      // peticion real: iCloud Private Relay bloquea a proposito un hostname publico que resuelve a
+      // una IP privada, que es exactamente lo que hace el hostname del portero dentro de casa.
+      //
+      // Descartado a proposito: recordar que camino gano la ultima vez. Se queda rancio en cuanto
+      // el movil cambia de red -- que es lo que hace un movil todo el rato -- y para volver al
+      // local habria que re-sondear abriendo la SSE, que eso SI gasta un slot. La sonda no guarda
+      // estado y por eso no puede quedarse desactualizada.
+      // ==========================================================================================
+      if (typeof fetch === 'function' && probeCtl) {
+        const probeT0 = performance.now();
+        probeTimer = setTimeout(() => { try { probeCtl.abort(); } catch (err) { /* noop */ } }, 1200);
+        fetch(`${this._localBase}/api/device_id`, { mode: 'no-cors', cache: 'no-store', signal: probeCtl.signal })
+          .then(() => {
+            if (settled) return;
+            if (probeTimer) { clearTimeout(probeTimer); probeTimer = null; }
+            this._mark(`sonda de alcance: el portero SI responde (${Math.round(performance.now() - probeT0)}ms) - se sigue esperando la oferta`);
+          })
+          .catch(() => {
+            if (settled) return; // abortada por nosotros al terminar: no es un veredicto
+            this._mark(`sonda de alcance: el portero NO es alcanzable (${Math.round(performance.now() - probeT0)}ms) - al relay sin esperar el resto de los 3000ms`);
+            if (this.nativeSSE) { this.nativeSSE.close(); this.nativeSSE = null; }
+            finish(false);
+          });
+      } else {
+        this._mark('sonda de alcance: no disponible en este navegador (sin fetch/AbortController) - se espera el timeout completo');
       }
 
       // No hay forma fiable de distinguir desde JS "bloqueado por CORS" de "red inalcanzable"
