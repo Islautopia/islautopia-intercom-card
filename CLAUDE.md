@@ -1,0 +1,423 @@
+# Islautopia Intercom Card — nota de contexto
+
+Este repo es la mitad "frontend" de la misión de integración con Home Assistant del ecosistema
+IG Doorbell. El diseño completo (incluida la parte que afecta a esta card) vive en el repo
+hermano:
+
+- `C:\Proyectos_espressif\ig_hassio_addons\ig_hassio_addons\CLAUDE.md` — resumen operativo.
+- `C:\Proyectos_espressif\ig_hassio_addons\ig_hassio_addons\ARCHITECTURE.md` — diseño concreto
+  (sección 5: rediseño de esta card — nuevo modo `native` hablando el protocolo WebRTC propio del
+  doorbell, ICE-Lite+DTLS-SRTP+RTP directo o vía relay, credenciales servidas por la nueva
+  integración `custom_components/islautopia_doorbell` vía la API interna de WebSocket de HA).
+- `C:\Proyectos_espressif\ig_hassio_addons\ig_hassio_addons\COORDINATION.md` — preguntas abiertas
+  a la sesión líder de firmware.
+
+Fuente de verdad de la interfaz del propio doorbell (WebRTC, señalización, `pair_app`,
+`app_turn_credentials`, etc.): `C:\Proyectos_espressif\IG_Doorbell\API_CONTRACT.md`. No la
+dupliques aquí.
+
+**Estado actual (2026-07-10): modo `native` es el ÚNICO modo — el modo `go2rtc` legacy se retiró
+por completo, ver entrada Q22-bis más abajo.** `dist/islautopia-intercom-card.js` sigue siendo un
+único fichero committeado (sin build tooling — se mantuvo así a propósito, ver `ARCHITECTURE.md`
+§5). `device_id` es obligatorio (habla el protocolo propio del doorbell — SSE/POST local por
+HTTPS real, con fallback a WS remoto vía el relay; credenciales/host servidos por la integración
+`islautopia_doorbell` — repo `islautopia-doorbell-integration` — vía `hass.connection.
+sendMessagePromise`, nada pegado a mano en YAML); apertura de puerta primaria = mensaje nativo
+`open`/`open_result`, con `unlock_entity`+`callService` disponible como alternativa explícita.
+Sintaxis verificada con `node --check` — **no probado contra una instancia real de HA + doorbell
+real** (no disponible en esta sesión).
+
+Patrones de UX conservados de la versión anterior: pista de audio dummy + hot-swap `replaceTrack`
+sin renegociar SDP, cierre limpio de conexión al salir de la pestaña, editor visual Lovelace,
+i18n (9 idiomas), memoria de volumen en `localStorage`. Publicado en HACS
+(`Islautopia/islautopia-intercom-card`, tags `v1.0.0`/`v1.0.1`).
+
+**Editor: device picker nativo con `ha-selector` (2026-07-09).** El campo `device_id` ya no es un
+input de texto donde el usuario tenga que copiar/pegar el ID — el editor monta un
+`<ha-selector>` (el mismo componente que usa el propio Home Assistant en sus formularios),
+filtrado a `selector: {device: {filter: {integration: 'islautopia_doorbell'}}}`, así que solo
+lista doorbells ya emparejados con esa integración, por nombre. Requiere que la integración
+registre el dispositivo en el device registry de HA (hecho en
+`islautopia-doorbell-integration/custom_components/islautopia_doorbell/__init__.py::
+async_setup_entry`, `device_registry.async_get_or_create(...)` con
+`identifiers={(DOMAIN, device_id)}`). El picker devuelve el ID interno de HA (una UUID opaca),
+NO nuestro `device_id` propio — `findOurDeviceIdForHaDeviceId()`/`findHaDeviceIdForOurDeviceId()`
+en el editor traducen entre los dos vía ese mismo `identifiers`, y la config de la card sigue
+guardando siempre nuestro `device_id` propio (estable, derivado de la MAC), nunca el ID interno
+de HA (menos estable a largo plazo). Fallback a un `<input>` de texto oculto si por lo que sea
+`ha-selector` no estuviera disponible en el frontend (defensivo, no debería pasar en la práctica).
+
+**Señalización local ahora exige credencial (2026-07-09).** `/webrtc/signal`/`/webrtc/signal/post`
+locales dejaron de aceptar conexiones sin autenticar (hueco de seguridad real, cerrado por el
+líder). `tryLocalSignaling()`/`sendNativeSignal()` añaden `?token=<credencial de pair_app>` como
+query param a ambas URLs (`EventSource` no admite cabeceras propias, de ahí el query string en
+vez de `Authorization`) — es la MISMA credencial de `this._connInfo.credential` que ya se pedía
+para el WS remoto, sin ningún secreto ni llamada nueva. Sin este `?token=`, el modo `native` local
+da `401` desde esa fecha en adelante. Ver `COORDINATION.md` Q9.
+
+**Guardas de idempotencia en `customElements.define`/`window.customCards` (2026-07-09).**
+Encontrado en pruebas reales: con el recurso antiguo de HACS y el nuevo `/local/...` cargados a
+la vez en el navegador (caso real: probar cambios locales sin publicar antes una release HACS
+nueva), el segundo `customElements.define('islautopia-intercom-card', ...)` lanzaba una excepción
+("has already been used with this registry") — y, más grave que el ruido en consola, según el
+orden de carga podía quedar activa la copia VIEJA de HACS en vez de la que se estaba probando.
+Las dos llamadas a `customElements.define` (editor + card) ahora comprueban
+`customElements.get(...)` antes, con un `console.warn` explícito de cuál copia gana si hay
+colisión — evita el crash, pero **no sustituye a la solución real**: durante cualquier prueba de
+cambios sin publicar, mantener activo un solo recurso Lovelace de esta card a la vez (desactivar/
+quitar el de HACS, o el manual, no ambos). Ver `COORDINATION.md` Q11.
+
+**Liberación de slot al cerrar/recargar la pestaña (2026-07-10).** Verificado contra el código
+real (no de memoria) que la card NO replicaba el patrón `pagehide`+`sendBeacon` que ya usa el
+dashboard web del propio doorbell — solo tenía `disconnectedCallback()` (Custom Elements), fiable
+al cambiar de vista de Lovelace pero no garantizado en cierre de pestaña/recarga completa.
+Corregidos dos bugs reales: (1) `disconnectedCallback()` no mandaba `bye` para el camino LOCAL
+antes de cerrar (solo lo hacía el remoto) — corregido; (2) nuevo listener `pagehide` a nivel de
+`window` (`_registerUnloadHandler()`/`_unregisterUnloadHandler()`), con `navigator.sendBeacon()`
+para el camino local (un `fetch()` en marcha se cancela al desaparecer la página, `sendBeacon` no)
+y `nativeWS.send()` síncrono para el remoto (sendBeacon no aplica a WebSocket). Deliberadamente
+SIN `visibilitychange` — cambiar de pestaña del navegador sin cerrarla no debe cortar la sesión,
+sería peor UX que la actual. Ver `COORDINATION.md` Q18.
+
+**Vigilante de señales de vida + reconexión automática (2026-07-10).** Diseño simétrico con el
+timeout de abandono del firmware (bajado de 45s a 20s) — la card ya no espera pasivamente,
+`_startLifeWatchdog()` sondea `pc.getStats()` cada 5s (progreso real de `packetsReceived` en el
+inbound-rtp de vídeo, no el estado de ICE del navegador, poco fiable/no ajustable a 20s exactos) y
+`_scheduleReconnect()` reconecta si pasan 20s sin señal de vida (mensajes de señalización durante
+la negociación, o progreso de vídeo una vez conectado). **Criterio agresivo, decisión explícita
+del usuario** (mismo criterio al que llegó `android_app` de forma independiente): tanto `failed`
+COMO `disconnected` en `pc.onconnectionstatechange` disparan reconexión inmediata sin esperar el
+resto del cronómetro — a sabiendas de que `disconnected` puede ser transitorio, a validar en real
+contra la cobertura 4G/5G mala del usuario (pendiente, fase "bajo fuego real"). Reintentos
+indefinidos con backoff (2s/4s/8s, tope 15s), sin límite de intentos (producto de seguridad
+doméstica). Nuevo `_teardownConnectionObjects()` centraliza la limpieza (usado por
+`disconnectedCallback()`, `startWebRTC()` y `_scheduleReconnect()`, sin duplicar código) — un
+`bye` recibido del propio dispositivo también dispara reconexión ahora, en vez de solo pintar el
+badge en rojo. Verificado con `node --check` y una simulación aislada en Node de la fórmula de
+backoff y el parseo de `getStats()` — sin acceso a navegador/HA real en esta sesión. Ver
+`COORDINATION.md` Q19.
+
+**Bug real en `triggerUnlock()` para `unlock_entity` de dominio `cover` (2026-07-10) —
+CORREGIDO.** El README ya anunciaba `cover` como dominio soportado (verjas/portones), pero el
+código caía al `else` genérico y llamaba a `cover.turn_on` — servicio que NO EXISTE en el dominio
+`cover` de HA (verificado contra la documentación real antes de tocar nada: `cover` usa
+`open_cover`/`close_cover`/`stop_cover`, nunca `turn_on`/`turn_off`; llamarlo lanza
+`ServiceNotFound`). Cualquier usuario con una entidad `cover` real configurada habría visto
+fallar la apertura en silencio. Corregido: `cover` ahora usa `open_cover`/`close_cover`
+explícitamente, igual que el resto de dominios. **Nota aparte, sin cambio de código**: el
+accionador de apertura que publica el propio firmware está migrando de dominio `button` a
+`light`/`switch` (decisión de firmware_cloud) — no afecta a esta card en absoluto, ya que
+`unlock_entity` es siempre una entidad elegida manualmente por el usuario (nunca auto-enlazada a
+la del firmware) y el código ya trata `switch`/`light` de forma idéntica.
+
+**Tres bugs reales reportados por el usuario, los tres CORREGIDOS (2026-07-10) — ver
+`COORDINATION.md` Q22 en `ig_hassio_addons` para el análisis completo:**
+
+1. **El vídeo no escalaba al ajustar el ancho de la card.** Esta card no usa Shadow DOM
+   (`this.innerHTML` directo sobre el propio elemento) y el elemento personalizado
+   (`<islautopia-intercom-card>`) nunca declaraba su propio `display`/`width` — los Custom
+   Elements autónomos son `display: inline` por defecto (se dimensionan a su contenido, no al
+   contenedor) salvo que se declare lo contrario explícitamente; nadie lo hace por ti. Todo el
+   CSS interno relativo (`width:100%` en `.intercom-container`/`.video-wrapper`/`video`) era
+   correcto, pero resolvía "100%" contra un elemento que nunca crecía. Corregido: `this.style.
+   display='block'; this.style.width='100%'` en `setConfig()` + regla CSS de respaldo
+   `islautopia-intercom-card { display:block; width:100% }` en `injectStyles()`. **Landmine para
+   el futuro**: si se añade Shadow DOM algún día, esto necesitará revisarse (un `:host` real
+   sustituiría a la regla por nombre de etiqueta, que solo funciona en DOM ligero).
+
+2. **Sospecha del usuario sobre el backchannel de audio (mic navegador → altavoz doorbell) sin
+   audio real pese a que la UI mostraba "mic activo".** El patrón pista-muda+`replaceTrack()` en
+   sí (`toggleIntercom()`/`buildNativePeerConnection()`) es correcto y equivalente al del
+   dashboard web ya verificado (`main/webtask.c` en `IG_Doorbell`, Fase 9) — NO era la causa.
+   Causa real: `_teardownConnectionObjects()` (punto único de cierre, usado también por el
+   vigilante de reconexión de Q19) cerraba `pc`/señalización pero nunca reseteaba el estado del
+   interfono — tras CUALQUIER reconexión (incluida una espontánea por el criterio agresivo
+   `disconnected`→reconectar), el nuevo `RTCPeerConnection` nace con una pista muda nueva pero la
+   UI seguía mostrando "mic activo" indefinidamente, sin volver a enganchar el micrófono real.
+   Corregido: `_teardownConnectionObjects()` ahora para el `localAudioStream` real y resetea
+   `intercomActive`/el botón a "apagado" en cualquier teardown — un reconecto NO reactiva el mic
+   solo, el usuario debe volver a pulsar (decisión explícita: visible y predecible, no una
+   auto-reactivación silenciosa que añadiría otra carrera).
+
+3. **Flash breve de "❌ Error" en carga fría del dashboard antes de asentarse en el estado
+   correcto.** `startNativeSession()` trataba la ausencia momentánea de `this._hass.connection`
+   (carrera real de arranque: HA puede insertar el elemento antes de que el setter `hass` se
+   haya invocado con una instancia hidratada) como error TERMINAL sin ningún reintento — a
+   diferencia de cualquier otro fallo de esa función. El elemento se remonta poco después con
+   `hass` ya listo (de ahí que pareciera "asentarse solo": un segundo intento con mejor suerte
+   tapaba el primero, la función en sí nunca se corregía). Corregido: reintento en silencio cada
+   250ms hasta ~5s antes de rendirse de verdad.
+
+Verificación en los tres casos: `node --check` (sintaxis) + lectura/razonamiento estructurado del
+código — **sin acceso a navegador/HA real en esta sesión** (mismo límite que Q19). Pendiente
+confirmación visual/en-hardware por el líder/usuario; checklist exacto de qué comprobar en cada
+caso está en `COORDINATION.md` Q22.
+
+**Rediseño visual alineado con el mockup Figma + retirada completa del modo `go2rtc` legacy
+(2026-07-10) — ver `COORDINATION.md` Q22-bis en `ig_hassio_addons` para el detalle completo.**
+
+1. **Lenguaje visual del mockup Figma** (mismo que `android_app`/`ios_app`, decisión explícita del
+   usuario): paleta exacta (`--ig-lime #78C800`, `--ig-cyan #00C4D4`, `--ig-blue #1976D2`,
+   `--ig-surf1/2/3` para fondos oscuros), escopada como custom properties en `.intercom-container`
+   (nunca en `:root` — esta card no usa Shadow DOM, así que `:root` filtraría al documento entero
+   de HA). Marco de vídeo (`.feed-wrap`) con esquinas redondeadas ~22px y HUD superpuesto DENTRO
+   del propio vídeo: `.live-tag` (punto + texto, sustituye al antiguo `.status-badge` suelto —
+   pulsa en rojo solo en estado `live`/`open`, color distinto por estado vía `data-state`),
+   `.audio-pill` cian (solo con el mic activo), `.motion-pill` ámbar (solo con `motion_entity`
+   configurada y en `on` — **nunca visible con el mic activo**, regla explícita del usuario,
+   aplicada en `_updateMotionPill()`). Botones de acción asimétricos (`.btn.mic` 80px protagonista
+   con anillo de pulso vía `.pulsering` cuando está activo, `.btn.door` 60px secundario — tamaños
+   exactos, ver pasada de precisión más abajo). Línea de
+   estado nueva bajo el vídeo (`.status-line`, distinta del `.live-tag` — esa es sobre el ESTADO DE
+   CONEXIÓN, esta es sobre el ESTADO DE LA PUERTA): cuenta atrás real en verde
+   ("Puerta abierta · Cerrando en Ns", `_startDoorCountdown()`) al abrir, gris "Sistema operativo"
+   en reposo. Chips de modo (`.mode-row`, opcional vía config `mode_entity`, un `select.*`
+   arbitrario) con icono+color por modo (`MODE_META`) — el matching de la etiqueta real de HA a
+   un modo conocido (normal/ausente/noche/custom) es por *substring* case-insensitive
+   (`_modeKeyFor()`), deliberadamente tolerante porque el string exacto que publicará
+   firmware_cloud para la entidad de modo no estaba cerrado en el momento de este cambio; una
+   opción no reconocida se pinta igual (chip genérico sin tintar), nunca oculta la fila entera.
+   Elementos del mockup que NO se copiaron (decisión explícita, no se aplican a una card de HA):
+   selector de dispositivo con desplegable (una card = un dispositivo), cabecera de branding
+   (logo+notificaciones — HA ya tiene su propia navegación), fila de accesos a
+   Grabaciones/Ajustes como "pantallas" (la card no navega a pantallas propias).
+
+2. **Modo `go2rtc`/`gateway` legacy RETIRADO POR COMPLETO** (decisión explícita del usuario —
+   **rompe compatibilidad** para cualquier instalación que siguiera usando `stream:`/
+   `go2rtc_url:` en vez de `device_id:`, ver aviso en `README.md`). Eliminado de
+   `dist/islautopia-intercom-card.js`: `this.mode` (nativo es el único modo posible ahora),
+   `connectGo2RTCWebSocket()`, `this.vlcWS`, los inputs `stream`/`go2rtc_url` del editor visual,
+   las claves de idioma `ed_stream`/`ed_url` en los 9 idiomas. `setConfig()` ahora exige
+   `device_id` directamente (antes aceptaba `stream` como alternativa). `startWebRTC()`
+   simplificado a llamar siempre a `startNativeSession()`. Aprovechado el mismo aviso de
+   `getUserMedia()` fallido en `toggleIntercom()` para añadir un `console.warn` (antes se tragaba
+   el error en silencio, sin ningún rastro ni en consola).
+
+Verificado con `node --check` (sintaxis OK tras cada edición) — **sin acceso a navegador/HA real
+en esta sesión**, no se ha podido confirmar visualmente el resultado. Checklist de verificación
+para el líder/usuario en `COORDINATION.md` Q22-bis.
+
+**Pasada de precisión con valores EXACTOS del código fuente real (2026-07-10, mismo día) — el
+líder pasó del mockup reconstruido/capturas a los valores literales del código fuente de
+`android_app`/`ios_app`.** Ajustes sobre lo ya construido en Q22-bis:
+
+- Tamaños de botón corregidos de 76px/56px (aproximados) a **80px/60px exactos**.
+- Paleta completada con los 4 tokens que faltaban: `--ig-bg #070D1A` (antes `#05070c`
+  aproximado, ahora usado en `.intercom-container`/`ha-card`), `--ig-text #E8F0FE` (antes texto
+  del HUD en `#fff` plano), `--ig-faint #334155` y `--ig-blue-dark #1565C0` (ambos definidos como
+  custom properties disponibles pero SIN un hueco semántico claro en el diseño actual de la
+  card — no se han forzado a un uso artificial solo por existir en la paleta; documentado aquí
+  por si aparece un sitio natural para ellos más adelante).
+- **Dos piezas del HUD que faltaban por completo**, añadidas para la paridad visual real que pide
+  el usuario (app→HASS→app como el mismo producto):
+  - Reloj superpuesto arriba-dcha (`#hud-time-hm`/`#hud-time-date`, fuente monoespaciada,
+    hora:minuto grande + fecha pequeña) — `_updateHudClock()`, `setInterval` de 1s arrancado en
+    `render()` y parado en `disconnectedCallback()`. Es la hora del propio navegador (decorativo,
+    igual que cualquier overlay de cámara de seguridad), no un dato del dispositivo.
+  - Barras de señal esquina inferior-dcha (`.hud-sig`, 4 barras). **Adaptación deliberada, no
+    imitación literal**: el mockup las usa para RSSI WiFi del propio dispositivo, un dato que
+    esta card no tiene forma de conocer (no hay entidad HA para ello) — en vez de inventar un
+    número falso, las barras reflejan el `data-state` real de la conexión WebRTC (mismo atributo
+    que ya pinta `.live-tag`, propagado también a `.feed-wrap` desde `_setLiveState()`): todas
+    encendidas en vivo, parcial en `connecting`, primera en rojo si `error`. Honesto sobre lo que
+    la card puede saber de verdad, en el mismo lugar/estilo visual que el mockup.
+  - El control de volumen (funcionalidad real de la card, sin equivalente en el mockup de la app)
+    se reubicó junto a las barras de señal en la esquina inferior-dcha (`.hud-bottom-right`) en
+    vez de competir por el hueco exacto de la píldora "Audio activo" (que sí es 1:1 con el
+    mockup, esquina inferior-izq).
+
+Verificado igual que el resto: `node --check` tras cada edición, sin navegador/HA real disponible.
+
+**Bug real CORREGIDO (2026-07-10, mismo día): dos puntos de fallo de `startNativeSession()`
+dejaban la card en "Error" para siempre, sin ningún reintento** — investigado a partir de un
+reporte real del líder (una card en HA real, "IG DoorBell p4 v2", mostrando "Error" persistente,
+sospecha de un `device_id` de pruebas antiguo/desactivado). Confirmado por lectura del código
+(sin acceso a esa instancia real): es el único sitio de todo el fichero donde un fallo NO
+programaba una reconexión, a diferencia de `nativeWS.onclose`, `'sessions_full'`,
+`connectionState` `failed`/`disconnected`, el vigilante de 20s, y `bye` recibido — todos esos SÍ
+llaman a `_scheduleReconnect()` (y los dos que no lo hacen explícitamente, `nativeWS.onclose` y
+`sessions_full`, ya están cubiertos porque `_startLifeWatchdog()` arranca antes que ellos y
+acabaría reconectando de todos modos al llegar a los 20s sin señal de vida). Los dos puntos
+corregidos SÍ podían ejecutarse ANTES de que el vigilante de vida arrancara (que solo arranca
+tras `buildNativePeerConnection()`), así que no tenían ninguna red de seguridad:
+
+1. `hass.connection` sigue sin aparecer tras ~5s de reintento silencioso (línea ~762) — antes
+   `return` terminal con badge a "Error"; ahora también llama a `_scheduleReconnect()`.
+2. El `catch` que envuelve `get_connection_info`/`buildNativePeerConnection()`/señalización
+   (línea ~792) — antes solo ponía el badge a "Error"; ahora también llama a
+   `_scheduleReconnect()` tras el mensaje de error. Cubre exactamente el caso sospechado: si
+   `get_connection_info` falla (p.ej. porque ese `device_id` ya no tiene una entrada
+   válida/emparejada en la integración `islautopia_doorbell` — coherente con un dispositivo de
+   pruebas antiguo/desactivado) o `startRelaySignaling()` rechaza (el relay no abre la conexión,
+   dispositivo no autorizado), la card ahora reintenta con el mismo backoff de siempre en vez de
+   quedarse muerta. Si el dispositivo de verdad ya no existe, esto simplemente reintenta en bucle
+   en segundo plano (mismo principio ya establecido en Q19: mejor seguir intentándolo en silencio
+   que un "Error" permanente sin ninguna vía de recuperación salvo recargar la página a mano).
+
+No resuelve la posibilidad de que "IG DoorBell p4 v2" sea, en efecto, un dispositivo real ya
+descontinuado (eso solo se puede confirmar mirando la lista de dispositivos emparejados en la
+integración `islautopia_doorbell`, fuera del alcance de esta sesión) — pero si lo es, con este
+fix la card debería dejar de mostrar un "Error" fijo para siempre y en su lugar seguir
+reintentando visiblemente (badge "Conectando...") en bucle, que es el comportamiento correcto
+tanto si el dispositivo vuelve algún día como si no.
+
+**Backchannel HASS→altavoz mudo, CONFIRMADO y CORREGIDO con datos reales de Playwright
+(2026-07-11) — ver `COORDINATION.md` Q24/Q24-bis para el análisis completo.** Dato crítico del
+usuario: dashboard web del propio dispositivo y apps Android/iOS SÍ tienen audio bidireccional
+real — descartó firmware/protocolo desde el principio, era un bug específico del JS de esta card.
+
+Comparación línea a línea contra el dashboard confirmó por datos reales (no solo teoría) la causa:
+la respuesta SDP que generaba esta card decía **`a=recvonly`** en la línea de audio, pese a que
+`audioTransceiver.direction` se leía como `sendrecv` en ese mismo instante — el dispositivo,
+como offerer, nunca esperaba audio del navegador. El orden del código (pista muda +
+`direction:'sendrecv'` antes de `createAnswer()`) ya era correcto, así que no era un problema de
+secuencia. La única diferencia de código real que quedaba sin explicar frente al dashboard (mismo
+orden de creación en ambos: vídeo primero, audio después): la card usaba
+`pc.addTransceiver(dummyTrack, {direction:'sendrecv'})` explícito; el dashboard usa
+`pc.addTrack(dummyTrack)`. Por especificación WebRTC deberían ser equivalentes — los datos reales
+de Playwright dijeron que no. **Corregido**: cambiado a `pc.addTrack(dummyTrack)`, recuperando el
+transceiver con `pc.getTransceivers().find(t => t.sender === audioSender)` para no tocar el resto
+del código. **Nota honesta**: no hay una explicación definitiva de POR QUÉ divergen en la
+práctica pese a ser teóricamente equivalentes — documentado como "corregido con evidencia
+empírica real", no "entendido a fondo del todo" (posible matiz de la implementación real de
+Chromium no descrito con precisión en la spec). Si reaparece, `chrome://webrtc-internals` en una
+sesión real sería el siguiente paso de profundización.
+
+Instrumentación de diagnóstico (`DIAG audio` en consola) que hizo posible aislar esto se mantiene
+en el código — útil para cualquier regresión futura del mismo tipo: log en la creación del
+transceiver, en el manejo de la oferta SDP (dirección negociada + línea `m=audio` real), en
+`toggleIntercom()` (getUserMedia/replaceTrack paso a paso), y sondeo de `outbound-rtp`
+(`_startAudioSendDiagnostics()`) cada 3s mientras el mic está activo.
+
+**Verificación real completada parcialmente (2026-07-11)**: el líder repitió la prueba con
+Playwright contra HA real. **Negociación SDP CONFIRMADA corregida**: `currentDirection=sendrecv`
+(antes `null`/desajuste) y la respuesta dice `a=sendrecv` (antes `a=recvonly`) — el fix
+`addTransceiver()`→`addTrack()` funciona de verdad. **`bytesSent`/audio real NO se pudo
+verificar**: el entorno de prueba accede a HA por `http://192.168.42.138:8123` (IP LAN plana, no
+HTTPS) — `navigator.mediaDevices` es `undefined` ahí (`isSecureContext:false`), así que
+`getUserMedia()` falla ANTES de llegar a usar nada de este fix, independientemente de si el fix
+es correcto. Confirmado como limitación del sandbox de pruebas (no del producto real, que se
+sirve por Nabu Casa/HTTPS o por la app). **Estado**: negociación SDP CERRADA; entrega de audio
+end-to-end pendiente de un entorno con TLS real — no cerrado del todo. Yo tampoco tengo forma de
+completar esta última pieza (cero acceso a navegador en esta sesión, ni siquiera Playwright).
+
+---
+
+# NOTA DE TRASPASO — rama `feature-multicliente-calidad` (2026-07-26)
+
+Escrita para que otra persona (u otro agente) siga sin mí. El **contrato** es
+`API_CONTRACT.md` §1.4-ter en el repo del firmware — esto es solo el estado del trabajo.
+
+## Aviso importante sobre el estado de git de este repo
+
+`main` seguía apuntando a `v1.0.0` y **todo el rediseño nativo posterior estaba sin
+commitear** (meses de trabajo viviendo solo en el directorio de trabajo de este PC). El
+primer commit de esta rama (`Base: trabajo previo…`) lo captura tal cual, sin tocar una
+línea, para que los commits de multicliente tengan un diff legible. **Nada de esta rama está
+en `main` todavía.** Lo mismo pasaba, aún peor, en `islautopia-doorbell-integration`: ese
+repo tenía CERO commits.
+
+## Qué se ha hecho
+
+Los tres mecanismos del contrato, por el canal de señalización que la card ya usaba (SSE+POST
+local con `?token=`, WS del relay en remoto) — sin endpoint ni transporte nuevos:
+
+| Mecanismo | Estado en la card |
+|---|---|
+| Turno de palabra | `talk_request`/`talk_release` salientes; `talk_granted`/`talk_denied`/`talk_state` entrantes. El micro **solo** se abre con un `talk_granted` real |
+| Contador de clientes | Píldora `👥 N` arriba-izq, junto al *live-tag*. Solo aparece cuando llega `session_info` |
+| Calidad | Selector Auto/Alta/Baja/Solo audio abajo-dcha, con `quality`/`quality_state` y motivo de los cambios automáticos |
+
+**Decisiones de diseño que conviene no deshacer sin leer esto:**
+
+1. **Denegado ≠ mudo.** Un `talk_denied` deja al usuario en **solo escucha** (oye al portero,
+   micro cerrado) con el motivo escrito, no en un estado ambiguo. Micro y escucha son dos
+   ejes, no uno. Detalle real: el `<video>` nace `muted` **por obligación** (política de
+   autoplay del navegador — con sonido, `play()` sería rechazado y no habría ni imagen);
+   desmutear exige un gesto del usuario, y la pulsación del botón de micro **es** ese gesto.
+   Por eso "solo escucha" solo puede activarse a partir de una pulsación, nunca sola.
+2. **Nunca abrir el micro por un mensaje que no hemos pedido.** El relay hace **fan-out** a
+   todos los clientes del mismo `device_id`: un `talk_granted` ajeno podía abrirle el
+   micrófono a este usuario sin que tocara nada — fallo de privacidad, no de UI. Este hallazgo
+   destapó el mismo fallo en las tres apps y acabó en una **resolución de contrato común a
+   card/Android/iOS** (2026-07-26) con tres reglas que **no hay que revertir "simplificando"**
+   (`_talkMsgIsForUs()`; los casos del bloque 12 de `test/sim_multicliente.js` fallan si se
+   quita cualquiera de ellas):
+   1. **Nunca aprender la identidad propia de un mensaje que se está validando** — es circular:
+      si `talk_granted` pudiera fijar `_slot`, la comparación sería cierta siempre y no
+      validaría nada. Android tenía exactamente ese fallo (`_mySlot ??= msg.slot`).
+   2. El slot propio se aprende **solo** de `offer` y `session_info`.
+   3. Se exigen **las dos** guardias (petición propia en vuelo **y** slot coincidente), y con
+      slot propio **desconocido se rechaza**. Esto último era el eslabón débil de esta card
+      hasta la resolución: cubre el único caso que `_talkPending` **no** puede parar — dos
+      usuarios pulsando el micro a la vez, ambos con petición en vuelo, y el `talk_granted` de
+      uno llegándole al otro. Verificado en el firmware que `sig_out_push()` pone `slot` en
+      todos los mensajes por ambos transportes (incluida la oferta), así que rechazar no da
+      falsos negativos: el slot ya se conoce antes de que el botón de micro se habilite.
+      Excepción documentada: un mensaje **sin** `slot` (firmware intermedio) sí se acepta
+      apoyándose en `_talkPending` — ahí el dato no existe y rechazar dejaría el micro
+      inservible contra ese firmware.
+3. **Degradación con firmware antiguo = silencio, no error.** 3s sin respuesta a
+   `talk_request` ⇒ se abre el micro igualmente avisando una vez, y las siguientes
+   pulsaciones de esa sesión son instantáneas. La calidad se sondea sola al conectar
+   (`quality:auto`, con un reintento) y el selector **no aparece** si no hay confirmación —
+   un control que no hace nada es un botón que miente. Todo se re-sondea en cada sesión
+   nueva, así que la card se entera sola de una actualización de firmware sin recargar.
+4. **`audio_only` y el vigilante de vida.** En ese modo el dispositivo deja de mandar vídeo
+   *a propósito*; el vigilante (que mide `packetsReceived` del inbound-rtp de **vídeo**)
+   habría reconectado en bucle cada 20s. En ese modo, y solo en ese, la señal de vida pasa a
+   ser el audio. Le pasó de verdad a la app Android.
+5. **"Baja" se etiqueta, no se abrevia.** Es ~1 imagen/s (solo keyframes), no vídeo fluido de
+   menos calidad: cada opción lleva segunda línea explicativa y activar "Baja" avisa. Nada de
+   HD/SD — sugieren cambio de resolución cuando lo que cambia es la cadencia.
+6. **Responsive por `@container`, no por `@media`.** El ancho de una card en HA no tiene nada
+   que ver con el de la ventana.
+
+## Qué falta / siguiente paso
+
+- [ ] **Probar en un navegador real contra un portero real.** Nada de esto se ha visto
+      funcionar desde aquí: en esta sesión no hubo navegador ni hardware. **El firmware con
+      todo el contrato SÍ está ya flasheado y validado en el dispositivo real por el líder
+      (2026-07-26, regresión limpia)** — o sea, el otro extremo existe y funciona; lo único
+      que falta es ejercitar ESTA card contra él. Guion mínimo: dos pestañas → contador a 2 en ambas; micro en
+      A → B ve "ocupado" y recibe `talk_denied` al pulsar; soltar A → B ve el aviso de canal
+      libre; `low` → ~1 fps limpio; `audio_only` → imagen congelada, audio intacto y **sin
+      reconexiones** en 60s; y con un portero de firmware antiguo, que el micro siga
+      abriéndose a los 3s y no aparezca el selector de calidad.
+- [ ] Verificar en HA con **tema claro**: la card es una isla oscura a propósito (identidad
+      del producto, decisión de Q22-bis), pero el menú de calidad es nuevo y no se ha visto.
+- [ ] Cuando el firmware consuma RTCP RR, llegarán `quality_state` no solicitados con
+      `auto_loss`/`auto_bandwidth`: la card ya los pinta, pero nunca se han recibido de verdad.
+- [ ] Publicar release HACS. Ojo con la caché del recurso `/local/` (ver `CARD_BUILD_ID`,
+      ahora `2026-07-26-multicliente-calidad`): si en las DevTools no ves ese valor, el
+      navegador está sirviendo una copia vieja.
+
+## Cómo verificar sin navegador
+
+```
+node --check dist/islautopia-intercom-card.js
+node test/sim_multicliente.js dist/islautopia-intercom-card.js     # 60 comprobaciones
+```
+
+`test/` es nuevo (2026-07-26): carga el fichero real de `dist/`, captura la clase por
+`customElements.define` y ejercita la máquina de estados contra dobles mínimos de DOM.
+**No sustituye** a una prueba real: no toca WebRTC, ni SSE, ni el relay. Cuando cambies el
+turno de palabra o la calidad, ejecútalo — tiene casos para los caminos de firmware antiguo,
+que son justo los que nadie prueba a mano.
+
+## Problemas del contrato detectados (reportados, no corregidos por mí)
+
+- **En remoto solo cabe UN cliente**, no N. El firmware guarda un único `g_remote_slot` y un
+  `request_offer` nuevo cierra la sesión remota anterior. El arbitraje del turno entre dos
+  clientes **remotos** no puede funcionar, y el contador solo puede llegar a "sesiones
+  locales + 1". Es preexistente, no lo introduce el contrato de multicliente, pero lo limita.
+- **`webrtc_clients` de `GET /api/get_states` es inalcanzable para la integración de HA**
+  (esa ruta exige cookie de sesión; la integración solo tiene la credencial de `pair_app`).
+  Para la card no importa — le llega por `session_info` — pero invalida ese campo como fuente
+  para cualquier entidad de HA. Ver la decisión razonada en el CLAUDE.md de
+  `islautopia-doorbell-integration`.
+
+---
+
+**No hacer commit/push sin autorización explícita.** Trabaja directo en esta carpeta, sin
+worktree aislado.
