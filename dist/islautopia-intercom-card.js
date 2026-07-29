@@ -657,6 +657,24 @@ class IslautopiaIntercomCard extends HTMLElement {
     if (this.clientsPill) this.clientsPill.setAttribute('title', getLocalText(this._hass, 'clients_tip'));
     if (this.qualityBtn) this.qualityBtn.setAttribute('title', getLocalText(this._hass, 'q_label'));
     if (this.qualityMenu) { this._renderQualityMenu(); this._paintQuality(); }
+    // Las dos pildoras sobre el video estan en el HTML inicial y no las repinta nadie nunca: son
+    // texto fijo, solo se muestran y se ocultan. Sin esto se quedaban en ingles igual que el resto
+    // - y "Audio active" sobre el video es de lo mas visible que tiene la card.
+    const audioTxt = this.audioPill && this.audioPill.querySelector('span');
+    if (audioTxt) audioTxt.textContent = getLocalText(this._hass, 'audio_active');
+    const motionTxt = this.motionPill && this.motionPill.querySelector('span');
+    if (motionTxt) motionTxt.textContent = getLocalText(this._hass, 'motion_detected');
+    // El badge de estado y la linea inferior se repintan solos en cuanto la sesion cambia de
+    // estado, asi que casi siempre se arreglaban solos. Casi: una card que NUNCA llega a
+    // conectar - el portero apagado, o fuera de casa sin cobertura - se queda con el
+    // "Connecting..." inicial en ingles indefinidamente, que es justo el momento en el que el
+    // usuario mas mira ese texto. Se repintan con el estado que ya hay, sin cambiarlo.
+    if (this._liveStateKey || this.badge) this._setLiveState(this._liveStateKey || 'connecting');
+    // La linea de estado solo si esta en reposo: un aviso en curso ("Puerta abierta · Cerrando
+    // en Ns", "canal ocupado") no debe borrarse porque Home Assistant haya mandado un tick.
+    if (this.statusLine && !this.statusLine.classList.contains('open') && !this.statusLine.classList.contains('warn')) {
+      this._resetStatusLine();
+    }
   }
 
   _modeKeyFor(label) {
