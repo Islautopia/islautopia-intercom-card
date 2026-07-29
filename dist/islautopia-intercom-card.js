@@ -16,7 +16,7 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_BUILD_ID = '2026-07-29-sonda-de-alcance';
+const CARD_BUILD_ID = '2026-07-29-iphone-fixes';
 console.log(`[islautopia-intercom-card] modulo cargado - build=${CARD_BUILD_ID} (compara este valor contra CARD_BUILD_ID en el repo si tienes dudas de si el navegador esta sirviendo una copia cacheada vieja)`);
 
 // Diccionario global de traducciones para Tarjeta y Editor (Top 9 Idiomas + HA Community)
@@ -578,6 +578,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       if (packetsReceived !== null) {
         if (this._prevPacketsReceived === null || packetsReceived > this._prevPacketsReceived) {
           this._recordLifeSignal();
+          this._confirmLiveFromMedia();
         }
         this._prevPacketsReceived = packetsReceived;
       }
@@ -741,6 +742,23 @@ class IslautopiaIntercomCard extends HTMLElement {
   // cada sitio que antes hacia `this.badge.textContent = ...` a mano tenga un unico punto que
   // ademas actualiza el color/pulso del punto y no se desincronice.
   // ==============================================================================
+  // El chip de estado lo gobierna la REALIDAD, no solo la señalización (2026-07-29, reportado en
+  // hardware real: "vi error en el chip de estado a la vez que si habia stream").
+  //
+  // Como pasaba: el atajo agresivo de reconexion salta tambien con connectionState
+  // 'disconnected', que puede ser transitorio. Eso pinta el chip en error; si acto seguido ICE se
+  // recupera sola, NADA volvia a poner el chip en su sitio -- setupRemoteStream() solo repinta
+  // cuando llega un stream NUEVO, y ahi el stream era el mismo de siempre. El chip se quedaba en
+  // error indefinidamente con el video corriendo delante.
+  //
+  // Por que importa mas de lo que parece: un indicador que miente en la direccion pesimista
+  // entrena al usuario a ignorarlo, y entonces ya no sirve el dia que el error es de verdad.
+  // Si llegan fotogramas, no hay error: se dice lo que se ve.
+  _confirmLiveFromMedia() {
+    if (this._liveStateKey !== 'error_cam' && this._liveStateKey !== 'connecting') return;
+    this._setLiveState(this.intercomActive ? 'open' : 'live');
+  }
+
   _setLiveState(stateKey) {
     if (this.badge) this.badge.textContent = getLocalText(this._hass, stateKey);
     this._liveStateKey = stateKey;
@@ -849,9 +867,24 @@ class IslautopiaIntercomCard extends HTMLElement {
       this._talkTimer = null;
       if (!this._talkPending) return;
       this._talkPending = false;
-      this._talkUnsupported = true;
-      console.warn('[islautopia-intercom-card] el dispositivo no contesto a talk_request en 3s - se asume firmware anterior al contrato de turno de palabra (2026-07-26) y se abre el micro sin arbitraje');
-      this._flashStatusLine('talk_legacy', 5000);
+      // NO acusar por ausencia si hay pruebas de lo contrario (2026-07-29, tras el falso positivo
+      // en hardware real). `session_info` es del MISMO contrato que el turno de palabra: un
+      // portero que lo manda sabe arbitrar turnos, y punto. Si lo hemos recibido alguna vez,
+      // quedarse sin respuesta a un talk_request es un mensaje perdido -- los avisos de estado se
+      // descartan cuando la cola de salida esta llena, esta documentado -- no un firmware viejo.
+      //
+      // La diferencia importa: acusar al firmware del usuario cuando su firmware esta bien le
+      // manda a buscar una actualizacion que no existe, y ademas deja `_talkUnsupported` puesto
+      // para el resto de la sesion, con lo que ya nunca se vuelve a pedir el turno como es debido.
+      // Sin pruebas (nunca llego un session_info) la suposicion de firmware anterior si es
+      // razonable, y se mantiene.
+      if (this._clients === null) {
+        this._talkUnsupported = true;
+        console.warn('[islautopia-intercom-card] el dispositivo no contesto a talk_request en 3s y nunca ha mandado session_info - se asume firmware anterior al contrato de turno de palabra y se abre el micro sin arbitraje');
+        this._flashStatusLine('talk_legacy', 5000);
+      } else {
+        console.warn('[islautopia-intercom-card] sin respuesta a talk_request en 3s, pero este portero SI habla el contrato de turno de palabra (ha mandado session_info) - se trata como mensaje perdido, no como firmware anterior: se abre el micro y se seguira pidiendo el turno con normalidad');
+      }
       this._startIntercom();
     }, 3000);
   }
@@ -901,7 +934,25 @@ class IslautopiaIntercomCard extends HTMLElement {
   }
 
   _handleTalkGranted(msg) {
-    if (msg && !this._talkMsgIsForUs(msg)) return;
+    // Excepcion deliberada al filtro por slot. Corrige un fallo REAL visto en un iPhone contra
+    // hardware de verdad (2026-07-29): al abrir el micro salia "este portero no confirma el turno
+    // de voz (firmware anterior)" con un portero perfectamente al dia.
+    //
+    // Causa: por el camino REMOTO la oferta no lleva `slot` -- no le hace falta, el relay enruta
+    // por device_id -- asi que el slot propio no se conoce hasta el primer `session_info`. Si el
+    // usuario pulsaba el micro en esa ventana, _talkMsgIsForUs() descartaba nuestro PROPIO
+    // talk_granted por no poder compararlo, se agotaban los 3s y se acusaba al firmware.
+    //
+    // Un talk_granted solo se manda A QUIEN LO PIDIO, y aqui consta que lo pedimos nosotros
+    // (_talkPending). El riesgo residual -- que el relay difunda el granted de otro cliente que
+    // pidiera el turno en ese mismo instante -- se acepta a conciencia, porque lo que el filtro
+    // evitaba aqui NO era abrir el micro: al agotarse los 3s se abria igual, solo que mas tarde y
+    // culpando al firmware del usuario. No protegia nada, y mentia.
+    //
+    // El slot NO se adopta de este mensaje: lo fija `session_info`, que si es inequivocamente
+    // nuestro. Hasta entonces _reconcileTalkTurn() ya se abstiene de opinar.
+    const esNuestroPorPeticion = this._talkPending && this._slot === null;
+    if (msg && !this._talkMsgIsForUs(msg) && !esNuestroPorPeticion) return;
     // NUNCA abrir el micro sin que el usuario lo haya pedido. Un talk_granted que no responde a
     // un talk_request nuestro puede ser (a) la reconfirmacion de un turno que ya teniamos
     // (§1.4-ter: repetir talk_request es la forma natural de decir "sigo aqui"), o (b) - camino
@@ -1258,62 +1309,144 @@ class IslautopiaIntercomCard extends HTMLElement {
       }
     }
 
-    // Nivel 2: respaldo propio. `position:fixed` sobre el elemento de la card.
+    // Nivel 2: respaldo propio, `position:fixed` sobre el contenedor de la card.
     this._fsNative = false;
     this._fsActive = true;
     this._applyFullscreenUI();
 
     // Y ahora se COMPRUEBA que de verdad ha ocupado la ventana, en vez de darlo por hecho. Un
-    // ancestro con `transform`/`filter`/`perspective`/`contain:paint` convierte cualquier
-    // `position:fixed` descendiente en relativo A ESE ANCESTRO (comportamiento estandar de CSS,
-    // no un fallo del navegador) - y en Home Assistant los contenedores de una vista, un tema o
-    // card-mod pueden introducir uno sin que la card se entere. Si eso pasa, el resultado seria
-    // "pantalla completa" dentro de la columna: justo el icono que promete algo y no lo cumple
-    // que el contrato prohibe. Mejor detectarlo, deshacerlo y esconder el icono.
+    // ancestro con transform/filter/perspective/contain:paint convierte cualquier position:fixed
+    // descendiente en relativo A ESE ANCESTRO (comportamiento estandar de CSS, no un fallo del
+    // navegador), y en Home Assistant un tema, card-mod o el propio cajon lateral pueden
+    // introducir uno sin que la card se entere.
+    if (this._respaldoLlenaLaVentana()) { this._acquireWakeLock(); return; }
+
+    // ...y si esta atrapado, NO se tira la toalla: se saca el contenedor a <body>, donde por
+    // definicion no hay ningun ancestro que pueda atraparlo, y se vuelve a medir.
     //
-    // COMO se comprueba importa tanto como que se compruebe. La comparacion NO es contra ninguna
-    // medida del viewport, sino contra una SONDA: un elemento identico -- tambien position:fixed
-    // con inset:0 -- colgado directamente de <body>, o sea en un sitio donde no puede haberlo
-    // atrapado nadie. Si nuestro elemento acaba donde acaba la sonda, ha escapado; si no, algo lo
-    // ha atrapado. Compara lo mismo contra lo mismo.
+    // Esto corrige un fallo REAL en el iPhone del usuario (2026-07-29): el icono desaparecia con
+    // el uso normal. La version anterior, al fallar la medida, se limitaba a esconder el icono
+    // PARA SIEMPRE -- y encima esconderlo dependia del sitio donde Home Assistant hubiera puesto
+    // la card, no de nada que el usuario pudiera entender o cambiar. Una funcion que se
+    // autodesactiva y no dice por que es peor que una que falla ruidosamente.
     //
-    // Se llego a esto midiendo, despues de equivocarse DOS veces con medidas del viewport que
-    // parecen la referencia obvia y no lo son:
-    //  - `window.innerWidth` INCLUYE la barra de desplazamiento; el bloque contenedor de un
-    //    position:fixed no. Medido en un Home Assistant real: una vista con scroll dio 1270x900
-    //    contra una ventana de 1280x900 -- alto exacto, ancho corto en exactamente el grosor de la
-    //    barra, y cero ancestros de riesgo. Habria escondido el icono en la mayoria de los
-    //    dashboards reales, que es justo lo que esta comprobacion NO debe hacer.
-    //  - `documentElement.clientHeight` tampoco sirve: en modo quirks devuelve el alto del
-    //    DOCUMENTO, no el del viewport (medido: 4506px con una ventana de 900px de alto).
-    // La sonda no depende de ninguna de esas sutilezas, ni de la barra, ni del viewport dinamico
-    // de un movil. Su unico punto ciego seria un transform sobre <html> o <body>, que atraparia
-    // tambien a la sonda -- pero entonces NINGUN elemento fijo de la pagina escaparia, y la card
-    // seguiria quedando tan grande como el navegador permita.
-    const rect = this.getBoundingClientRect();
+    // Se mueve el CONTENEDOR, nunca el elemento propio de la card: sacar <islautopia-intercom-card>
+    // del DOM dispararia disconnectedCallback() y tumbaria la sesion WebRTC entera. El <video> se
+    // mueve con el contenedor y no se corta: conserva su srcObject, y el traslado es sincrono, asi
+    // que el elemento nunca llega a estar fuera del documento cuando el navegador comprueba si
+    // debe pausarlo. Y como esta card no usa Shadow DOM, la hoja de estilos inyectada sigue
+    // aplicando igual estando el contenedor colgado de <body>.
+    //
+    // El traslado solo ocurre cuando la via normal ya ha fallado: en el caso corriente no se toca
+    // el DOM en absoluto.
+    this._mark('pantalla completa: el respaldo esta atrapado por un ancestro - se traslada a <body> y se vuelve a medir');
+    this._portalABody();
+    if (this._respaldoLlenaLaVentana()) {
+      console.info('[islautopia-intercom-card] un ancestro atrapaba la pantalla completa; resuelto trasladando la card a <body>.');
+      this._acquireWakeLock();
+      return;
+    }
+
+    // Ni siquiera colgando de <body>. Eso ya no es "esta card en este hueco": es que en esta
+    // pagina NINGUN elemento fijo puede ocupar la ventana (un transform sobre <html> o <body>).
+    // Aqui si es un callejon sin salida honesto, y el icono se retira -- pero es un veredicto
+    // sobre la PAGINA, estable, no algo que pueda cambiar porque el usuario abra el microfono.
+    console.warn(
+      '[islautopia-intercom-card] la pantalla completa no es posible en esta pagina: ni siquiera ' +
+      'colgando el contenedor de <body> se consigue ocupar la ventana. Causa habitual: un ' +
+      'transform/filter/contain aplicado a <html> o <body> por un tema. Ancestros sospechosos: ' +
+      JSON.stringify(this._ancestrosSospechosos()) + '. Se retira el icono en vez de ofrecer un modo que no funciona.'
+    );
+    this._fsActive = false;
+    this._applyFullscreenUI();
+    this._fsUnavailable = true;
+    this._paintFullscreenButton();
+  }
+
+  // Compara contra una SONDA, no contra ninguna medida del viewport: un elemento identico
+  // (position:fixed, inset:0) colgado de <body>, medido en el mismo instante. Si el contenedor
+  // acaba donde acaba la sonda, ha escapado.
+  //
+  // Se llego a esto midiendo, tras equivocarse DOS veces con medidas que parecen la referencia
+  // obvia y no lo son:
+  //  - window.innerWidth INCLUYE la barra de desplazamiento; el bloque contenedor de un
+  //    position:fixed no. Medido en un Home Assistant real: una vista con scroll dio 1270x900
+  //    contra una ventana de 1280x900 -- alto exacto, ancho corto en exactamente el grosor de la
+  //    barra, y cero ancestros de riesgo.
+  //  - documentElement.clientHeight tampoco sirve: en modo quirks devuelve el alto del DOCUMENTO,
+  //    no el del viewport (medido: 4506px con una ventana de 900px de alto).
+  _respaldoLlenaLaVentana() {
+    const rect = this.content.getBoundingClientRect();
     const sonda = document.createElement('div');
     sonda.style.cssText = 'position:fixed;inset:0;visibility:hidden;pointer-events:none;';
     document.body.appendChild(sonda);
     const ref = sonda.getBoundingClientRect();
     sonda.remove();
-    const fits = Math.abs(rect.width - ref.width) <= 2
+
+    // Parte 2, y no es redundante: la sonda tiene un punto ciego que se ha visto DE VERDAD al
+    // provocarlo (transform sobre <body>). Ahi la sonda queda atrapada exactamente igual que el
+    // contenedor, los dos miden lo mismo, y la comparacion da "correcto" con una pantalla completa
+    // de 64px de alto. Comparar lo mismo contra lo mismo detecta que el contenedor esta donde
+    // deberia, pero no que ese sitio sea la ventana.
+    //
+    // Por eso se anade una cota de CORDURA sobre la propia sonda: si un elemento fijo colgado de
+    // <body> no llega ni al 60% de la ventana, en esta pagina la posicion fija no funciona para
+    // nadie. El 60% es holgado a proposito -- solo tiene que separar "la ventana entera" de "una
+    // caja cualquiera", no medir con precision -- y se compara contra window.innerWidth/Height,
+    // que aqui SI valen: la barra de desplazamiento son 10-17px y el modo quirks no les afecta.
+    // Las dos trampas que estropearon la comparacion exacta no llegan ni de lejos a este margen.
+    const sondaEsSensata = ref.height >= window.innerHeight * 0.6
+      && ref.width >= window.innerWidth * 0.6;
+
+    return sondaEsSensata
+      && Math.abs(rect.width - ref.width) <= 2
       && Math.abs(rect.height - ref.height) <= 2
-      && Math.abs(rect.left - ref.left) <= 2 && Math.abs(rect.top - ref.top) <= 2;
-    if (!fits) {
-      console.warn(
-        '[islautopia-intercom-card] el respaldo de pantalla completa no ocupa la ventana ' +
-        `(rect=${Math.round(rect.width)}x${Math.round(rect.height)} @${Math.round(rect.left)},${Math.round(rect.top)}, ` +
-        `deberia ser ${Math.round(ref.width)}x${Math.round(ref.height)} @${Math.round(ref.left)},${Math.round(ref.top)}) - ` +
-        'probablemente un ancestro con transform/filter/contain. ' +
-        'Se desactiva el icono en vez de ofrecer un modo que no funciona.'
-      );
-      this._fsActive = false;
-      this._applyFullscreenUI();
-      this._fsUnavailable = true;
-      this._paintFullscreenButton();
-      return;
+      && Math.abs(rect.left - ref.left) <= 2
+      && Math.abs(rect.top - ref.top) <= 2;
+  }
+
+  // Diagnostico para cuando falla: nombra al culpable en vez de dejar un "no se pudo". Pensado
+  // para leerse por depuracion remota desde la app companion, donde no hay DevTools a mano.
+  _ancestrosSospechosos() {
+    const out = [];
+    let n = this.content;
+    let guard = 0;
+    while (n && guard++ < 200) {
+      if (n.nodeType === 1) {
+        const cs = getComputedStyle(n);
+        const malo = {};
+        if (cs.transform && cs.transform !== 'none') malo.transform = cs.transform;
+        if (cs.filter && cs.filter !== 'none') malo.filter = cs.filter;
+        if (cs.perspective && cs.perspective !== 'none') malo.perspective = cs.perspective;
+        if (cs.contain && cs.contain !== 'none') malo.contain = cs.contain;
+        if (cs.willChange && cs.willChange !== 'auto') malo.willChange = cs.willChange;
+        if (Object.keys(malo).length) out.push({ tag: n.tagName.toLowerCase(), ...malo });
+      }
+      n = n.parentNode || null;
+      if (n && n.nodeType === 11) n = n.host;
     }
-    this._acquireWakeLock();
+    return out;
+  }
+
+  // Traslado del CONTENEDOR a <body> y vuelta a su sitio. Se recuerda el hermano siguiente, no
+  // solo el padre, para devolverlo exactamente donde estaba.
+  _portalABody() {
+    if (this._fsHost) return;
+    this._fsHome = { parent: this.content.parentNode, next: this.content.nextSibling };
+    this._fsHost = document.createElement('div');
+    this._fsHost.className = 'ig-fs-host';
+    document.body.appendChild(this._fsHost);
+    this._fsHost.appendChild(this.content);
+  }
+
+  _deshacerPortal() {
+    if (!this._fsHost) return;
+    if (this._fsHome && this._fsHome.parent) {
+      this._fsHome.parent.insertBefore(this.content, this._fsHome.next);
+    }
+    this._fsHost.remove();
+    this._fsHost = null;
+    this._fsHome = null;
   }
 
   _exitFullscreen() {
@@ -1355,17 +1488,26 @@ class IslautopiaIntercomCard extends HTMLElement {
   // hoja de estilos tiene una sola version del modo y no dos que puedan separarse con el tiempo.
   // `ig-fs-pseudo` solo anade el `position:fixed` que el nivel 1 no necesita (en nativo lo coloca
   // el navegador).
+  // Las clases del modo van en el CONTENEDOR, no en el elemento de la card, y no es un detalle:
+  // cuando hace falta trasladar el contenedor a <body> (ver _portalABody) deja de ser descendiente
+  // del elemento, asi que cualquier regla colgada de `islautopia-intercom-card[data-fs]` dejaria
+  // de aplicar justo en el caso que se intenta salvar. El atributo `data-fs` SI se queda en el
+  // elemento: en pantalla completa nativa es a el a quien dimensiona el navegador.
   _applyFullscreenUI() {
     if (this._fsActive) {
       this.setAttribute('data-fs', '1');
-      this.classList.toggle('ig-fs-pseudo', !this._fsNative);
+      this.content.classList.add('ig-fs');
+      this.content.classList.toggle('ig-fs-pseudo', !this._fsNative);
       // Bloquear el scroll del documento por debajo solo tiene sentido en el respaldo (en nativo
       // el documento ya no se ve). Sin esto, un dedo sobre la card en el movil puede mover el
       // dashboard entero por detras.
       if (!this._fsNative) document.body.classList.add('ig-fs-body-lock');
     } else {
+      // Devolver el contenedor a su sitio ANTES de quitar las clases, para que no llegue a verse
+      // un fotograma con la card ya sin estilos de modo pero todavia colgando de <body>.
+      this._deshacerPortal();
       this.removeAttribute('data-fs');
-      this.classList.remove('ig-fs-pseudo');
+      this.content.classList.remove('ig-fs', 'ig-fs-pseudo');
       document.body.classList.remove('ig-fs-body-lock');
     }
     this._paintFullscreenButton();
@@ -1576,6 +1718,13 @@ class IslautopiaIntercomCard extends HTMLElement {
         ev.stopPropagation();
         this._toggleFullscreen();
       });
+      // El vigilante de vida solo mira cada 5s, y el chip de estado no deberia pasarse 5s
+      // mintiendo. 'timeupdate' del propio <video> avisa varias veces por segundo en cuanto la
+      // imagen avanza de verdad, que es exactamente la señal que debe mandar aqui. El coste es
+      // una comparacion de cadenas: _confirmLiveFromMedia() sale en la primera linea salvo que el
+      // chip este realmente equivocado.
+      this.videoEl.addEventListener('timeupdate', () => this._confirmLiveFromMedia());
+
       this._registerFullscreenListeners();
       this._applyDoorAvailability();
 
@@ -1921,9 +2070,24 @@ class IslautopiaIntercomCard extends HTMLElement {
         resolve(ok);
       };
 
+      // Abandonar el camino local SIN dejarse el slot cogido (2026-07-29). El portero asigna slot
+      // al aceptar la SSE, y solo da por abandonada una sesion sin `bye` a los 20s. Con
+      // MAX_WEBRTC_SESSIONS=4, unos cuantos reintentos que se van por las bravas dejan al usuario
+      // sin slots libres -- y eso se manifiesta como "fallos del relay", que es donde se buscaria
+      // el problema y no donde esta. Si nunca llegamos a tener slot no hay nada que soltar, y el
+      // `bye` se ahorra.
+      const abandonarLocal = () => {
+        if (!this.nativeSSE) return;
+        if (this._slot !== null) {
+          try { this.sendNativeSignal({ type: 'bye' }); } catch (err) { /* best effort */ }
+        }
+        this.nativeSSE.close();
+        this.nativeSSE = null;
+      };
+
       const timeout = setTimeout(() => {
         this._mark('tryLocalSignaling: timeout de 3000ms agotado sin oferta');
-        if (this.nativeSSE) { this.nativeSSE.close(); this.nativeSSE = null; }
+        abandonarLocal();
         finish(false);
       }, 3000);
 
@@ -1983,7 +2147,7 @@ class IslautopiaIntercomCard extends HTMLElement {
           .catch(() => {
             if (settled) return; // abortada por nosotros al terminar: no es un veredicto
             this._mark(`sonda de alcance: el portero NO es alcanzable (${Math.round(performance.now() - probeT0)}ms) - al relay sin esperar el resto de los 3000ms`);
-            if (this.nativeSSE) { this.nativeSSE.close(); this.nativeSSE = null; }
+            abandonarLocal();
             finish(false);
           });
       } else {
@@ -2004,7 +2168,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       // firmware real, no asumido. Mantener aqui el diagnostico viejo mandaria a quien depure
       // esto en el futuro directo a una pista falsa - hoy las causas realistas son otras.
       this.nativeSSE.onerror = () => {
-        if (this.nativeSSE) { this.nativeSSE.close(); this.nativeSSE = null; }
+        abandonarLocal();
         console.warn(
           '[islautopia-intercom-card] señalización local (%s) fallo o no respondió a tiempo - cayendo al relay remoto. ' +
           'El navegador NO expone a este script el motivo exacto (revisa la pestaña Network/Console de las DevTools). ' +
@@ -2715,17 +2879,21 @@ class IslautopiaIntercomCard extends HTMLElement {
          !important, no una pelea de especificidad inventada.
          ========================================================================== */
       islautopia-intercom-card[data-fs] { height: 100%; background: #000; }
+      /* Contenedor de emergencia al que se traslada la card cuando un ancestro atrapa el
+         position:fixed. No lleva estilos propios a proposito: quien se posiciona es el
+         contenedor de la card, y un host con caja propia solo podria estorbar. */
+      .ig-fs-host { display: contents; }
       islautopia-intercom-card[data-fs] ha-card {
         height: 100%; border-radius: 0; box-shadow: none; border: none;
       }
-      islautopia-intercom-card[data-fs] .intercom-container {
+      .intercom-container.ig-fs {
         height: 100%; padding: 0; gap: 0; background: #000;
       }
       /* La fila de chips de modo se retira: el modo del sistema es configuracion, no algo que se
          atienda con alguien esperando en la puerta. Los dos botones que el contrato pide (micro y
          abrir) siguen ahi, flotando sobre la imagen. */
-      islautopia-intercom-card[data-fs] .mode-row { display: none !important; }
-      islautopia-intercom-card[data-fs] .feed-wrap {
+      .intercom-container.ig-fs .mode-row { display: none !important; }
+      .intercom-container.ig-fs .feed-wrap {
         position: absolute; inset: 0; width: 100%;
         height: 100% !important; aspect-ratio: auto !important;
         border-radius: 0; border: none;
@@ -2733,36 +2901,36 @@ class IslautopiaIntercomCard extends HTMLElement {
       /* object-fit contain, no cover: recortar para llenar el hueco dejaria a quien esta en la puerta
          fuera del encuadre segun la forma de la pantalla. En un videoportero eso no es un detalle
          estetico. */
-      islautopia-intercom-card[data-fs] .video-wrapper video { object-fit: contain; }
+      .intercom-container.ig-fs .video-wrapper video { object-fit: contain; }
 
       /* Los dos botones, flotando sobre la imagen. NO se ocultan solos: no hay ningun temporizador
          que los esconda, a proposito. */
-      islautopia-intercom-card[data-fs] .actions-row {
+      .intercom-container.ig-fs .actions-row {
         position: absolute; left: 0; right: 0; bottom: 16px; z-index: 8;
         padding: 0; gap: 34px; pointer-events: none;
       }
       /* Velo degradado bajo los controles flotantes. No es adorno: sobre una imagen clara (un
          portal a mediodia) el texto blanco de las etiquetas y la linea de estado se vuelve
          ilegible, y aqui lo que hay que leer es "Puerta abierta" o "canal ocupado". */
-      islautopia-intercom-card[data-fs] .feed-wrap::after {
+      .intercom-container.ig-fs .feed-wrap::after {
         content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 210px;
         background: linear-gradient(180deg, transparent, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0.72));
         pointer-events: none; z-index: 4;
       }
-      islautopia-intercom-card[data-fs] .actions-row .action { pointer-events: auto; }
-      islautopia-intercom-card[data-fs] .action .btn {
+      .intercom-container.ig-fs .actions-row .action { pointer-events: auto; }
+      .intercom-container.ig-fs .action .btn {
         box-shadow: 0 6px 22px rgba(0,0,0,0.65);
         background: linear-gradient(135deg, rgba(22,35,54,0.92), rgba(29,45,66,0.92));
         backdrop-filter: blur(6px);
       }
-      islautopia-intercom-card[data-fs] .action .lbl {
+      .intercom-container.ig-fs .action .lbl {
         color: rgba(232,240,254,0.9); text-shadow: 0 1px 4px rgba(0,0,0,0.8);
       }
       /* La linea de estado (puerta abierta, canal ocupado, sin cerradura) tambien flota: es donde
          se contesta al usuario cuando pulsa, y dejarla fuera de la vista en este modo la haria
          inutil justo cuando mas se usa. */
       /* Justo encima de los botones (que ocupan 16px de margen + 80 de boton + 6 + etiqueta). */
-      islautopia-intercom-card[data-fs] .status-line {
+      .intercom-container.ig-fs .status-line {
         position: absolute; left: 0; right: 0; bottom: 136px; z-index: 7;
         pointer-events: none; text-shadow: 0 1px 4px rgba(0,0,0,0.85);
         color: rgba(232,240,254,0.85);
@@ -2775,7 +2943,7 @@ class IslautopiaIntercomCard extends HTMLElement {
          solape real. La consulta es de CONTENEDOR (el propio marco de video), no de ventana, por
          el mismo motivo que el resto de la card: lo que manda es el ancho del video. */
       @container igfeed (max-width: 520px) {
-        islautopia-intercom-card[data-fs] .hud-bottom { bottom: 174px; }
+        .intercom-container.ig-fs .hud-bottom { bottom: 174px; }
       }
 
       /* Nivel 2: respaldo propio. El tamano lo dan 'inset: 0' y 'width/height: auto', NO unidades
@@ -2787,7 +2955,7 @@ class IslautopiaIntercomCard extends HTMLElement {
          _enterFullscreen().
          Los !important estan para ganarle al 'width: 100%' que se fija como estilo EN LINEA
          sobre el propio elemento (ver setConfig) y al 'height: 100%' del modo. */
-      islautopia-intercom-card.ig-fs-pseudo {
+      .intercom-container.ig-fs-pseudo {
         position: fixed; inset: 0; z-index: 2147483000;
         width: auto !important; height: auto !important; max-width: none;
       }
