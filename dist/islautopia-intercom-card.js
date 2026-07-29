@@ -2369,7 +2369,15 @@ class IslautopiaIntercomCard extends HTMLElement {
       .video-wrapper { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
       .video-wrapper video { width: 100%; height: 100%; object-fit: contain; }
 
-      .islautopia-loader { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(7,10,18,0.85); z-index: 10; display: flex; align-items: center; justify-content: center; transition: opacity 0.3s ease; }
+      /* pointer-events:none desde el principio (2026-07-29). El velo de carga cubre el marco
+         entero con z-index 10 y hasta ahora solo dejaba de interceptar clicks cuando llegaba el
+         primer fotograma (inline, desde setupRemoteStream). Efecto real: mientras la card
+         conectaba - que con el portero apagado o desde fuera de casa puede ser bastante rato -
+         ningun control del HUD respondia, incluido el boton de pantalla completa; y tras una
+         reconexion el velo volvia a opacidad 1 pero SIN volver a interceptar, asi que el
+         comportamiento ni siquiera era consistente consigo mismo. El velo no tiene nada que se
+         pueda pulsar: es decoracion, y la decoracion no debe robar clicks. */
+      .islautopia-loader { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(7,10,18,0.85); z-index: 10; display: flex; align-items: center; justify-content: center; transition: opacity 0.3s ease; pointer-events: none; }
       .ig-ring { position: absolute; width: 60px; height: 60px; border: 4px solid rgba(0,196,212,0.2); border-top-color: var(--ig-cyan); border-radius: 50%; animation: ig-spin 1s linear infinite; }
       .ig-logo { position: absolute; color: #fff; font-family: system-ui, sans-serif; font-weight: 800; font-size: 16px; letter-spacing: 1px; }
       @keyframes ig-spin { 100% { transform: rotate(360deg); } }
