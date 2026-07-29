@@ -636,6 +636,27 @@ class IslautopiaIntercomCard extends HTMLElement {
     if (!this.content) return;
     this._updateModeRow();
     this._updateMotionPill();
+    this._repaintTextsIfLanguageChanged();
+  }
+
+  // Idioma: repintar los textos que solo se escriben UNA vez (2026-07-29, encontrado midiendo con
+  // Playwright, no razonando). Home Assistant llama SIEMPRE a setConfig() antes de asignar `hass`
+  // - y es setConfig() quien llama a render(). O sea que todo el HTML inicial de la card se pinta
+  // con `this._hass` todavia sin definir, y getLocalText() cae a ingles pase lo que pase, tambien
+  // para un usuario con Home Assistant en español. La mayoria de los textos se salvaban de rebote
+  // porque algo los repinta al conectar (el badge, las etiquetas de los botones, la linea de
+  // estado); los que no dependen del estado - el titulo del boton de pantalla completa, el del
+  // contador de clientes, el menu de calidad - se quedaban en ingles para siempre, en silencio.
+  // Se compara el idioma efectivamente pintado para no rehacer nada en cada tick de estado de HA,
+  // que puede ser muy frecuente.
+  _repaintTextsIfLanguageChanged() {
+    const lang = (this._hass && this._hass.language) ? this._hass.language.substring(0, 2) : 'en';
+    if (this._paintedLang === lang) return;
+    this._paintedLang = lang;
+    this._paintFullscreenButton();
+    if (this.clientsPill) this.clientsPill.setAttribute('title', getLocalText(this._hass, 'clients_tip'));
+    if (this.qualityBtn) this.qualityBtn.setAttribute('title', getLocalText(this._hass, 'q_label'));
+    if (this.qualityMenu) { this._renderQualityMenu(); this._paintQuality(); }
   }
 
   _modeKeyFor(label) {
