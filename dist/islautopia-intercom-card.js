@@ -16,7 +16,7 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_BUILD_ID = '2026-07-26-multicliente-calidad';
+const CARD_BUILD_ID = '2026-07-29-pantalla-completa';
 console.log(`[islautopia-intercom-card] modulo cargado - build=${CARD_BUILD_ID} (compara este valor contra CARD_BUILD_ID en el repo si tienes dudas de si el navegador esta sirviendo una copia cacheada vieja)`);
 
 // Diccionario global de traducciones para Tarjeta y Editor (Top 9 Idiomas + HA Community)
@@ -32,6 +32,7 @@ const islautopiaLocales = {
     q_auto_loss: "Calidad ajustada automáticamente: pérdida de paquetes", q_auto_bw: "Calidad ajustada automáticamente: ancho de banda insuficiente",
     q_auto_sub: "El portero decide", q_full_sub: "Vídeo completo", q_low_sub: "~1 imagen/s (solo claves)", q_audio_only_sub: "Sin vídeo, solo sonido",
     q_low_warn: "Calidad baja: ~1 imagen por segundo. No es una avería.", talk_free_retry: "Canal de voz libre — ya puedes hablar",
+    fs_enter: "Pantalla completa", fs_exit: "Salir de pantalla completa",
     ed_device_id: "Device ID nativo IG Doorbell (recomendado - ver Ajustes > Dispositivos y servicios)",
     ed_mode_entity: "Entidad de Modo (Opcional - select.* para mostrar los chips Normal/Ausente/Noche/Custom)",
     ed_motion_entity: "Entidad de Movimiento (Opcional - binary_sensor.* para el aviso de movimiento sobre el vídeo)",
@@ -48,6 +49,7 @@ const islautopiaLocales = {
     q_auto_loss: "Quality auto-adjusted: packet loss", q_auto_bw: "Quality auto-adjusted: not enough bandwidth",
     q_auto_sub: "The doorbell decides", q_full_sub: "Full video", q_low_sub: "~1 frame/s (keyframes only)", q_audio_only_sub: "No video, sound only",
     q_low_warn: "Low quality: about 1 frame per second. This is not a fault.", talk_free_retry: "Voice channel free — you can talk now",
+    fs_enter: "Fullscreen", fs_exit: "Exit fullscreen",
     ed_device_id: "Native IG Doorbell Device ID (recommended - see Settings > Devices & services)",
     ed_mode_entity: "Mode Entity (Optional - select.* to show the Normal/Away/Night/Custom chips)",
     ed_motion_entity: "Motion Entity (Optional - binary_sensor.* for the motion badge over the video)",
@@ -64,6 +66,7 @@ const islautopiaLocales = {
     q_auto_loss: "Qualidade ajustada automaticamente: perda de pacotes", q_auto_bw: "Qualidade ajustada automaticamente: largura de banda insuficiente",
     q_auto_sub: "O porteiro decide", q_full_sub: "Vídeo completo", q_low_sub: "~1 imagem/s (só chaves)", q_audio_only_sub: "Sem vídeo, só som",
     q_low_warn: "Qualidade baixa: ~1 imagem por segundo. Não é avaria.", talk_free_retry: "Canal de voz livre — já pode falar",
+    fs_enter: "Ecrã inteiro", fs_exit: "Sair do ecrã inteiro",
     ed_device_id: "Device ID nativo do IG Doorbell (recomendado)",
     ed_mode_entity: "Entidade de Modo (Opcional - select.* para mostrar os chips Normal/Ausente/Noite/Custom)",
     ed_motion_entity: "Entidade de Movimento (Opcional - binary_sensor.* para o aviso de movimento sobre o vídeo)",
@@ -80,6 +83,7 @@ const islautopiaLocales = {
     q_auto_loss: "Qualität automatisch angepasst: Paketverlust", q_auto_bw: "Qualität automatisch angepasst: zu wenig Bandbreite",
     q_auto_sub: "Die Türsprechanlage entscheidet", q_full_sub: "Volles Video", q_low_sub: "~1 Bild/s (nur Keyframes)", q_audio_only_sub: "Kein Video, nur Ton",
     q_low_warn: "Niedrige Qualität: ca. 1 Bild pro Sekunde. Kein Defekt.", talk_free_retry: "Sprachkanal frei — du kannst jetzt sprechen",
+    fs_enter: "Vollbild", fs_exit: "Vollbild beenden",
     ed_device_id: "Native IG Doorbell Device ID (empfohlen)",
     ed_mode_entity: "Modus-Entität (Optional - select.* für die Chips Normal/Abwesend/Nacht/Custom)",
     ed_motion_entity: "Bewegungs-Entität (Optional - binary_sensor.* für den Bewegungshinweis über dem Video)",
@@ -96,6 +100,7 @@ const islautopiaLocales = {
     q_auto_loss: "Qualité ajustée automatiquement : perte de paquets", q_auto_bw: "Qualité ajustée automatiquement : bande passante insuffisante",
     q_auto_sub: "Le portier décide", q_full_sub: "Vidéo complète", q_low_sub: "~1 image/s (images clés)", q_audio_only_sub: "Pas de vidéo, son seul",
     q_low_warn: "Qualité basse : environ 1 image par seconde. Ce n'est pas une panne.", talk_free_retry: "Canal vocal libre — vous pouvez parler",
+    fs_enter: "Plein écran", fs_exit: "Quitter le plein écran",
     ed_device_id: "Device ID natif IG Doorbell (recommandé)",
     ed_mode_entity: "Entité de Mode (Optionnel - select.* pour afficher les puces Normal/Absent/Nuit/Custom)",
     ed_motion_entity: "Entité de Mouvement (Optionnel - binary_sensor.* pour l'alerte de mouvement sur la vidéo)",
@@ -112,6 +117,7 @@ const islautopiaLocales = {
     q_auto_loss: "Качество изменено автоматически: потеря пакетов", q_auto_bw: "Качество изменено автоматически: недостаточно полосы",
     q_auto_sub: "Решает домофон", q_full_sub: "Полное видео", q_low_sub: "~1 кадр/с (только ключевые)", q_audio_only_sub: "Без видео, только звук",
     q_low_warn: "Низкое качество: около 1 кадра в секунду. Это не неисправность.", talk_free_retry: "Голосовой канал свободен — можно говорить",
+    fs_enter: "Полный экран", fs_exit: "Выйти из полного экрана",
     ed_device_id: "Собственный Device ID IG Doorbell (рекомендуется)",
     ed_mode_entity: "Объект режима (Необязательно - select.* для чипов Обычный/Отсутствие/Ночь/Custom)",
     ed_motion_entity: "Объект движения (Необязательно - binary_sensor.* для значка движения поверх видео)",
@@ -128,6 +134,7 @@ const islautopiaLocales = {
     q_auto_loss: "画质已自动调整：丢包", q_auto_bw: "画质已自动调整：带宽不足",
     q_auto_sub: "由门口机决定", q_full_sub: "完整视频", q_low_sub: "约1帧/秒（仅关键帧）", q_audio_only_sub: "无视频，仅声音",
     q_low_warn: "低画质：约每秒1帧，这不是故障。", talk_free_retry: "语音通道已空闲 — 现在可以讲话",
+    fs_enter: "全屏", fs_exit: "退出全屏",
     ed_device_id: "原生 IG Doorbell 设备 ID (推荐)",
     ed_mode_entity: "模式实体 (可选 - select.* 用于显示 正常/离开/夜间/自定义 标签)",
     ed_motion_entity: "移动实体 (可选 - binary_sensor.* 用于视频上的移动提示)",
@@ -144,6 +151,7 @@ const islautopiaLocales = {
     q_auto_loss: "गुणवत्ता स्वतः समायोजित: पैकेट हानि", q_auto_bw: "गुणवत्ता स्वतः समायोजित: अपर्याप्त बैंडविड्थ",
     q_auto_sub: "डोरबेल तय करता है", q_full_sub: "पूरा वीडियो", q_low_sub: "~1 फ्रेम/सेकंड (केवल कीफ्रेम)", q_audio_only_sub: "वीडियो नहीं, केवल ध्वनि",
     q_low_warn: "कम गुणवत्ता: लगभग 1 फ्रेम प्रति सेकंड। यह खराबी नहीं है।", talk_free_retry: "वॉइस चैनल खाली — अब आप बोल सकते हैं",
+    fs_enter: "पूर्ण स्क्रीन", fs_exit: "पूर्ण स्क्रीन से बाहर",
     ed_device_id: "नेटिव IG Doorbell डिवाइस ID (अनुशंसित)",
     ed_mode_entity: "मोड एंटिटी (वैकल्पिक - select.* सामान्य/अनुपस्थित/रात/कस्टम चिप्स दिखाने के लिए)",
     ed_motion_entity: "मोशन एंटिटी (वैकल्पिक - binary_sensor.* वीडियो पर मोशन बैज के लिए)",
@@ -160,6 +168,7 @@ const islautopiaLocales = {
     q_auto_loss: "تم ضبط الجودة تلقائياً: فقد الحزم", q_auto_bw: "تم ضبط الجودة تلقائياً: عرض نطاق غير كافٍ",
     q_auto_sub: "الجهاز يقرر", q_full_sub: "فيديو كامل", q_low_sub: "~إطار واحد/ث (إطارات مفتاحية فقط)", q_audio_only_sub: "بدون فيديو، صوت فقط",
     q_low_warn: "جودة منخفضة: إطار واحد تقريباً في الثانية. ليس عطلاً.", talk_free_retry: "قناة الصوت متاحة — يمكنك التحدث الآن",
+    fs_enter: "ملء الشاشة", fs_exit: "إنهاء ملء الشاشة",
     ed_device_id: "معرّف الجهاز الأصلي IG Doorbell (موصى به)",
     ed_mode_entity: "كيان الوضع (اختياري - select.* لعرض رقائق عادي/غائب/ليلي/مخصص)",
     ed_motion_entity: "كيان الحركة (اختياري - binary_sensor.* لشارة الحركة فوق الفيديو)",
@@ -179,6 +188,64 @@ function getLocalText(hass, key) {
   //    riesgo real de que a alguien se le escape una en el futuro deja de ser teorico - mejor un
   //    texto en ingles que un "undefined" en pantalla.
   return (table[key] !== undefined) ? table[key] : islautopiaLocales.en[key];
+}
+
+// ==============================================================================
+// PANTALLA COMPLETA. Dos niveles, y el motivo de que sean dos no es
+// defensivo "por si acaso": es que la API real del navegador NO esta disponible en una parte
+// grande de donde se usa esta card, y esta comprobado de donde viene cada caso.
+//
+// Nivel 1 - API nativa del navegador (Fullscreen API). Es la buena: oculta ademas la barra de
+// direcciones/las barras del sistema, y trae la salida con ESC ya hecha por el navegador.
+//
+// Nivel 2 - respaldo propio en CSS (position:fixed ocupando el viewport entero). Se usa donde el
+// nivel 1 no existe. NO oculta las barras del sistema del movil - ocupa toda la ventana de la
+// aplicacion, que en la app companion es casi toda la pantalla.
+//
+// POR QUE HACE FALTA EL NIVEL 2, con las dos causas reales (verificadas en el codigo fuente de
+// los proyectos implicados, no deducidas de un foro):
+//
+//   * App companion de ANDROID: la web va dentro de un WebView. Chromium solo concede la
+//     Fullscreen API si la aplicacion anfitriona implementa `WebChromeClient.onShowCustomView`;
+//     si no lo hace, `document.fullscreenEnabled` devuelve false POR DISENO (chromium:
+//     `android_webview/browser/aw_settings.cc` rellena `web_prefs->fullscreen_supported` con ese
+//     dato, y Blink lo consulta en `Fullscreen::FullscreenEnabled`). La app de Home Assistant
+//     para Android no lo implementaba: lo anadio el 2026-05-06 (PR home-assistant/android#6790,
+//     `HAWebChromeClient.kt`). Es decir, este caso se arregla solo actualizando la app - pero
+//     quien tenga una version anterior sigue sin API.
+//
+//   * App companion de iOS: `WKWebView` trae la pantalla completa de elementos APAGADA de
+//     fabrica; hay que encenderla con `WKPreferences.isElementFullscreenEnabled` (iOS 15.4+). La
+//     app de Home Assistant para iOS no la toca (`WebViewController.swift`,
+//     `makeWebViewConfiguration()`), asi que se queda apagada. Aqui no hay version que lo
+//     arregle desde nuestro lado. Ademas, en un iPhone tampoco hay pantalla completa de
+//     elementos ni en Safari - es una limitacion de WebKit en ese formato, no de la app.
+//
+// Lo que hace Advanced Camera Card (que es la card que el usuario cita como referencia): usa la
+// libreria `screenfull`, que es exactamente esta misma deteccion, y cuando no hay API cae a
+// `video.webkitEnterFullscreen()` - el reproductor nativo de iOS. Ese respaldo no nos sirve:
+// se lleva el elemento <video> a un reproductor del sistema y **desaparecen los botones de la
+// card**, que es justo lo que este modo tiene que ofrecer (micro y abrir puerta). De ahi que el
+// nivel 2 sea propio y en CSS, conservando nuestro HUD.
+//
+// Consecuencia de diseno: el icono de pantalla completa NUNCA es un icono muerto. Siempre hay un
+// camino real; solo cambia cual. Ver _enterFullscreen().
+// ==============================================================================
+function nativeFullscreenAvailable() {
+  // `document.fullscreenEnabled` es la comprobacion del estandar y contempla tanto que el motor
+  // lo soporte como que el contexto tenga permiso (p.ej. un <iframe> sin `allowfullscreen`
+  // devuelve false, que es la respuesta correcta). Se mira tambien la variante con prefijo por
+  // los WebKit antiguos.
+  const enabled = (document.fullscreenEnabled !== undefined)
+    ? document.fullscreenEnabled
+    : (document.webkitFullscreenEnabled === true);
+  const proto = (typeof Element !== 'undefined') ? Element.prototype : null;
+  const canRequest = !!(proto && (proto.requestFullscreen || proto.webkitRequestFullscreen));
+  return !!enabled && canRequest;
+}
+
+function currentFullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
 }
 
 // ==============================================================================
@@ -306,12 +373,34 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._qualityProbeAttempts = 0;
     this._qualityMenuOpen = false;
 
+    // ---- Pantalla completa (2026-07-29) -----------------------------------------------------
+    // A diferencia del bloque de arriba, esto NO es estado por sesion: es una preferencia de
+    // visualizacion del usuario y sobrevive a una reconexion (seria absurdo que un corte de red
+    // de dos segundos te sacara de la pantalla completa mientras hablas con quien esta en la
+    // puerta). Por eso no se toca en _resetMulticlientState().
+    this._fsActive = false;
+    this._fsNative = false;      // true = pantalla completa real del navegador; false = respaldo CSS
+    this._fsUnavailable = false; // ni API nativa ni respaldo utilizable: el icono se esconde
+    this._wakeLock = null;
+
+    // Cerradura no configurada en el portero (modo "sin cerradura"): el boton de abrir NO debe
+    // dibujarse, en vez de dibujarse y fallar. El firmware no expone ese ajuste por ningun
+    // camino que esta card pueda leer - `/api/get_states` exige cookie de sesion de administrador,
+    // y la card solo tiene la credencial de emparejamiento (mismo motivo por el que el contador de
+    // clientes llegue por MQTT). Asi que se APRENDE del unico sitio donde el dispositivo lo
+    // dice: el `open_result` con `no_lock_configured`, y se recuerda por device_id para que el
+    // fallo ocurra UNA vez y no en cada carga. Ver _rememberNoLock()/_applyDoorAvailability().
+    this._noLockKey = `islautopia-nolock-${config.device_id}`;
+    this._noLock = false;
+    try { this._noLock = (localStorage.getItem(this._noLockKey) === '1'); } catch (err) { /* modo privado */ }
+
     this.render();
   }
 
   getCardSize() { return 4; }
 
   connectedCallback() {
+    if (this.content) this._registerFullscreenListeners();
     if (this.content && !this.pc) this.startWebRTC();
   }
 
@@ -328,6 +417,22 @@ class IslautopiaIntercomCard extends HTMLElement {
     if (this._onDocClickForQuality) {
       document.removeEventListener('click', this._onDocClickForQuality);
       this._onDocClickForQuality = null;
+    }
+    // Pantalla completa: salir SIEMPRE al desaparecer la card del DOM (cambio de vista de
+    // Lovelace, edicion del dashboard...). Sin esto, el respaldo CSS dejaria el `scroll` del
+    // documento bloqueado y el usuario se quedaria con un dashboard que no se mueve, sin ninguna
+    // card visible a la que culpar; y el wake lock seguiria vivo consumiendo bateria.
+    if (this._fsActive) this._exitFullscreen();
+    this._releaseWakeLock();
+    document.body.classList.remove('ig-fs-body-lock');
+    if (this._onFsChange) {
+      document.removeEventListener('fullscreenchange', this._onFsChange);
+      document.removeEventListener('webkitfullscreenchange', this._onFsChange);
+      this._onFsChange = null;
+    }
+    if (this._onFsKeyDown) {
+      document.removeEventListener('keydown', this._onFsKeyDown);
+      this._onFsKeyDown = null;
     }
   }
 
@@ -1031,6 +1136,226 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._paintQuality();
   }
 
+  // ==============================================================================
+  // PANTALLA COMPLETA (2026-07-29). Ver el bloque de
+  // comentarios de nativeFullscreenAvailable() arriba para POR QUE hay dos niveles y de donde
+  // sale cada caso real.
+  //
+  // Reglas del contrato que se implementan aqui y NO deben "mejorarse" luego sin releerlo:
+  //  - Los controles NO se ocultan solos. Esto no es un reproductor de video: hay alguien
+  //    esperando en la puerta, y que el boton de abrir desaparezca a los 3 segundos es
+  //    exactamente el momento en que nadie quiere buscar nada. (Aqui no hay nada que programar:
+  //    simplemente no existe ningun temporizador de ocultado. Se deja escrito para que a nadie
+  //    le parezca un olvido.)
+  //  - La pantalla no se apaga mientras el modo esta activo (wake lock).
+  //  - El contador de gente mirando sigue visible.
+  //  - El boton de abrir solo aparece si hay cerradura configurada.
+  // ==============================================================================
+  // Los listeners son de DOCUMENTO, no del elemento, asi que hay que quitarlos al salir del DOM
+  // (lo hace disconnectedCallback) y volver a ponerlos al reentrar - Home Assistant remonta las
+  // cards al cambiar de vista o al editar el dashboard, y render() no se vuelve a ejecutar en ese
+  // caso (esta guardado por `if (!this.content)`). De ahi que esto lo llame tambien
+  // connectedCallback y no solo render(): si no, la salida con ESC dejaria de funcionar tras el
+  // primer remontaje, en silencio.
+  _registerFullscreenListeners() {
+    if (this._onFsChange) return; // ya registrados
+    this._onFsChange = () => this._syncFullscreenFromBrowser();
+    document.addEventListener('fullscreenchange', this._onFsChange);
+    document.addEventListener('webkitfullscreenchange', this._onFsChange);
+    this._onFsKeyDown = (ev) => {
+      // En pantalla completa NATIVA el ESC lo gestiona el navegador (y nos avisa por
+      // 'fullscreenchange'); aqui solo hace falta para el respaldo propio, que no tiene salida
+      // del navegador. Mismo gesto en los dos, que es lo que el contrato pide.
+      if (ev.key === 'Escape' && this._fsActive && !this._fsNative) this._exitFullscreen();
+    };
+    document.addEventListener('keydown', this._onFsKeyDown);
+  }
+
+  _toggleFullscreen() {
+    if (this._fsActive) this._exitFullscreen();
+    else this._enterFullscreen();
+  }
+
+  async _enterFullscreen() {
+    if (this._fsActive) return;
+
+    // Nivel 1: la API real. Se pide sobre el PROPIO elemento de la card (no sobre el <video>): en
+    // pantalla completa nativa el elemento pasa a la "capa superior" del navegador, asi que se
+    // salta cualquier `overflow:hidden` o contenedor de Home Assistant sin depender de nada del
+    // dashboard - y conserva nuestros botones encima, que es lo que el reproductor nativo de iOS
+    // NO haria. El ESC lo gestiona el navegador y nos avisa por 'fullscreenchange'.
+    if (nativeFullscreenAvailable()) {
+      const req = this.requestFullscreen || this.webkitRequestFullscreen;
+      try {
+        // `navigationUI:'hide'` es una sugerencia; los navegadores que no la entienden la ignoran.
+        await req.call(this, { navigationUI: 'hide' });
+        this._fsNative = true;
+        this._fsActive = true;
+        this._applyFullscreenUI();
+        this._acquireWakeLock();
+        return;
+      } catch (err) {
+        // Puede rechazar aunque `fullscreenEnabled` diga que si (p.ej. si el navegador no
+        // considera que haya habido gesto del usuario). No es terminal: cae al nivel 2, que
+        // funciona igual de bien dentro de la ventana.
+        console.warn('[islautopia-intercom-card] pantalla completa nativa rechazada, se usa el respaldo propio', err);
+      }
+    }
+
+    // Nivel 2: respaldo propio. `position:fixed` sobre el elemento de la card.
+    this._fsNative = false;
+    this._fsActive = true;
+    this._applyFullscreenUI();
+
+    // Y ahora se COMPRUEBA que de verdad ha ocupado la ventana, en vez de darlo por hecho. Un
+    // ancestro con `transform`/`filter`/`perspective`/`contain:paint` convierte cualquier
+    // `position:fixed` descendiente en relativo A ESE ANCESTRO (comportamiento estandar de CSS,
+    // no un fallo del navegador) - y en Home Assistant los contenedores de una vista, un tema o
+    // card-mod pueden introducir uno sin que la card se entere. Si eso pasa, el resultado seria
+    // "pantalla completa" dentro de la columna: justo el icono que promete algo y no lo cumple
+    // que el contrato prohibe. Mejor detectarlo, deshacerlo y esconder el icono.
+    const rect = this.getBoundingClientRect();
+    const fits = Math.abs(rect.width - window.innerWidth) <= 2
+      && Math.abs(rect.height - window.innerHeight) <= 2
+      && Math.abs(rect.left) <= 2 && Math.abs(rect.top) <= 2;
+    if (!fits) {
+      console.warn(
+        '[islautopia-intercom-card] el respaldo de pantalla completa no ocupa la ventana ' +
+        `(rect=${Math.round(rect.width)}x${Math.round(rect.height)} @${Math.round(rect.left)},${Math.round(rect.top)}, ` +
+        `ventana=${window.innerWidth}x${window.innerHeight}) - probablemente un ancestro con transform/filter/contain. ` +
+        'Se desactiva el icono en vez de ofrecer un modo que no funciona.'
+      );
+      this._fsActive = false;
+      this._applyFullscreenUI();
+      this._fsUnavailable = true;
+      this._paintFullscreenButton();
+      return;
+    }
+    this._acquireWakeLock();
+  }
+
+  _exitFullscreen() {
+    if (!this._fsActive) return;
+    if (this._fsNative && currentFullscreenElement()) {
+      // El repintado real lo hace _syncFullscreenFromBrowser() al llegar 'fullscreenchange' -
+      // asi el camino "salgo yo" y el camino "sale el usuario con ESC" son el MISMO codigo y no
+      // pueden divergir.
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      try { exit.call(document); } catch (err) { /* best effort */ }
+      return;
+    }
+    this._fsActive = false;
+    this._fsNative = false;
+    this._applyFullscreenUI();
+    this._releaseWakeLock();
+  }
+
+  // El navegador ha entrado o salido de pantalla completa por su cuenta (ESC, gesto del sistema,
+  // otra pestaña...). Fuente de verdad: el propio documento, nunca nuestra variable.
+  _syncFullscreenFromBrowser() {
+    const fsEl = currentFullscreenElement();
+    const weAreFullscreen = (fsEl === this);
+    if (weAreFullscreen === (this._fsActive && this._fsNative)) return;
+    if (weAreFullscreen) {
+      this._fsActive = true;
+      this._fsNative = true;
+      this._applyFullscreenUI();
+      this._acquireWakeLock();
+    } else if (this._fsNative) {
+      this._fsActive = false;
+      this._fsNative = false;
+      this._applyFullscreenUI();
+      this._releaseWakeLock();
+    }
+  }
+
+  // Un unico atributo (`data-fs`) gobierna TODO el reposicionado, para los dos niveles: asi la
+  // hoja de estilos tiene una sola version del modo y no dos que puedan separarse con el tiempo.
+  // `ig-fs-pseudo` solo anade el `position:fixed` que el nivel 1 no necesita (en nativo lo coloca
+  // el navegador).
+  _applyFullscreenUI() {
+    if (this._fsActive) {
+      this.setAttribute('data-fs', '1');
+      this.classList.toggle('ig-fs-pseudo', !this._fsNative);
+      // Bloquear el scroll del documento por debajo solo tiene sentido en el respaldo (en nativo
+      // el documento ya no se ve). Sin esto, un dedo sobre la card en el movil puede mover el
+      // dashboard entero por detras.
+      if (!this._fsNative) document.body.classList.add('ig-fs-body-lock');
+    } else {
+      this.removeAttribute('data-fs');
+      this.classList.remove('ig-fs-pseudo');
+      document.body.classList.remove('ig-fs-body-lock');
+    }
+    this._paintFullscreenButton();
+  }
+
+  _paintFullscreenButton() {
+    if (!this.fsBtn) return;
+    if (this._fsUnavailable) { this.fsBtn.style.display = 'none'; return; }
+    this.fsBtn.style.display = '';
+    const key = this._fsActive ? 'fs_exit' : 'fs_enter';
+    this.fsBtn.setAttribute('title', getLocalText(this._hass, key));
+    this.fsIcon.setAttribute('icon', this._fsActive ? 'mdi:fullscreen-exit' : 'mdi:fullscreen');
+    this.fsBtn.classList.toggle('on', this._fsActive);
+  }
+
+  // Wake lock: la pantalla no se apaga mientras dura el modo. Best-effort a
+  // proposito - no esta en todos los navegadores, exige contexto seguro, y el sistema puede
+  // revocarlo. Que falle no debe impedir la pantalla completa, solo que la pantalla se apague
+  // como siempre.
+  async _acquireWakeLock() {
+    if (this._wakeLock || !navigator.wakeLock) return;
+    try {
+      this._wakeLock = await navigator.wakeLock.request('screen');
+      // El sistema lo revoca al minimizar la app o cambiar de pestaña; hay que volver a pedirlo
+      // al regresar o la pantalla se apagaria a mitad de conversacion en la segunda vuelta.
+      this._wakeLock.addEventListener('release', () => { this._wakeLock = null; });
+      if (!this._onVisibilityForWakeLock) {
+        this._onVisibilityForWakeLock = () => {
+          if (document.visibilityState === 'visible' && this._fsActive) this._acquireWakeLock();
+        };
+        document.addEventListener('visibilitychange', this._onVisibilityForWakeLock);
+      }
+    } catch (err) {
+      console.warn('[islautopia-intercom-card] no se pudo mantener la pantalla encendida (wake lock)', err);
+    }
+  }
+
+  _releaseWakeLock() {
+    if (this._wakeLock) {
+      try { this._wakeLock.release(); } catch (err) { /* best effort */ }
+      this._wakeLock = null;
+    }
+    if (this._onVisibilityForWakeLock) {
+      document.removeEventListener('visibilitychange', this._onVisibilityForWakeLock);
+      this._onVisibilityForWakeLock = null;
+    }
+  }
+
+  // ==============================================================================
+  // Cerradura no configurada en el portero: el boton de abrir no se dibuja.
+  // Se aprende del `open_result` y se recuerda por device_id, para que el intento fallido ocurra
+  // una sola vez en la vida de ese navegador y no en cada carga de la pagina.
+  // ==============================================================================
+  _rememberNoLock(noLock) {
+    if (this._noLock === noLock) return;
+    this._noLock = noLock;
+    try {
+      if (noLock) localStorage.setItem(this._noLockKey, '1');
+      else localStorage.removeItem(this._noLockKey);
+    } catch (err) { /* modo privado: se queda solo en memoria, es aceptable */ }
+    this._applyDoorAvailability();
+  }
+
+  _applyDoorAvailability() {
+    if (!this.unlockButton) return;
+    // Con `unlock_entity` configurada la apertura NO pasa por el portero, sino por una entidad de
+    // Home Assistant: lo que el portero opine de su propia cerradura es irrelevante ahi.
+    const hide = this._noLock && !this.config.unlock_entity;
+    const action = this.unlockButton.closest('.action') || this.unlockButton;
+    action.style.display = hide ? 'none' : '';
+  }
+
   render() {
     if (!this.content) {
       // Lenguaje visual alineado con el mockup real de Figma (android_app/ios_app, 2026-07-10 -
@@ -1105,6 +1430,14 @@ class IslautopiaIntercomCard extends HTMLElement {
                     <input type="range" id="vol-slider" min="0" max="1" step="0.05" value="1">
                   </div>
                   <div class="hud-sig" id="hud-sig"><i></i><i></i><i></i><i></i></div>
+                  <!-- Pantalla completa. Ultimo del cluster derecho, que es donde lo
+                       espera cualquiera que haya usado un reproductor de video. Sigue visible
+                       DENTRO del modo (cambiando a "salir"): es la unica salida garantizada,
+                       porque ESC solo existe si hay teclado y el respaldo CSS no tiene la salida
+                       del navegador. -->
+                  <button type="button" class="hud-fs" id="fs-btn" title="${getLocalText(this._hass, 'fs_enter')}">
+                    <ha-icon id="fs-icon" icon="mdi:fullscreen"></ha-icon>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1158,6 +1491,17 @@ class IslautopiaIntercomCard extends HTMLElement {
       this.qualityIcon = this.querySelector('#q-icon');
       this.qualityLabel = this.querySelector('#q-label');
       this.qualityMenu = this.querySelector('#q-menu');
+      this.fsBtn = this.querySelector('#fs-btn');
+      this.fsIcon = this.querySelector('#fs-icon');
+
+      // Pantalla completa. El click va con stopPropagation por el mismo motivo que el
+      // selector de calidad: hay un listener a nivel de documento que cierra su menu.
+      this.fsBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        this._toggleFullscreen();
+      });
+      this._registerFullscreenListeners();
+      this._applyDoorAvailability();
 
       this._renderQualityMenu();
       this.qualityBtn.addEventListener('click', (ev) => {
@@ -1712,6 +2056,10 @@ class IslautopiaIntercomCard extends HTMLElement {
     if (!this.unlockButton) return;
     const duration = parseInt(this.config.unlock_duration) || 3;
     if (msg.status === 'opened') {
+      // Si el portero abre, es que SI tiene cerradura: se olvida cualquier `no_lock` aprendido
+      // antes (el usuario pudo configurarla despues). Sin esto, un `door_m=2` de hace meses
+      // dejaria el boton escondido para siempre en ese navegador.
+      this._rememberNoLock(false);
       this._startDoorCountdown(duration);
       setTimeout(() => {
         this.unlockButton.classList.remove('active-unlock');
@@ -1725,6 +2073,10 @@ class IslautopiaIntercomCard extends HTMLElement {
       console.warn('[islautopia-intercom-card] no se pudo abrir la puerta:', msg.error);
       if (msg.error === 'no_lock_configured') {
         this._flashStatusLine('no_lock', 3000);
+        // Y ademas se recuerda, para que el boton deje de dibujarse: un boton que ya
+        // sabemos que va a fallar no debe seguir ofreciendose. El aviso de esta vez si se enseña
+        // - el usuario acaba de pulsar y merece saber por que no pasa nada.
+        this._rememberNoLock(true);
       }
     }
   }
@@ -2100,6 +2452,17 @@ class IslautopiaIntercomCard extends HTMLElement {
       .hud-vol input[type=range] { width: 56px; accent-color: var(--ig-cyan); cursor: pointer; }
       .hud-vol ha-icon { --mdc-icon-size: 16px; color: var(--ig-text); }
 
+      /* Boton de pantalla completa, ultimo del cluster derecho. */
+      .hud-fs {
+        display: flex; align-items: center; justify-content: center; cursor: pointer;
+        background: rgba(7,13,26,0.55); border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 999px; padding: 5px; color: var(--ig-text); pointer-events: auto;
+        font-family: inherit;
+      }
+      .hud-fs ha-icon { --mdc-icon-size: 18px; }
+      .hud-fs:hover { border-color: rgba(0,196,212,0.5); }
+      .hud-fs.on { color: var(--ig-cyan); border-color: rgba(0,196,212,0.5); }
+
       /* Barras de señal esquina inferior-dcha (mockup) - reflejan el estado real de conexion
          (data-state, propagado tambien a .feed-wrap desde _setLiveState()) en vez de una metrica
          WiFi que esta card no tiene forma de conocer - una adaptacion honesta del elemento, no
@@ -2194,6 +2557,93 @@ class IslautopiaIntercomCard extends HTMLElement {
       .action .btn.listen-only { background: linear-gradient(135deg, var(--ig-surf3), #2a3a52); border-color: var(--ig-amber); color: var(--ig-amber); }
       .action .btn.busy-other { border-color: rgba(255,179,0,0.45); color: rgba(255,179,0,0.8); }
       @keyframes ig-breathe { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+      /* ==========================================================================
+         PANTALLA COMPLETA. Un SOLO juego de reglas para los dos niveles
+         (API nativa y respaldo propio), gobernado por el atributo [data-fs] - ver
+         _applyFullscreenUI(). La unica diferencia entre niveles es el bloque .ig-fs-pseudo de
+         mas abajo: en pantalla completa nativa quien coloca el elemento es el navegador.
+
+         Los !important de .feed-wrap no son un atajo: el alto/la proporcion del marco de video
+         se fijan como estilo EN LINEA desde render() (opcion 'height' de la card), y un estilo en
+         linea gana a cualquier regla normal de esta hoja. Es el caso justo para el que existe
+         !important, no una pelea de especificidad inventada.
+         ========================================================================== */
+      islautopia-intercom-card[data-fs] { height: 100%; background: #000; }
+      islautopia-intercom-card[data-fs] ha-card {
+        height: 100%; border-radius: 0; box-shadow: none; border: none;
+      }
+      islautopia-intercom-card[data-fs] .intercom-container {
+        height: 100%; padding: 0; gap: 0; background: #000;
+      }
+      /* La fila de chips de modo se retira: el modo del sistema es configuracion, no algo que se
+         atienda con alguien esperando en la puerta. Los dos botones que el contrato pide (micro y
+         abrir) siguen ahi, flotando sobre la imagen. */
+      islautopia-intercom-card[data-fs] .mode-row { display: none !important; }
+      islautopia-intercom-card[data-fs] .feed-wrap {
+        position: absolute; inset: 0; width: 100%;
+        height: 100% !important; aspect-ratio: auto !important;
+        border-radius: 0; border: none;
+      }
+      /* object-fit contain, no cover: recortar para llenar el hueco dejaria a quien esta en la puerta
+         fuera del encuadre segun la forma de la pantalla. En un videoportero eso no es un detalle
+         estetico. */
+      islautopia-intercom-card[data-fs] .video-wrapper video { object-fit: contain; }
+
+      /* Los dos botones, flotando sobre la imagen. NO se ocultan solos: no hay ningun temporizador
+         que los esconda, a proposito. */
+      islautopia-intercom-card[data-fs] .actions-row {
+        position: absolute; left: 0; right: 0; bottom: 16px; z-index: 8;
+        padding: 0; gap: 34px; pointer-events: none;
+      }
+      /* Velo degradado bajo los controles flotantes. No es adorno: sobre una imagen clara (un
+         portal a mediodia) el texto blanco de las etiquetas y la linea de estado se vuelve
+         ilegible, y aqui lo que hay que leer es "Puerta abierta" o "canal ocupado". */
+      islautopia-intercom-card[data-fs] .feed-wrap::after {
+        content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 210px;
+        background: linear-gradient(180deg, transparent, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0.72));
+        pointer-events: none; z-index: 4;
+      }
+      islautopia-intercom-card[data-fs] .actions-row .action { pointer-events: auto; }
+      islautopia-intercom-card[data-fs] .action .btn {
+        box-shadow: 0 6px 22px rgba(0,0,0,0.65);
+        background: linear-gradient(135deg, rgba(22,35,54,0.92), rgba(29,45,66,0.92));
+        backdrop-filter: blur(6px);
+      }
+      islautopia-intercom-card[data-fs] .action .lbl {
+        color: rgba(232,240,254,0.9); text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+      }
+      /* La linea de estado (puerta abierta, canal ocupado, sin cerradura) tambien flota: es donde
+         se contesta al usuario cuando pulsa, y dejarla fuera de la vista en este modo la haria
+         inutil justo cuando mas se usa. */
+      /* Justo encima de los botones (que ocupan 16px de margen + 80 de boton + 6 + etiqueta). */
+      islautopia-intercom-card[data-fs] .status-line {
+        position: absolute; left: 0; right: 0; bottom: 136px; z-index: 7;
+        pointer-events: none; text-shadow: 0 1px 4px rgba(0,0,0,0.85);
+        color: rgba(232,240,254,0.85);
+      }
+      /* El cluster inferior del HUD (volumen, calidad, pantalla completa) se queda abajo a la
+         DERECHA: los botones de accion van centrados, asi que en una pantalla ancha no se tocan y
+         es donde el usuario ya los tiene aprendidos del modo normal. Solo cuando no caben los dos
+         a lo ancho - un movil en vertical - sube por encima. Medido, no estimado: con 412px de
+         ancho el bloque centrado ocupa ~119..293 y el cluster derecho ~253..398, es decir 40px de
+         solape real. La consulta es de CONTENEDOR (el propio marco de video), no de ventana, por
+         el mismo motivo que el resto de la card: lo que manda es el ancho del video. */
+      @container igfeed (max-width: 520px) {
+        islautopia-intercom-card[data-fs] .hud-bottom { bottom: 174px; }
+      }
+
+      /* Nivel 2: respaldo propio. Ocupa el viewport entero de la ventana. 100dvh para que en un
+         movil no quede cortado por la barra de direcciones retractil; 100vh como respaldo para
+         navegadores sin unidades dinamicas. */
+      islautopia-intercom-card.ig-fs-pseudo {
+        position: fixed; inset: 0; z-index: 2147483000;
+        width: 100vw !important; height: 100vh; max-width: 100vw;
+      }
+      @supports (height: 100dvh) {
+        islautopia-intercom-card.ig-fs-pseudo { height: 100dvh; }
+      }
+      body.ig-fs-body-lock { overflow: hidden !important; }
     `;
     this.appendChild(style);
   }
