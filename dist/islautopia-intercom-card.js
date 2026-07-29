@@ -1253,15 +1253,41 @@ class IslautopiaIntercomCard extends HTMLElement {
     // card-mod pueden introducir uno sin que la card se entere. Si eso pasa, el resultado seria
     // "pantalla completa" dentro de la columna: justo el icono que promete algo y no lo cumple
     // que el contrato prohibe. Mejor detectarlo, deshacerlo y esconder el icono.
+    //
+    // COMO se comprueba importa tanto como que se compruebe. La comparacion NO es contra ninguna
+    // medida del viewport, sino contra una SONDA: un elemento identico -- tambien position:fixed
+    // con inset:0 -- colgado directamente de <body>, o sea en un sitio donde no puede haberlo
+    // atrapado nadie. Si nuestro elemento acaba donde acaba la sonda, ha escapado; si no, algo lo
+    // ha atrapado. Compara lo mismo contra lo mismo.
+    //
+    // Se llego a esto midiendo, despues de equivocarse DOS veces con medidas del viewport que
+    // parecen la referencia obvia y no lo son:
+    //  - `window.innerWidth` INCLUYE la barra de desplazamiento; el bloque contenedor de un
+    //    position:fixed no. Medido en un Home Assistant real: una vista con scroll dio 1270x900
+    //    contra una ventana de 1280x900 -- alto exacto, ancho corto en exactamente el grosor de la
+    //    barra, y cero ancestros de riesgo. Habria escondido el icono en la mayoria de los
+    //    dashboards reales, que es justo lo que esta comprobacion NO debe hacer.
+    //  - `documentElement.clientHeight` tampoco sirve: en modo quirks devuelve el alto del
+    //    DOCUMENTO, no el del viewport (medido: 4506px con una ventana de 900px de alto).
+    // La sonda no depende de ninguna de esas sutilezas, ni de la barra, ni del viewport dinamico
+    // de un movil. Su unico punto ciego seria un transform sobre <html> o <body>, que atraparia
+    // tambien a la sonda -- pero entonces NINGUN elemento fijo de la pagina escaparia, y la card
+    // seguiria quedando tan grande como el navegador permita.
     const rect = this.getBoundingClientRect();
-    const fits = Math.abs(rect.width - window.innerWidth) <= 2
-      && Math.abs(rect.height - window.innerHeight) <= 2
-      && Math.abs(rect.left) <= 2 && Math.abs(rect.top) <= 2;
+    const sonda = document.createElement('div');
+    sonda.style.cssText = 'position:fixed;inset:0;visibility:hidden;pointer-events:none;';
+    document.body.appendChild(sonda);
+    const ref = sonda.getBoundingClientRect();
+    sonda.remove();
+    const fits = Math.abs(rect.width - ref.width) <= 2
+      && Math.abs(rect.height - ref.height) <= 2
+      && Math.abs(rect.left - ref.left) <= 2 && Math.abs(rect.top - ref.top) <= 2;
     if (!fits) {
       console.warn(
         '[islautopia-intercom-card] el respaldo de pantalla completa no ocupa la ventana ' +
         `(rect=${Math.round(rect.width)}x${Math.round(rect.height)} @${Math.round(rect.left)},${Math.round(rect.top)}, ` +
-        `ventana=${window.innerWidth}x${window.innerHeight}) - probablemente un ancestro con transform/filter/contain. ` +
+        `deberia ser ${Math.round(ref.width)}x${Math.round(ref.height)} @${Math.round(ref.left)},${Math.round(ref.top)}) - ` +
+        'probablemente un ancestro con transform/filter/contain. ' +
         'Se desactiva el icono en vez de ofrecer un modo que no funciona.'
       );
       this._fsActive = false;
@@ -2680,15 +2706,18 @@ class IslautopiaIntercomCard extends HTMLElement {
         islautopia-intercom-card[data-fs] .hud-bottom { bottom: 174px; }
       }
 
-      /* Nivel 2: respaldo propio. Ocupa el viewport entero de la ventana. 100dvh para que en un
-         movil no quede cortado por la barra de direcciones retractil; 100vh como respaldo para
-         navegadores sin unidades dinamicas. */
+      /* Nivel 2: respaldo propio. El tamano lo dan 'inset: 0' y 'width/height: auto', NO unidades
+         de viewport, y eso es deliberado: '100vw' INCLUYE la barra de desplazamiento y el bloque
+         contenedor de un position:fixed no. En un dashboard con scroll -- la mayoria de los
+         reales -- '100vw' deja el elemento unos 10-17px mas ancho que la zona visible y provoca
+         desbordamiento horizontal. Con 'inset: 0' el elemento mide exactamente el viewport
+         visible, que es lo que se quiere y ademas lo que hace comparable la comprobacion de
+         _enterFullscreen().
+         Los !important estan para ganarle al 'width: 100%' que se fija como estilo EN LINEA
+         sobre el propio elemento (ver setConfig) y al 'height: 100%' del modo. */
       islautopia-intercom-card.ig-fs-pseudo {
         position: fixed; inset: 0; z-index: 2147483000;
-        width: 100vw !important; height: 100vh; max-width: 100vw;
-      }
-      @supports (height: 100dvh) {
-        islautopia-intercom-card.ig-fs-pseudo { height: 100dvh; }
+        width: auto !important; height: auto !important; max-width: none;
       }
       body.ig-fs-body-lock { overflow: hidden !important; }
     `;
