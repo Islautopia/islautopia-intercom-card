@@ -16,7 +16,7 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_BUILD_ID = '2026-07-29-iphone-fixes';
+const CARD_BUILD_ID = '2026-08-03-giro-sonido-confirmacion';
 console.log(`[islautopia-intercom-card] modulo cargado - build=${CARD_BUILD_ID} (compara este valor contra CARD_BUILD_ID en el repo si tienes dudas de si el navegador esta sirviendo una copia cacheada vieja)`);
 
 // Diccionario global de traducciones para Tarjeta y Editor (Top 9 Idiomas + HA Community)
@@ -33,9 +33,13 @@ const islautopiaLocales = {
     q_auto_sub: "El portero decide", q_full_sub: "Vídeo completo", q_low_sub: "~1 imagen/s (solo claves)", q_audio_only_sub: "Sin vídeo, solo sonido",
     q_low_warn: "Calidad baja: ~1 imagen por segundo. No es una avería.", talk_free_retry: "Canal de voz libre — ya puedes hablar",
     fs_enter: "Pantalla completa", fs_exit: "Salir de pantalla completa",
+    door_confirm: "¿Abrir la puerta? Pulsa otra vez", lbl_door_confirm: "¿Abrir?",
+    snd_on: "Silenciar", snd_off: "Escuchar", snd_ring: "Están llamando — sonido activado",
+    snd_blocked: "Toca el altavoz para oír", cred_revoked: "El portero rechazó el emparejamiento — vuelve a emparejarlo en Ajustes › Dispositivos y servicios",
     ed_device_id: "Device ID nativo IG Doorbell (recomendado - ver Ajustes > Dispositivos y servicios)",
     ed_mode_entity: "Entidad de Modo (Opcional - select.* para mostrar los chips Normal/Ausente/Noche/Custom)",
     ed_motion_entity: "Entidad de Movimiento (Opcional - binary_sensor.* para el aviso de movimiento sobre el vídeo)",
+    ed_ring_entity: "Entidad de Timbre (Opcional - binary_sensor.* del timbre: al sonar, la card enciende el sonido sola)",
     ed_entity: "Entidad de Apertura/Relé (Opcional - si se omite con Device ID, se usa la apertura nativa)", ed_duration: "Segundos de Auto-Cierre (1-20)", ed_height: "Altura de la tarjeta (Ej: 400px, 600px, auto)"
   },
   en: { // Inglés (Fallback global)
@@ -50,9 +54,13 @@ const islautopiaLocales = {
     q_auto_sub: "The doorbell decides", q_full_sub: "Full video", q_low_sub: "~1 frame/s (keyframes only)", q_audio_only_sub: "No video, sound only",
     q_low_warn: "Low quality: about 1 frame per second. This is not a fault.", talk_free_retry: "Voice channel free — you can talk now",
     fs_enter: "Fullscreen", fs_exit: "Exit fullscreen",
+    door_confirm: "Open the door? Press again", lbl_door_confirm: "Open?",
+    snd_on: "Mute", snd_off: "Listen", snd_ring: "Someone is calling — sound on",
+    snd_blocked: "Tap the speaker to listen", cred_revoked: "The doorbell rejected this pairing — re-pair it in Settings › Devices & services",
     ed_device_id: "Native IG Doorbell Device ID (recommended - see Settings > Devices & services)",
     ed_mode_entity: "Mode Entity (Optional - select.* to show the Normal/Away/Night/Custom chips)",
     ed_motion_entity: "Motion Entity (Optional - binary_sensor.* for the motion badge over the video)",
+    ed_ring_entity: "Doorbell/Ring Entity (Optional - binary_sensor.* of the chime: the card turns sound on by itself when it rings)",
     ed_entity: "Unlock/Relay Entity (Optional - if left blank with a Device ID, native door-open is used)", ed_duration: "Auto-Close Seconds (1-20)", ed_height: "Card Height (Ex: 400px, 600px, auto)"
   },
   pt: { // Portugués
@@ -67,9 +75,13 @@ const islautopiaLocales = {
     q_auto_sub: "O porteiro decide", q_full_sub: "Vídeo completo", q_low_sub: "~1 imagem/s (só chaves)", q_audio_only_sub: "Sem vídeo, só som",
     q_low_warn: "Qualidade baixa: ~1 imagem por segundo. Não é avaria.", talk_free_retry: "Canal de voz livre — já pode falar",
     fs_enter: "Ecrã inteiro", fs_exit: "Sair do ecrã inteiro",
+    door_confirm: "Abrir a porta? Prima outra vez", lbl_door_confirm: "Abrir?",
+    snd_on: "Silenciar", snd_off: "Ouvir", snd_ring: "Estão a chamar — som ligado",
+    snd_blocked: "Toque no altifalante para ouvir", cred_revoked: "O porteiro rejeitou este emparelhamento — volte a emparelhá-lo em Definições › Dispositivos e serviços",
     ed_device_id: "Device ID nativo do IG Doorbell (recomendado)",
     ed_mode_entity: "Entidade de Modo (Opcional - select.* para mostrar os chips Normal/Ausente/Noite/Custom)",
     ed_motion_entity: "Entidade de Movimento (Opcional - binary_sensor.* para o aviso de movimento sobre o vídeo)",
+    ed_ring_entity: "Entidade de Campainha (Opcional - binary_sensor.* da campainha: ao tocar, a card liga o som sozinha)",
     ed_entity: "Entidade de Abertura/Relé (Opcional - se vazio com Device ID, usa-se a abertura nativa)", ed_duration: "Segundos para Fechar (1-20)", ed_height: "Altura do Cartão (Ex: 400px, 600px, auto)"
   },
   de: { // Alemán
@@ -84,9 +96,13 @@ const islautopiaLocales = {
     q_auto_sub: "Die Türsprechanlage entscheidet", q_full_sub: "Volles Video", q_low_sub: "~1 Bild/s (nur Keyframes)", q_audio_only_sub: "Kein Video, nur Ton",
     q_low_warn: "Niedrige Qualität: ca. 1 Bild pro Sekunde. Kein Defekt.", talk_free_retry: "Sprachkanal frei — du kannst jetzt sprechen",
     fs_enter: "Vollbild", fs_exit: "Vollbild beenden",
+    door_confirm: "Tür öffnen? Nochmal drücken", lbl_door_confirm: "Öffnen?",
+    snd_on: "Stummschalten", snd_off: "Mithören", snd_ring: "Es klingelt — Ton an",
+    snd_blocked: "Auf den Lautsprecher tippen, um zu hören", cred_revoked: "Die Türsprechanlage hat diese Kopplung abgelehnt — in Einstellungen › Geräte & Dienste neu koppeln",
     ed_device_id: "Native IG Doorbell Device ID (empfohlen)",
     ed_mode_entity: "Modus-Entität (Optional - select.* für die Chips Normal/Abwesend/Nacht/Custom)",
     ed_motion_entity: "Bewegungs-Entität (Optional - binary_sensor.* für den Bewegungshinweis über dem Video)",
+    ed_ring_entity: "Klingel-Entität (Optional - binary_sensor.* der Klingel: beim Läuten schaltet die Karte den Ton selbst ein)",
     ed_entity: "Türöffner/Relais Entität (Optional - leer mit Device ID nutzt native Öffnung)", ed_duration: "Auto-Schließen Sekunden (1-20)", ed_height: "Kartenhöhe (Bsp: 400px, 600px, auto)"
   },
   fr: { // Francés
@@ -101,9 +117,13 @@ const islautopiaLocales = {
     q_auto_sub: "Le portier décide", q_full_sub: "Vidéo complète", q_low_sub: "~1 image/s (images clés)", q_audio_only_sub: "Pas de vidéo, son seul",
     q_low_warn: "Qualité basse : environ 1 image par seconde. Ce n'est pas une panne.", talk_free_retry: "Canal vocal libre — vous pouvez parler",
     fs_enter: "Plein écran", fs_exit: "Quitter le plein écran",
+    door_confirm: "Ouvrir la porte ? Appuyez encore", lbl_door_confirm: "Ouvrir ?",
+    snd_on: "Couper le son", snd_off: "Écouter", snd_ring: "On sonne — son activé",
+    snd_blocked: "Touchez le haut-parleur pour écouter", cred_revoked: "Le portier a refusé cet appairage — réappairez-le dans Paramètres › Appareils et services",
     ed_device_id: "Device ID natif IG Doorbell (recommandé)",
     ed_mode_entity: "Entité de Mode (Optionnel - select.* pour afficher les puces Normal/Absent/Nuit/Custom)",
     ed_motion_entity: "Entité de Mouvement (Optionnel - binary_sensor.* pour l'alerte de mouvement sur la vidéo)",
+    ed_ring_entity: "Entité de Sonnette (Optionnel - binary_sensor.* de la sonnette : la carte active le son toute seule)",
     ed_entity: "Entité de déverrouillage/relais (Optionnel - vide avec Device ID = ouverture native)", ed_duration: "Secondes de fermeture auto (1-20)", ed_height: "Hauteur de la carte (Ex: 400px, 600px, auto)"
   },
   ru: { // Ruso
@@ -118,9 +138,13 @@ const islautopiaLocales = {
     q_auto_sub: "Решает домофон", q_full_sub: "Полное видео", q_low_sub: "~1 кадр/с (только ключевые)", q_audio_only_sub: "Без видео, только звук",
     q_low_warn: "Низкое качество: около 1 кадра в секунду. Это не неисправность.", talk_free_retry: "Голосовой канал свободен — можно говорить",
     fs_enter: "Полный экран", fs_exit: "Выйти из полного экрана",
+    door_confirm: "Открыть дверь? Нажмите ещё раз", lbl_door_confirm: "Открыть?",
+    snd_on: "Выключить звук", snd_off: "Слушать", snd_ring: "Звонят — звук включён",
+    snd_blocked: "Коснитесь динамика, чтобы слышать", cred_revoked: "Домофон отклонил эту привязку — выполните привязку заново в Настройки › Устройства и службы",
     ed_device_id: "Собственный Device ID IG Doorbell (рекомендуется)",
     ed_mode_entity: "Объект режима (Необязательно - select.* для чипов Обычный/Отсутствие/Ночь/Custom)",
     ed_motion_entity: "Объект движения (Необязательно - binary_sensor.* для значка движения поверх видео)",
+    ed_ring_entity: "Объект звонка (Необязательно - binary_sensor.* звонка: при звонке карточка сама включает звук)",
     ed_entity: "Объект отпирания/реле (Необязательно - если пусто при Device ID, используется нативное открытие)", ed_duration: "Секунды авто-закрытия (1-20)", ed_height: "Высота карточки (Напр: 400px, 600px, auto)"
   },
   zh: { // Chino Mandarín
@@ -135,9 +159,13 @@ const islautopiaLocales = {
     q_auto_sub: "由门口机决定", q_full_sub: "完整视频", q_low_sub: "约1帧/秒（仅关键帧）", q_audio_only_sub: "无视频，仅声音",
     q_low_warn: "低画质：约每秒1帧，这不是故障。", talk_free_retry: "语音通道已空闲 — 现在可以讲话",
     fs_enter: "全屏", fs_exit: "退出全屏",
+    door_confirm: "确定开门？再按一次", lbl_door_confirm: "开门？",
+    snd_on: "静音", snd_off: "收听", snd_ring: "有人按门铃 — 已开启声音",
+    snd_blocked: "点击扬声器以收听", cred_revoked: "门口机拒绝了此配对 — 请在 设置 › 设备与服务 中重新配对",
     ed_device_id: "原生 IG Doorbell 设备 ID (推荐)",
     ed_mode_entity: "模式实体 (可选 - select.* 用于显示 正常/离开/夜间/自定义 标签)",
     ed_motion_entity: "移动实体 (可选 - binary_sensor.* 用于视频上的移动提示)",
+    ed_ring_entity: "门铃实体 (可选 - binary_sensor.* 门铃：响铃时卡片自动开启声音)",
     ed_entity: "解锁/继电器实体 (可选 - 留空且有设备ID时使用原生开门)", ed_duration: "自动关闭秒数 (1-20)", ed_height: "卡片高度 (例: 400px, 600px, auto)"
   },
   hi: { // Hindi
@@ -152,9 +180,13 @@ const islautopiaLocales = {
     q_auto_sub: "डोरबेल तय करता है", q_full_sub: "पूरा वीडियो", q_low_sub: "~1 फ्रेम/सेकंड (केवल कीफ्रेम)", q_audio_only_sub: "वीडियो नहीं, केवल ध्वनि",
     q_low_warn: "कम गुणवत्ता: लगभग 1 फ्रेम प्रति सेकंड। यह खराबी नहीं है।", talk_free_retry: "वॉइस चैनल खाली — अब आप बोल सकते हैं",
     fs_enter: "पूर्ण स्क्रीन", fs_exit: "पूर्ण स्क्रीन से बाहर",
+    door_confirm: "दरवाज़ा खोलें? फिर से दबाएँ", lbl_door_confirm: "खोलें?",
+    snd_on: "म्यूट करें", snd_off: "सुनें", snd_ring: "कोई घंटी बजा रहा है — ध्वनि चालू",
+    snd_blocked: "सुनने के लिए स्पीकर पर टैप करें", cred_revoked: "डोरबेल ने यह पेयरिंग अस्वीकार कर दी — सेटिंग्स › डिवाइस और सेवाएँ में दोबारा पेयर करें",
     ed_device_id: "नेटिव IG Doorbell डिवाइस ID (अनुशंसित)",
     ed_mode_entity: "मोड एंटिटी (वैकल्पिक - select.* सामान्य/अनुपस्थित/रात/कस्टम चिप्स दिखाने के लिए)",
     ed_motion_entity: "मोशन एंटिटी (वैकल्पिक - binary_sensor.* वीडियो पर मोशन बैज के लिए)",
+    ed_ring_entity: "डोरबेल एंटिटी (वैकल्पिक - binary_sensor.* घंटी: बजने पर कार्ड स्वयं ध्वनि चालू करता है)",
     ed_entity: "अनलॉक/रिले एंटिटी (वैकल्पिक - खाली और Device ID होने पर नेटिव ओपन उपयोग होगा)", ed_duration: "ऑटो-क्लोज़ सेकंड (1-20)", ed_height: "कार्ड की ऊंचाई (उदा: 400px, 600px, auto)"
   },
   ar: { // Árabe
@@ -169,9 +201,13 @@ const islautopiaLocales = {
     q_auto_sub: "الجهاز يقرر", q_full_sub: "فيديو كامل", q_low_sub: "~إطار واحد/ث (إطارات مفتاحية فقط)", q_audio_only_sub: "بدون فيديو، صوت فقط",
     q_low_warn: "جودة منخفضة: إطار واحد تقريباً في الثانية. ليس عطلاً.", talk_free_retry: "قناة الصوت متاحة — يمكنك التحدث الآن",
     fs_enter: "ملء الشاشة", fs_exit: "إنهاء ملء الشاشة",
+    door_confirm: "هل تفتح الباب؟ اضغط مرة أخرى", lbl_door_confirm: "فتح؟",
+    snd_on: "كتم الصوت", snd_off: "استماع", snd_ring: "هناك من يطرق — تم تشغيل الصوت",
+    snd_blocked: "المس مكبر الصوت للاستماع", cred_revoked: "رفض الجهاز هذا الاقتران — أعد الاقتران من الإعدادات › الأجهزة والخدمات",
     ed_device_id: "معرّف الجهاز الأصلي IG Doorbell (موصى به)",
     ed_mode_entity: "كيان الوضع (اختياري - select.* لعرض رقائق عادي/غائب/ليلي/مخصص)",
     ed_motion_entity: "كيان الحركة (اختياري - binary_sensor.* لشارة الحركة فوق الفيديو)",
+    ed_ring_entity: "كيان الجرس (اختياري - binary_sensor.* للجرس: عند الرنين تشغّل البطاقة الصوت تلقائياً)",
     ed_entity: "كيان الفتح/المُرحِّل (اختياري - إذا تُرك فارغاً مع Device ID يُستخدم الفتح الأصلي)", ed_duration: "ثواني الإغلاق التلقائي (1-20)", ed_height: "ارتفاع البطاقة (مثال: 400px، 600px، auto)"
   }
 };
@@ -398,6 +434,39 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._doorMode = null;
     this._noLockLegacy = false;
 
+    // ---- Doble pulsacion para abrir (API_CONTRACT.md §1.8, 2026-07-30) ----------------------
+    // No es configurable a proposito (lo dice el contrato): un mecanismo de seguridad que se puede
+    // desactivar deja de serlo.
+    this._doorArmedAt = 0;
+    this._doorArmTimer = null;
+
+    // ---- Sonido del cliente (API_CONTRACT.md §1.10, 2026-07-30) -----------------------------
+    // VER NO ES ESCUCHAR: el altavoz de ESTE lado arranca MUDO y solo suena por un motivo
+    // explicito (el usuario lo abre, o alguien llama al timbre). Un panel de pared que enseña la
+    // calle 24h no puede meter el ruido de la calle en casa 24h.
+    //
+    // No se pide al portero que deje de mandar audio (eso seria `quality`, §1.4-ter, y ahorraria
+    // ~24 kbps que al lado del video son ruido estadistico): simplemente no se reproduce.
+    this._audioOn = false;
+    this._audioOnBeforeMic = false;  // para devolver el sonido a como estaba al cerrar el micro
+    this._ringMarker = null;         // ultimo estado leido de ring_entity (null = aun sin leer)
+
+    // ---- Giro de la imagen (API_CONTRACT.md §1.9, 2026-07-30) -------------------------------
+    // El modulo de camara va montado GIRADO 90° dentro de la carcasa, a proposito: en vertical
+    // caben una persona entera y un paquete en el suelo. Rotar en el propio portero se midio en
+    // 65-71 ms por frame, con el presupuesto entero de 15 fps en 66,7 ms - inviable. Asi que el
+    // frame viaja apaisado con la escena girada dentro y lo endereza CADA CLIENTE al pintarlo,
+    // que es gratis en cualquier plataforma.
+    //
+    // El dato llega en `rot` dentro de CADA `session_info` (§1.4-ter), como `door_m`.
+    //
+    // Se recuerda el ultimo valor conocido de ESTE portero (localStorage) para no reservar el
+    // hueco equivocado y saltar de forma a la vista en cada arranque, que es el defecto que Iñaki
+    // vio en iOS. La primera vez, sin dato guardado, se reserva VERTICAL: es el montaje del
+    // producto, y equivocarse hacia el caso raro es mejor que equivocarse siempre.
+    this._rot = this._recallRotation();
+    this._rotConfirmed = false;
+
     this.render();
   }
 
@@ -418,6 +487,13 @@ class IslautopiaIntercomCard extends HTMLElement {
     }
     if (this.loader) this.loader.style.opacity = '1';
     if (this._hudClockTimer) { clearInterval(this._hudClockTimer); this._hudClockTimer = null; }
+    if (this._doorArmTimer) { clearTimeout(this._doorArmTimer); this._doorArmTimer = null; }
+    this._doorArmedAt = 0;
+    if (this._feedRO) { this._feedRO.disconnect(); this._feedRO = null; }
+    if (this._onWindowResizeForRot) {
+      window.removeEventListener('resize', this._onWindowResizeForRot);
+      this._onWindowResizeForRot = null;
+    }
     if (this._onDocClickForQuality) {
       document.removeEventListener('click', this._onDocClickForQuality);
       this._onDocClickForQuality = null;
@@ -450,6 +526,10 @@ class IslautopiaIntercomCard extends HTMLElement {
   _teardownConnectionObjects() {
     this._stopLifeWatchdog();
     this._stopAudioSendDiagnostics();
+    // Si el micro estaba abierto, el sonido se encendio POR EL MICRO - al cerrarse hay que
+    // devolverlo a como estaba antes (§1.10). Se calcula aqui arriba porque _resetMulticlientState()
+    // (mas abajo) borra _listenOnly.
+    const micEstabaAbierto = this.intercomActive || this._listenOnly;
     // Bug real encontrado y corregido (2026-07-10, ver COORDINATION.md - sospecha del usuario
     // sobre el canal de retorno de audio): esta funcion es el UNICO punto de cierre compartido
     // por disconnectedCallback(), startWebRTC() y _scheduleReconnect() - pero hasta ahora solo
@@ -475,13 +555,14 @@ class IslautopiaIntercomCard extends HTMLElement {
     // Turno de palabra / contador / calidad: estado por SESION, nunca heredado (2026-07-26,
     // §1.4-ter). Va ANTES de repintar el boton para que _paintMicState() vea ya el estado limpio.
     this._resetMulticlientState();
+    if (micEstabaAbierto) this._setAudioOn(this._audioOnBeforeMic, 'teardown');
     if (this.intercomButton) {
       this.intercomButton.setAttribute('disabled', '');
-      if (this.videoEl) this.videoEl.muted = true;
       this._paintMicState();
     }
     if (this.audioPill) this.audioPill.style.display = 'none';
     this._updateMotionPill(); // la regla "nunca con el mic activo" ya no aplica tras este reset
+    this._disarmDoorConfirm(); // una confirmacion a medias no sobrevive a un corte de sesion
     if (this.unlockButton) {
       this.unlockButton.classList.remove('active-unlock');
       this.unlockButton.setAttribute('disabled', '');
@@ -641,6 +722,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     if (!this.content) return;
     this._updateModeRow();
     this._updateMotionPill();
+    this._updateRingState();
     this._repaintTextsIfLanguageChanged();
   }
 
@@ -669,6 +751,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     if (audioTxt) audioTxt.textContent = getLocalText(this._hass, 'audio_active');
     const motionTxt = this.motionPill && this.motionPill.querySelector('span');
     if (motionTxt) motionTxt.textContent = getLocalText(this._hass, 'motion_detected');
+    this._paintAudioState(); // el titulo del control de altavoz tambien se escribe una sola vez
     // El badge de estado y la linea inferior se repintan solos en cuanto la sesion cambia de
     // estado, asi que casi siempre se arreglaban solos. Casi: una card que NUNCA llega a
     // conectar - el portero apagado, o fuera de casa sin cobertura - se queda con el
@@ -829,8 +912,50 @@ class IslautopiaIntercomCard extends HTMLElement {
 
   _resetStatusLine() {
     if (!this.statusLine) return;
+    // Un aviso PEGAJOSO (hoy solo el de emparejamiento rechazado) describe una situacion que sigue
+    // ahi: no puede borrarlo un temporizador ni un tick de Home Assistant. Solo lo quita el propio
+    // motivo al desaparecer - ver _clearPairingRejected().
+    if (this._stickyStatusKey) {
+      this.statusLine.textContent = getLocalText(this._hass, this._stickyStatusKey);
+      this.statusLine.classList.remove('open');
+      this.statusLine.classList.add('warn');
+      return;
+    }
     this.statusLine.classList.remove('open', 'warn');
     this.statusLine.textContent = getLocalText(this._hass, 'idle_status');
+  }
+
+  // ==============================================================================
+  // "EL PORTERO NO ME CONOCE": credencial de emparejamiento rechazada
+  //
+  // Pasa de verdad y no es raro: un factory reset del portero borra la NVS, y con ella los hashes
+  // de las credenciales de pair_app que valida el camino local (§1.5). La card se autentica con
+  // esa credencial y con ninguna otra - deliberadamente no guarda usuario/contraseña de
+  // administrador, que es justo lo que el emparejamiento existe para evitar (§4).
+  //
+  // Lo que NO debe pasar, y es lo que pasaba: quedarse reintentando en silencio con el chip en
+  // "Conectando..." indefinidamente. Reintentar esta bien (el portero puede volver), pero el
+  // usuario tiene que poder leer que lo que falta es volver a emparejar, no esperar.
+  //
+  // Las tres señales fiables, todas con codigo, ninguna adivinada:
+  //   - relay: cierre del WebSocket con codigo 4401 (§3.2)
+  //   - nube: get_turn_credentials responde 'unauthorized' (§3.1-bis)
+  //   - local: el proxy de senalizacion de Home Assistant devuelve 401 (lo pasa tal cual desde el
+  //     portero, precisamente para que un cliente pueda decir "vuelve a emparejar")
+  // ==============================================================================
+  _reportPairingRejected(origen) {
+    if (this._pairingRejected) return; // ya avisado, no repintar en cada reintento
+    this._pairingRejected = true;
+    this._stickyStatusKey = 'cred_revoked';
+    console.error(`[islautopia-intercom-card] el emparejamiento de esta card ha sido rechazado (${origen}) - hay que volver a emparejar el portero en Ajustes > Dispositivos y servicios > IG Doorbell`);
+    this._resetStatusLine();
+  }
+
+  _clearPairingRejected() {
+    if (!this._pairingRejected) return;
+    this._pairingRejected = false;
+    this._stickyStatusKey = null;
+    this._resetStatusLine();
   }
 
   // ==============================================================================
@@ -1026,7 +1151,9 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._closeMicHardware();
     this.intercomActive = false;
     this._listenOnly = true;
-    if (this.videoEl) this.videoEl.muted = false;
+    // Turno denegado: el micro se cierra pero SE SIGUE OYENDO. Es exactamente la independencia
+    // entre escuchar y hablar que pide §1.10, y el usuario ya hizo el gesto (pulso el micro).
+    this._setAudioOn(true, 'solo-escucha');
     this._setLiveState('live');
     if (this.audioPill) this.audioPill.style.display = 'none';
     this._paintMicState();
@@ -1082,6 +1209,11 @@ class IslautopiaIntercomCard extends HTMLElement {
       this._doorMode = msg.door_m;
       this._applyDoorAvailability();
     }
+    // Giro de la imagen (§1.9, 2026-07-30). Viaja aqui por el mismo motivo que `door_m`: es lo que
+    // permite a un cliente que abre video enderezar la imagen sin pedir nada mas - `get_states`
+    // tambien lo lleva, pero exige cookie de administrador, que una card emparejada no tiene.
+    // _applyRotation() sale por su cuenta si no ha cambiado: esto corre varias veces por minuto.
+    if (typeof msg.rot === 'number') this._applyRotation(msg.rot);
     this._paintClients();
     this._reconcileTalkTurn();
   }
@@ -1511,6 +1643,11 @@ class IslautopiaIntercomCard extends HTMLElement {
       document.body.classList.remove('ig-fs-body-lock');
     }
     this._paintFullscreenButton();
+    // El marco cambia de medida al entrar/salir, y con la imagen girada la caja del video se
+    // calcula a partir de esa medida (§1.9). El ResizeObserver acabaria llegando, pero un frame
+    // tarde: recalcular aqui evita el parpadeo. Ademas es aqui donde el carril lateral aparece o
+    // desaparece, que solo depende del modo.
+    this._layoutRotation();
   }
 
   _paintFullscreenButton() {
@@ -1572,6 +1709,255 @@ class IslautopiaIntercomCard extends HTMLElement {
     );
     const action = this.unlockButton.closest('.action') || this.unlockButton;
     action.style.display = hide ? 'none' : '';
+    // Un boton que desaparece mientras esta "armado" dejaria el estado de confirmacion colgado.
+    if (hide) this._disarmDoorConfirm();
+  }
+
+  // ==============================================================================
+  // ABRIR LA PUERTA EXIGE CONFIRMACION (API_CONTRACT.md §1.8, 2026-07-30)
+  //
+  // Doble pulsacion con estado visible, no "deslizar para confirmar". El contrato descarta el
+  // deslizamiento por tres motivos que se aplican de lleno a esta card: se usa con RATON (la card
+  // vive en dashboards de PC), los gestos de arrastre son un problema conocido para TalkBack/
+  // VoiceOver/control por conmutador, y en una tablet de pared en vertical el deslizamiento
+  // horizontal compite con los gestos del sistema. El precedente es la cerradura Aqara en el
+  // propio Home Assistant, que hace exactamente esto.
+  //
+  // Y es un mensaje EN LINEA, no un dialogo modal: un modal que hay que descartar con alguien
+  // esperando en la puerta tapa ademas el video, que es justo lo que el usuario esta mirando para
+  // decidir si abre.
+  //
+  // Las tres reglas sin las cuales esto da sensacion de seguridad sin darla:
+  //  1. CADUCA a los ~3s. Sin esto una pulsacion accidental deja la puerta ARMADA y la siguiente
+  //     -igual de accidental- la abre: peor que no tener nada.
+  //  2. Un doble toque RAPIDO no vale (minimo ~300ms). Un movil en el bolsillo, un niño o un dedo
+  //     que rebota producen exactamente un doble toque.
+  //  3. Tras abrir se vuelve al estado normal, nunca a "confirmando".
+  // ==============================================================================
+  _onDoorPress() {
+    const now = Date.now();
+    if (!this._doorArmedAt) { this._armDoorConfirm(); return; }
+    // Regla 2: por debajo del umbral no se cuenta como confirmacion NI se desarma - un rebote no
+    // debe obligar al usuario a empezar de cero, solo no debe abrir.
+    if (now - this._doorArmedAt < 300) return;
+    this._disarmDoorConfirm();
+    if (!this.config.unlock_entity) this.triggerNativeOpen();
+    else this.triggerUnlock();
+  }
+
+  _armDoorConfirm() {
+    this._doorArmedAt = Date.now();
+    if (this.unlockButton) this.unlockButton.classList.add('confirming');
+    if (this.unlockIcon) this.unlockIcon.setAttribute('icon', 'mdi:help-circle-outline');
+    if (this.unlockLabel) {
+      this.unlockLabel.textContent = getLocalText(this._hass, 'lbl_door_confirm');
+      this.unlockLabel.classList.add('on-amber');
+    }
+    this._flashStatusLine('door_confirm', 3000);
+    if (this._doorArmTimer) clearTimeout(this._doorArmTimer);
+    this._doorArmTimer = setTimeout(() => this._disarmDoorConfirm(), 3000);
+  }
+
+  _disarmDoorConfirm() {
+    if (this._doorArmTimer) { clearTimeout(this._doorArmTimer); this._doorArmTimer = null; }
+    if (!this._doorArmedAt) return;
+    this._doorArmedAt = 0;
+    if (this.unlockButton) this.unlockButton.classList.remove('confirming');
+    // Solo se devuelve el icono/etiqueta de reposo si la puerta no esta abierta ahora mismo: si
+    // esto se llama justo antes de abrir, quien manda es triggerNativeOpen()/triggerUnlock().
+    const abierta = this.unlockButton && this.unlockButton.classList.contains('active-unlock');
+    if (!abierta) {
+      if (this.unlockIcon) this.unlockIcon.setAttribute('icon', 'mdi:key');
+      if (this.unlockLabel) this.unlockLabel.classList.remove('on-amber');
+      this._setDoorLabel(false);
+    }
+  }
+
+  // ==============================================================================
+  // SONIDO DEL CLIENTE (API_CONTRACT.md §1.10, 2026-07-30)
+  //
+  // Lo que esta regla NO es, y confundirlo dejaria al usuario sordo justo cuando hay alguien en la
+  // puerta: NO es "silencio hasta que hables". Escuchar y hablar son ejes independientes - se oye
+  // al visitante y LUEGO se decide si contestar. Por eso el altavoz tiene su propio control,
+  // separado del boton de micro.
+  //
+  // Tampoco afecta a las grabaciones: un evento se graba con sonido siempre. Lo que se silencia es
+  // la reproduccion en vivo de un cliente que solo esta mirando.
+  //
+  // Limitacion real del navegador que obliga a este diseño: el <video> nace `muted` por
+  // OBLIGACION (politica de autoplay - con sonido, play() seria rechazado y no habria ni imagen),
+  // asi que desmutear siempre necesita una activacion del usuario en la pagina. Cuando el intento
+  // falla no se finge que ha funcionado: se vuelve a mudo y se dice que hay que tocar el altavoz.
+  // ==============================================================================
+  _setAudioOn(on, motivo) {
+    const quiere = !!on;
+    this._audioOn = quiere;
+    if (this.videoEl) {
+      this.videoEl.muted = !quiere;
+      if (quiere && typeof this.videoEl.play === 'function') {
+        // Desmutear sin activacion del usuario puede hacer que el navegador PAUSE el elemento en
+        // vez de lanzar un error - de ahi el play() y su catch.
+        const p = this.videoEl.play();
+        if (p && typeof p.catch === 'function') {
+          p.catch(() => {
+            this.videoEl.muted = true;
+            this._audioOn = false;
+            this._paintAudioState();
+            this._flashStatusLine('snd_blocked', 5000);
+            console.warn(`[islautopia-intercom-card] el navegador no permitio activar el sonido (motivo="${motivo}") - hace falta que el usuario toque el control de altavoz`);
+          });
+        }
+      }
+    }
+    this._paintAudioState();
+  }
+
+  _paintAudioState() {
+    if (this.volIcon) this.volIcon.setAttribute('icon', this._audioOn ? 'mdi:volume-high' : 'mdi:volume-off');
+    if (this.sndBtn) {
+      this.sndBtn.classList.toggle('on', !!this._audioOn);
+      this.sndBtn.setAttribute('title', getLocalText(this._hass, this._audioOn ? 'snd_on' : 'snd_off'));
+      this.sndBtn.setAttribute('aria-pressed', this._audioOn ? 'true' : 'false');
+    }
+  }
+
+  // El timbre es el unico motivo por el que el sonido se enciende SOLO (§1.10): es el momento para
+  // el que existe el aparato. La señal no viaja por la señalizacion WebRTC, asi que se lee de una
+  // entidad de Home Assistant que el usuario configura (`ring_entity`) - el propio firmware
+  // publica el timbre por MQTT (`videoportero/timbre`, §4), asi que la entidad ya existe.
+  //
+  // Se admiten las dos formas que puede tener esa entidad: un `binary_sensor` (transicion a 'on')
+  // y un `event` (cuyo `state` es la marca de tiempo del ultimo evento, no 'on'/'off' - tratarlo
+  // como binario no dispararia nunca).
+  _updateRingState() {
+    const entityId = this.config.ring_entity;
+    if (!entityId || !this._hass) { this._ringMarker = null; return; }
+    const stateObj = this._hass.states[entityId];
+    if (!stateObj) { this._ringMarker = null; return; }
+    const esEvento = entityId.split('.')[0] === 'event';
+    const marca = esEvento ? String(stateObj.state) : (stateObj.state === 'on' ? 'on' : 'off');
+    const previa = this._ringMarker;
+    this._ringMarker = marca;
+    // Primera lectura: NO dispara. Al abrir el dashboard, un binary_sensor que lleva rato en 'on'
+    // (o un event con una marca vieja) no es una llamada de ahora.
+    if (previa === null || previa === undefined) return;
+    const hasonado = esEvento
+      ? (marca !== previa && marca !== 'unknown' && marca !== 'unavailable')
+      : (marca === 'on' && previa !== 'on');
+    if (!hasonado) return;
+    if (this._audioOn) return; // ya se estaba oyendo: nada que anunciar
+    this._setAudioOn(true, 'timbre');
+    if (this._audioOn) this._flashStatusLine('snd_ring', 6000);
+  }
+
+  // ==============================================================================
+  // GIRO DE LA IMAGEN (API_CONTRACT.md §1.9, 2026-07-30)
+  //
+  // `rot` son GRADOS EN SENTIDO HORARIO QUE APLICA EL CLIENTE, y CSS `rotate()` tambien gira en
+  // sentido horario: el mapeo es directo, sin conversion.
+  //
+  // Con 90/270 el ancho y el alto se intercambian, y eso no se puede expresar en CSS puro sin
+  // conocer la medida del contenedor - de ahi el calculo en JS con un ResizeObserver. El
+  // `object-fit: contain` de siempre sigue haciendo el letterboxing dentro de la caja ya girada.
+  //
+  // Lo que NO se hace, y es lo importante: recortar para llenar. Un zoom hasta cubrir el ancho
+  // tira la parte de arriba y la de abajo, que es exactamente lo que se gano girando el sensor.
+  // Seria deshacer el cambio.
+  // ==============================================================================
+  _rotStorageKey() {
+    return `islautopia-intercom-rot-${this.config && this.config.device_id ? this.config.device_id : 'sin-id'}`;
+  }
+
+  _recallRotation() {
+    try {
+      const guardado = localStorage.getItem(this._rotStorageKey());
+      const n = guardado === null ? null : parseInt(guardado, 10);
+      if (n === 0 || n === 90 || n === 180 || n === 270) return n;
+    } catch (err) { /* localStorage puede estar bloqueado; no es motivo para no funcionar */ }
+    return 90; // primera vez y solo la primera vez: el montaje del producto es vertical
+  }
+
+  _rememberRotation(rot) {
+    try { localStorage.setItem(this._rotStorageKey(), String(rot)); } catch (err) { /* idem */ }
+  }
+
+  _applyRotation(rot) {
+    if (rot !== 0 && rot !== 90 && rot !== 180 && rot !== 270) {
+      // Un valor raro se ignora en vez de pintarse: pintar torcido sin que nada lo explique es
+      // peor que no girar. Mismo criterio que el firmware, que tampoco lo guarda (§1.9).
+      console.warn(`[islautopia-intercom-card] "rot" con un valor no admitido (${rot}) - se ignora, se mantiene ${this._rot}°`);
+      return;
+    }
+    const cambia = (rot !== this._rot) || !this._rotConfirmed;
+    this._rot = rot;
+    this._rotConfirmed = true;
+    this._rememberRotation(rot);
+    if (!cambia) return;
+    if (this.feedWrap) this.feedWrap.setAttribute('data-rot', String(rot));
+    // SIN animacion, a proposito (§1.9): una transicion animada convierte un error de una sola vez
+    // en un efecto que parece intencionado y se repite en cada arranque.
+    this._applyFeedAspect();
+    this._layoutRotation();
+  }
+
+  // Forma del marco de video. Con la imagen en vertical la card deja de ser 16:9 y pasa a 9:16 -
+  // que es lo que hace que el video se vea GRANDE en un movil en vertical, el caso normal de
+  // atender un timbre. El tope de altura evita el absurdo de una card de 2000px en un panel ancho:
+  // ahi el video se centra y sobra espacio a los lados, que es el caso que §1.9 resuelve con el
+  // carril lateral (ver _layoutRotation).
+  _applyFeedAspect() {
+    if (!this.feedWrap) return;
+    const vertical = (this._rot === 90 || this._rot === 270);
+    if (this.config.height && this.config.height !== 'auto') {
+      this.feedWrap.style.height = this.config.height;
+      this.feedWrap.style.aspectRatio = 'unset';
+      this.feedWrap.style.maxHeight = '';
+      return;
+    }
+    this.feedWrap.style.height = 'auto';
+    this.feedWrap.style.aspectRatio = vertical ? '9/16' : '16/9';
+    this.feedWrap.style.maxHeight = vertical ? '72vh' : '';
+  }
+
+  // Ancho del carril lateral de §1.9. ESTRECHO: solo lo que ocupa el objetivo tactil, porque el
+  // ancho que se lleva el carril es alto que pierde el video.
+  static get RAIL_WIDTH() { return 104; }
+
+  _layoutRotation() {
+    if (!this.videoEl || !this.feedWrap) return;
+    const v = this.videoEl;
+    const w = this.feedWrap.clientWidth;
+    const h = this.feedWrap.clientHeight;
+    const vertical = (this._rot === 90 || this._rot === 270);
+
+    // Carril lateral (§1.9 + §1.7): video vertical dentro de un marco APAISADO. El caso real es una
+    // tablet de pared, que vive en apaisado permanentemente. Solo en pantalla completa, que es
+    // donde los botones ya flotan sobre la imagen; en el modo normal viven debajo del video y
+    // moverlos encima seria un cambio de diseño distinto, no este.
+    const carril = !!this._fsActive && vertical && w > h * 1.05;
+    if (this.content) this.content.classList.toggle('ig-rail', carril);
+
+    if (!vertical) {
+      v.style.width = '';
+      v.style.height = '';
+      v.style.position = '';
+      v.style.left = '';
+      v.style.top = '';
+      v.style.transform = this._rot === 180 ? 'rotate(180deg)' : '';
+      return;
+    }
+    if (!w || !h) return; // aun sin layout (card oculta, pestaña en segundo plano): ya volvera el RO
+
+    // La caja se declara con el ancho y el alto INTERCAMBIADOS y se gira sobre su centro: tras el
+    // giro ocupa exactamente el hueco disponible, y `object-fit: contain` centra dentro la imagen
+    // vertical sin recortar nada.
+    const anchoUtil = Math.max(80, w - (carril ? IslautopiaIntercomCard.RAIL_WIDTH : 0));
+    v.style.position = 'absolute';
+    v.style.width = `${h}px`;
+    v.style.height = `${anchoUtil}px`;
+    v.style.left = `${anchoUtil / 2}px`;
+    v.style.top = '50%';
+    v.style.transform = `translate(-50%, -50%) rotate(${this._rot}deg)`;
   }
 
   render() {
@@ -1643,8 +2029,14 @@ class IslautopiaIntercomCard extends HTMLElement {
                     </button>
                     <div class="q-menu" id="q-menu" style="display:none;"></div>
                   </div>
+                  <!-- Control de sonido (API_CONTRACT.md §1.10). El altavoz de este lado arranca
+                       MUDO: ver no es escuchar. El icono es un BOTON de verdad, no un adorno junto
+                       al deslizador - antes el deslizador cambiaba el volumen de un elemento que
+                       seguia mudo, o sea un control que mentia: subirlo no hacia sonar nada. -->
                   <div class="hud-vol" id="hud-vol">
-                    <ha-icon icon="mdi:volume-high" id="vol-icon"></ha-icon>
+                    <button type="button" class="snd-btn" id="snd-btn" aria-pressed="false" title="${getLocalText(this._hass, 'snd_off')}">
+                      <ha-icon icon="mdi:volume-off" id="vol-icon"></ha-icon>
+                    </button>
                     <input type="range" id="vol-slider" min="0" max="1" step="0.05" value="1">
                   </div>
                   <div class="hud-sig" id="hud-sig"><i></i><i></i><i></i><i></i></div>
@@ -1699,6 +2091,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       this.unlockLabel = this.querySelector('#unlock-lbl');
       this.volSlider = this.querySelector('#vol-slider');
       this.volIcon = this.querySelector('#vol-icon');
+      this.sndBtn = this.querySelector('#snd-btn');
       this.loader = this.querySelector('#ig-loader');
       this.hudTimeHm = this.querySelector('#hud-time-hm');
       this.hudTimeDate = this.querySelector('#hud-time-date');
@@ -1748,38 +2141,60 @@ class IslautopiaIntercomCard extends HTMLElement {
       // El "alto configurable" aplica al MARCO DE VIDEO (.feed-wrap), no a la card entera - la
       // card ahora tiene ademas la fila de modo/linea de estado/botones fuera del video, que
       // deben conservar su alto natural en vez de comprimirse dentro de la medida pensada solo
-      // para el video.
-      if (this.config.height && this.config.height !== 'auto') {
-        this.feedWrap.style.height = this.config.height;
-        this.feedWrap.style.aspectRatio = 'unset';
+      // para el video. La forma (16:9 o 9:16) la decide el giro conocido, ver _applyFeedAspect().
+      this.feedWrap.setAttribute('data-rot', String(this._rot));
+      this._applyFeedAspect();
+      this._layoutRotation();
+
+      // El giro con 90/270 intercambia ancho y alto, y eso no se puede escribir en CSS sin conocer
+      // la medida real del marco - de ahi el observador. Dispara solo cuando el layout cambia de
+      // verdad (redimensionar la ventana, cambiar de vista, entrar en pantalla completa), no en
+      // cada frame de video.
+      if (typeof ResizeObserver === 'function') {
+        this._feedRO = new ResizeObserver(() => this._layoutRotation());
+        this._feedRO.observe(this.feedWrap);
       } else {
-        this.feedWrap.style.height = 'auto';
-        this.feedWrap.style.aspectRatio = '16/9';
+        this._onWindowResizeForRot = () => this._layoutRotation();
+        window.addEventListener('resize', this._onWindowResizeForRot);
       }
 
       // Camino primario: mensaje de senalizacion nativo 'open'/'open_result' (API_CONTRACT.md
       // §3.3, funciona igual local y remoto). unlock_entity sigue disponible como alternativa
       // explicita si el usuario prefiere que la apertura pase por una entidad/Automatizacion de
       // HA (logging propio, condiciones, etc.) - ver ARCHITECTURE.md §5 en ig_hassio_addons.
-      this.unlockButton.addEventListener('click', () => {
-        if (!this.config.unlock_entity) {
-          this.triggerNativeOpen();
-        } else {
-          this.triggerUnlock();
-        }
-      });
+      // Doble pulsacion (§1.8): el click NO abre, arma; el segundo abre. Ver _onDoorPress().
+      this.unlockButton.addEventListener('click', () => this._onDoorPress());
 
       this.intercomButton.addEventListener('click', () => this.toggleIntercom());
 
+      // El deslizador guarda el VOLUMEN; encender o apagar el sonido es el boton de al lado
+      // (§1.10). Son dos cosas distintas y hasta ahora estaban confundidas en una: el volumen se
+      // recordaba entre sesiones y el sonido nacia mudo, asi que el usuario veia el deslizador al
+      // maximo y no oia nada. El volumen se sigue recordando; el sonido, deliberadamente NO.
       const savedVol = localStorage.getItem('islautopia-intercom-vol') || '1';
       this.volSlider.value = savedVol;
-      this.volIcon.setAttribute('icon', savedVol === "0" ? 'mdi:volume-off' : 'mdi:volume-high');
+      this._paintAudioState();
+
+      this.sndBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        // Subir el sonido con el volumen a cero no haria nada y pareceria una averia.
+        if (!this._audioOn && parseFloat(this.volSlider.value) === 0) {
+          this.volSlider.value = '1';
+          this.videoEl.volume = 1;
+          localStorage.setItem('islautopia-intercom-vol', '1');
+        }
+        this._setAudioOn(!this._audioOn, 'usuario');
+      });
 
       this.volSlider.addEventListener('input', (e) => {
-        const val = e.target.value;
+        const val = parseFloat(e.target.value);
         this.videoEl.volume = val;
-        this.volIcon.setAttribute('icon', val === "0" ? 'mdi:volume-off' : 'mdi:volume-high');
-        localStorage.setItem('islautopia-intercom-vol', val);
+        localStorage.setItem('islautopia-intercom-vol', String(val));
+        // Mover el deslizador ES una accion explicita del usuario sobre el sonido, asi que vale
+        // como "abrir el audio" - y ademas es el gesto que el navegador exige para desmutear.
+        if (val > 0 && !this._audioOn) this._setAudioOn(true, 'deslizador');
+        else if (val === 0 && this._audioOn) this._setAudioOn(false, 'deslizador');
+        else this._paintAudioState();
       });
 
       this.injectStyles();
@@ -1841,14 +2256,23 @@ class IslautopiaIntercomCard extends HTMLElement {
     // desaparecer la pagina, sendBeacon esta diseñado para completarse igualmente durante el
     // unload. sendBeacon no admite cabeceras propias, pero un Blob con type "application/json"
     // hace que el navegador mande el Content-Type correcto igualmente.
-    if (this.nativeSSE && this._localBase && this._connInfo && this._connInfo.credential) {
+    if (this.nativeSSE) {
       const payload = { type: 'bye' };
       if (this._slot !== null) payload.slot = this._slot;
-      const token = encodeURIComponent(this._connInfo.credential);
       const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-      try {
-        navigator.sendBeacon(`${this._localBase}/webrtc/signal/post?token=${token}`, blob);
-      } catch (err) { /* best effort, la pagina ya se esta cerrando */ }
+      // Por el proxy se usa la URL FIRMADA, no callApi: sendBeacon no admite cabeceras, y la firma
+      // viaja en la propia URL. Es best-effort en el sentido estricto -- si Home Assistant no
+      // aceptara una firma en un POST, lo unico que se pierde es la liberacion inmediata del slot,
+      // que el portero recupera solo a los 20s. Nunca hay que hacerlo bloqueante: la pagina ya se
+      // esta cerrando.
+      const destino = (this._localVia === 'proxy')
+        ? this._localSignedUrl
+        : ((this._localBase && this._connInfo && this._connInfo.credential)
+          ? `${this._localBase}/webrtc/signal/post?token=${encodeURIComponent(this._connInfo.credential)}`
+          : null);
+      if (destino) {
+        try { navigator.sendBeacon(destino, blob); } catch (err) { /* best effort */ }
+      }
     }
 
     // Remoto (WS al relay): sendBeacon no aplica a WebSocket - un send() sincrono sobre una
@@ -1937,6 +2361,11 @@ class IslautopiaIntercomCard extends HTMLElement {
       // no un comportamiento nuevo.
       console.error('[islautopia-intercom-card] fallo iniciando sesion nativa', err);
       this._setLiveState('error_cam');
+      // Este portero ya no esta configurado en ESTE Home Assistant (la integracion lo perdio, o se
+      // quito y se volvio a añadir con otra entrada). Reintentar en bucle es correcto, pero sin
+      // decir nada el usuario solo ve "Conectando..." para siempre y no tiene forma de saber que
+      // lo que falta es volver a emparejar. Ver _reportPairingRejected().
+      if (err && err.code === 'not_found') this._reportPairingRejected('get_connection_info: not_found');
       this._scheduleReconnect(`fallo iniciando sesion nativa: ${err && err.message ? err.message : err}`);
     }
   }
@@ -1961,6 +2390,11 @@ class IslautopiaIntercomCard extends HTMLElement {
       // No bloqueante: sin TURN propio, ICE puede seguir funcionando salvo NAT simetrica en
       // cualquiera de los dos extremos (API_CONTRACT.md §3.1-bis).
       console.warn('[islautopia-intercom-card] no se pudieron obtener credenciales TURN, se continua solo con STUN', err);
+      // ...pero un 'unauthorized' aqui NO es un problema de TURN: es la nube diciendo que esta
+      // credencial de emparejamiento esta revocada. Es una de las tres señales fiables de
+      // "vuelve a emparejar" que tiene esta card (las otras dos: el cierre 4401 del relay y un 401
+      // del proxy local). Ver _reportPairingRejected().
+      if (err && err.code === 'unauthorized') this._reportPairingRejected('get_turn_credentials: unauthorized');
       this._mark('get_turn_credentials: fallo, se sigue solo con STUN');
     }
 
@@ -2045,14 +2479,96 @@ class IslautopiaIntercomCard extends HTMLElement {
   // (EventSource no admite cabeceras propias, de ahi el query param en vez de Authorization).
   // Es la MISMA credencial que ya se pedia para el WS remoto (this._connInfo.credential) - un
   // token invalido/ausente da 401 en vez de la oferta.
-  tryLocalSignaling() {
-    return new Promise((resolve) => {
-      if (typeof EventSource === 'undefined') { resolve(false); return; }
-      if (!this._connInfo || !this._connInfo.credential) { resolve(false); return; }
+  // ==============================================================================
+  // EL CAMINO LOCAL, EN DOS VARIANTES (2026-08-03)
+  //
+  // Se prefiere SIEMPRE el proxy de señalizacion de la propia integracion de Home Assistant
+  // (`islautopia_doorbell/get_local_signal_url` -> `/api/islautopia_doorbell/signal/<device_id>`),
+  // y se cae a la variante de siempre -hablar directamente al hostname publico del portero- solo
+  // si la integracion instalada es anterior y no ofrece ese comando.
+  //
+  // POR QUE EL PROXY ES MEJOR, y no es una preferencia estetica: el hostname publico del portero
+  // resuelve a una IP privada de la LAN. Esa combinacion tiene exactamente la forma de un ataque
+  // de DNS rebinding, y iCloud Private Relay la bloquea a proposito. Private Relay viene activado
+  // de fabrica en practicamente cualquier iPhone, y la app companion es donde mas gente abre un
+  // dashboard desde el movil: el camino local estaba fallando justo para el grupo mas grande de
+  // usuarios, que acababa saliendo a Alemania por el relay para ver una camara de su propia casa.
+  // Home Assistant, en cambio, ya es un origen que ese navegador ha resuelto y en el que confia.
+  //
+  // Lo que NO pasa por el proxy: el MEDIO. Solo unos pocos kilobytes de SDP y candidatos ICE por
+  // sesion. El video y el audio siguen yendo punto a punto por UDP contra la direccion LAN del
+  // portero, que es lo que Private Relay no toca. O sea que esto RECUPERA el camino directo
+  // rapido, no lo sustituye por uno lento.
+  //
+  // Beneficio adicional que conviene no perder de vista: por este camino la credencial de
+  // pair_app NO llega nunca al JavaScript del navegador - se queda en el lado servidor de la
+  // integracion, que es quien la adjunta al hablar con el portero.
+  // ==============================================================================
+  async tryLocalSignaling() {
+    if (typeof EventSource === 'undefined') return false;
 
-      const hostname = `${this.config.device_id}.doorbell.islautopia.com`;
-      this._localBase = `https://${hostname}:8443`;
-      const token = encodeURIComponent(this._connInfo.credential);
+    const proxyUrl = await this._askLocalSignalUrl();
+    if (proxyUrl) {
+      this._localVia = 'proxy';
+      this._localSignedUrl = proxyUrl;
+      const ok = await this._openLocalSse(proxyUrl, 'proxy');
+      if (ok) return true;
+      // La SSE no distingue un 401 de un 502 (el navegador no expone el codigo de estado a
+      // EventSource), y esa diferencia es justo la que decide entre "vuelve a emparejar" y
+      // "esto no llega al portero ahora mismo". Se clasifica con una peticion aparte.
+      await this._classifyProxyFailure();
+      return false;
+    }
+
+    this._localVia = 'directo';
+    if (!this._connInfo || !this._connInfo.credential) return false;
+    const hostname = `${this.config.device_id}.doorbell.islautopia.com`;
+    this._localBase = `https://${hostname}:8443`;
+    const token = encodeURIComponent(this._connInfo.credential);
+    return this._openLocalSse(`${this._localBase}/webrtc/signal?token=${token}`, 'directo');
+  }
+
+  // `null` = esta integracion no ofrece el proxy (version anterior) o no sabe de este portero.
+  // No es un error: hay un camino de respaldo, y anunciarlo como fallo confundiria al depurar.
+  async _askLocalSignalUrl() {
+    if (!this._hass || !this._hass.connection) return null;
+    try {
+      const res = await this._hass.connection.sendMessagePromise({
+        type: 'islautopia_doorbell/get_local_signal_url',
+        device_id: this.config.device_id,
+      });
+      if (res && res.signal_url) {
+        this._mark('get_local_signal_url: la integracion ofrece proxy de senalizacion');
+        return res.signal_url;
+      }
+      return null;
+    } catch (err) {
+      this._mark(`get_local_signal_url: no disponible (${err && err.code ? err.code : 'error'}) - se usa el hostname publico del portero`);
+      return null;
+    }
+  }
+
+  // Una sola peticion, sin efectos: un `bye` de señalizacion sin slot lo descarta el portero en
+  // silencio, asi que lo unico que se saca de aqui es el CODIGO de estado. El proxy lo pasa tal
+  // cual desde el portero (401) o pone el suyo (502 = Home Assistant no alcanza al portero).
+  async _classifyProxyFailure() {
+    if (!this._hass || typeof this._hass.callApi !== 'function') return;
+    try {
+      await this._hass.callApi('POST', `islautopia_doorbell/signal/${this.config.device_id}`, { type: 'bye' });
+    } catch (err) {
+      const status = err && (err.status_code || err.status);
+      if (status === 401) {
+        this._reportPairingRejected('proxy local de Home Assistant: 401');
+      } else if (status === 502) {
+        this._mark('proxy local: 502 - Home Assistant no alcanza al portero (apagado, u otra VLAN sin ruta). Al relay.');
+      } else {
+        this._mark(`proxy local: fallo sin clasificar (status=${status})`);
+      }
+    }
+  }
+
+  _openLocalSse(sseUrl, via) {
+    return new Promise((resolve) => {
       let settled = false;
       let probeTimer = null;
       const probeCtl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
@@ -2086,14 +2602,14 @@ class IslautopiaIntercomCard extends HTMLElement {
       };
 
       const timeout = setTimeout(() => {
-        this._mark('tryLocalSignaling: timeout de 3000ms agotado sin oferta');
+        this._mark(`tryLocalSignaling(${via}): timeout de 3000ms agotado sin oferta`);
         abandonarLocal();
         finish(false);
       }, 3000);
 
-      this._mark(`tryLocalSignaling: abriendo EventSource contra ${this._localBase}`);
+      this._mark(`tryLocalSignaling(${via}): abriendo EventSource`);
       try {
-        this.nativeSSE = new EventSource(`${this._localBase}/webrtc/signal?token=${token}`);
+        this.nativeSSE = new EventSource(sseUrl);
       } catch (err) {
         clearTimeout(timeout);
         console.warn('[islautopia-intercom-card] no se pudo abrir EventSource local, cayendo al relay remoto:', err);
@@ -2135,7 +2651,11 @@ class IslautopiaIntercomCard extends HTMLElement {
       // local habria que re-sondear abriendo la SSE, que eso SI gasta un slot. La sonda no guarda
       // estado y por eso no puede quedarse desactualizada.
       // ==========================================================================================
-      if (typeof fetch === 'function' && probeCtl) {
+      //
+      // Solo aplica al camino DIRECTO. Por el proxy no hay nada que sondear: el origen es el
+      // propio Home Assistant, que el navegador ya resolvio, y quien no alcance al portero es
+      // Home Assistant - cosa que contesta el mismo con un 502 inmediato en vez de con silencio.
+      if (via === 'directo' && typeof fetch === 'function' && probeCtl) {
         const probeT0 = performance.now();
         probeTimer = setTimeout(() => { try { probeCtl.abort(); } catch (err) { /* noop */ } }, 1200);
         fetch(`${this._localBase}/api/device_id`, { mode: 'no-cors', cache: 'no-store', signal: probeCtl.signal })
@@ -2150,7 +2670,7 @@ class IslautopiaIntercomCard extends HTMLElement {
             abandonarLocal();
             finish(false);
           });
-      } else {
+      } else if (via === 'directo') {
         this._mark('sonda de alcance: no disponible en este navegador (sin fetch/AbortController) - se espera el timeout completo');
       }
 
@@ -2169,6 +2689,15 @@ class IslautopiaIntercomCard extends HTMLElement {
       // esto en el futuro directo a una pista falsa - hoy las causas realistas son otras.
       this.nativeSSE.onerror = () => {
         abandonarLocal();
+        if (via === 'proxy') {
+          console.warn(
+            '[islautopia-intercom-card] la senalizacion local via el proxy de Home Assistant fallo - cayendo al relay remoto. ' +
+            'El navegador NO expone el codigo de estado a EventSource, asi que se clasifica aparte (ver _classifyProxyFailure): ' +
+            'un 401 significa credencial de emparejamiento rechazada, un 502 que Home Assistant no alcanza al portero.'
+          );
+          finish(false);
+          return;
+        }
         console.warn(
           '[islautopia-intercom-card] señalización local (%s) fallo o no respondió a tiempo - cayendo al relay remoto. ' +
           'El navegador NO expone a este script el motivo exacto (revisa la pestaña Network/Console de las DevTools). ' +
@@ -2223,7 +2752,11 @@ class IslautopiaIntercomCard extends HTMLElement {
         this._recordLifeSignal();
         this.handleNativeSignal(msg);
       };
-      this.nativeWS.onclose = () => {
+      this.nativeWS.onclose = (ev) => {
+        // 4401 es el codigo con el que el relay cierra una conexion de cliente cuya credencial de
+        // pair_app no es valida o esta revocada, ANTES de unirse a ninguna sesion (§3.2). Es la
+        // señal mas precisa que existe de "vuelve a emparejar": el resto de cierres son de red.
+        if (ev && ev.code === 4401) this._reportPairingRejected('relay: cierre 4401 (credencial invalida o revocada)');
         if (this.badge && this.videoEl && !this.videoEl.srcObject) {
           this._setLiveState('error_cam');
         }
@@ -2244,6 +2777,18 @@ class IslautopiaIntercomCard extends HTMLElement {
         // el codigo real, no asumido. Sin este aviso, un mensaje perdido asi se manifestaria como
         // "el turno de palabra/la calidad no funcionan" sin ninguna pista en el navegador.
         console.warn(`[islautopia-intercom-card] mensaje local "${msg.type}" enviado sin slot asignado todavia - el dispositivo lo descartara`);
+      }
+      if (this._localVia === 'proxy') {
+        // Por el proxy la peticion va autenticada como cualquier llamada del frontend a su propio
+        // Home Assistant (callApi pone la cabecera Authorization). La URL FIRMADA existe solo para
+        // el EventSource, que no puede llevar cabeceras propias - aqui no hace falta.
+        this._hass.callApi('POST', `islautopia_doorbell/signal/${this.config.device_id}`, payload)
+          .catch((err) => {
+            const status = err && (err.status_code || err.status);
+            if (status === 401) this._reportPairingRejected('proxy local de Home Assistant: 401 al enviar senalizacion');
+            console.warn('[islautopia-intercom-card] fallo enviando senal local via el proxy de Home Assistant', err);
+          });
+        return;
       }
       const token = this._connInfo ? encodeURIComponent(this._connInfo.credential) : '';
       fetch(`${this._localBase}/webrtc/signal/post?token=${token}`, {
@@ -2399,7 +2944,11 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._listenOnly = false;
     {
       try {
-        this.videoEl.muted = false;
+        // Hablar implica oir, obviamente. Se recuerda como estaba el sonido para devolverlo a su
+        // sitio al cerrar el micro: si solo estabas mirando en silencio, seguiras mirando en
+        // silencio (§1.10); si ya estabas escuchando, seguiras escuchando.
+        this._audioOnBeforeMic = this._audioOn;
+        this._setAudioOn(true, 'micro');
         console.log('[islautopia-intercom-card DIAG audio] toggleIntercom: pidiendo getUserMedia({audio:true})...');
         this.localAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const realAudioTrack = this.localAudioStream.getAudioTracks()[0];
@@ -2482,7 +3031,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._talkHeld = false;
     this._listenOnly = false;
     this.intercomActive = false;
-    this.videoEl.muted = true;
+    this._setAudioOn(this._audioOnBeforeMic, 'micro-cerrado');
     this._closeMicHardware();
     this._setLiveState('live');
     if (this.audioPill) this.audioPill.style.display = 'none';
@@ -2546,10 +3095,17 @@ class IslautopiaIntercomCard extends HTMLElement {
       // (2026-07-10, ver COORDINATION.md Q19).
       this._recordLifeSignal();
       this._reconnectAttempt = 0;
+      // Hay video: sea cual sea el camino, este portero SI acepta esta credencial. Si habia un
+      // aviso de emparejamiento rechazado colgado, deja de ser cierto y se retira.
+      this._clearPairingRejected();
       this.videoEl.srcObject = stream;
-      this.videoEl.muted = true;
+      // MUDO salvo que el usuario ya lo hubiera abierto a proposito en esta misma card (§1.10):
+      // una reconexion no debe dejar sordo a quien estaba escuchando, pero tampoco encender el
+      // sonido de una sesion nueva por su cuenta.
+      this.videoEl.muted = !this._audioOn;
       this.videoEl.volume = parseFloat(this.volSlider.value);
       this.videoEl.play().catch(() => {});
+      this._paintAudioState();
 
       this._setLiveState('live');
       this.intercomButton.removeAttribute('disabled');
@@ -2760,6 +3316,18 @@ class IslautopiaIntercomCard extends HTMLElement {
       }
       .hud-vol input[type=range] { width: 56px; accent-color: var(--ig-cyan); cursor: pointer; }
       .hud-vol ha-icon { --mdc-icon-size: 16px; color: var(--ig-text); }
+      /* Control de sonido (§1.10). En reposo esta MUDO, y eso tiene que leerse de un vistazo: el
+         icono tachado en gris apagado, y en cian encendido cuando de verdad se oye. Un control de
+         sonido cuyo estado hay que adivinar es peor que no tenerlo, porque el usuario cree que
+         esta oyendo. */
+      .snd-btn {
+        display: flex; align-items: center; justify-content: center; cursor: pointer;
+        background: transparent; border: none; padding: 0; margin: 0;
+        color: var(--ig-dim); font-family: inherit;
+      }
+      .snd-btn ha-icon { --mdc-icon-size: 16px; color: inherit; }
+      .snd-btn.on { color: var(--ig-cyan); }
+      .snd-btn:hover { color: var(--ig-text); }
 
       /* Boton de pantalla completa, ultimo del cluster derecho. */
       .hud-fs {
@@ -2867,6 +3435,23 @@ class IslautopiaIntercomCard extends HTMLElement {
       .action .btn.busy-other { border-color: rgba(255,179,0,0.45); color: rgba(255,179,0,0.8); }
       @keyframes ig-breathe { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
 
+      /* ---- confirmacion de apertura (§1.8): estado ARMADO del boton de puerta ----
+         Ambar, no verde: verde es "abierta" y esto todavia no ha abierto nada. El anillo que se
+         encoge es la cuenta atras de los 3 segundos - el contrato la pide "si se puede", y aqui se
+         puede sin ningun temporizador en JS. Sin ella, un boton armado se ve igual el primer
+         segundo que el tercero y el usuario no sabe si aun le vale pulsar. */
+      .action .btn.confirming {
+        border-color: var(--ig-amber); color: var(--ig-amber);
+        background: linear-gradient(135deg, rgba(255,179,0,0.18), rgba(255,179,0,0.06));
+        box-shadow: 0 0 22px rgba(255,179,0,0.35);
+      }
+      .action .btn.confirming::after {
+        content: ''; position: absolute; inset: -4px; border-radius: 50%;
+        border: 2px solid var(--ig-amber); animation: ig-armed 3s linear forwards;
+        pointer-events: none;
+      }
+      @keyframes ig-armed { 0% { transform: scale(1.25); opacity: 0.9; } 100% { transform: scale(1); opacity: 0; } }
+
       /* ==========================================================================
          PANTALLA COMPLETA. Un SOLO juego de reglas para los dos niveles
          (API nativa y respaldo propio), gobernado por el atributo [data-fs] - ver
@@ -2946,6 +3531,37 @@ class IslautopiaIntercomCard extends HTMLElement {
         .intercom-container.ig-fs .hud-bottom { bottom: 174px; }
       }
 
+      /* ==========================================================================
+         CARRIL LATERAL - video VERTICAL dentro de un marco APAISADO (§1.9)
+         El caso real es una tablet de pared, que vive en apaisado permanentemente. Un video
+         vertical ahi ocupa una franja central y deja dos huecos grandes a los lados.
+         La solucion NO es recortar para llenar: eso tira la parte de arriba y la de abajo, que es
+         justo lo que se gano girando el sensor. La solucion es USAR uno de esos huecos.
+         Reglas que no admiten interpretacion, de la correccion de Iñaki al ver iOS:
+          - El video ocupa TODA la altura, de extremo a extremo. En apaisado la altura es el
+            recurso escaso.
+          - El carril es solo tan ancho como el objetivo tactil que contiene (RAIL_WIDTH en JS).
+            Una columna de botones, no un panel: el ancho que se lleva el carril es alto que
+            pierde el video.
+         La clase la pone _layoutRotation() midiendo el marco de verdad, no una @container: este
+         contenedor es de tipo inline-size y por tanto no puede consultarse por proporcion.
+         ========================================================================== */
+      .intercom-container.ig-fs.ig-rail .actions-row {
+        left: auto; right: 0; bottom: auto; top: 50%;
+        transform: translateY(-50%);
+        width: 104px; flex-direction: column; align-items: center; gap: 22px;
+      }
+      /* El velo de legibilidad pasa de la banda inferior al lateral, que es donde estan ahora los
+         controles. */
+      .intercom-container.ig-fs.ig-rail .feed-wrap::after {
+        left: auto; right: 0; top: 0; bottom: 0; width: 168px; height: auto;
+        background: linear-gradient(90deg, transparent, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.72));
+      }
+      /* La linea de estado vuelve abajo del todo: encima de los botones ya no hay botones. */
+      .intercom-container.ig-fs.ig-rail .status-line { bottom: 14px; right: 112px; left: 0; }
+      /* Y el cluster del HUD se aparta del carril para no solaparse con el. */
+      .intercom-container.ig-fs.ig-rail .hud-bottom { right: 118px; bottom: 12px; }
+
       /* Nivel 2: respaldo propio. El tamano lo dan 'inset: 0' y 'width/height: auto', NO unidades
          de viewport, y eso es deliberado: '100vw' INCLUYE la barra de desplazamiento y el bloque
          contenedor de un position:fixed no. En un dashboard con scroll -- la mayoria de los
@@ -3002,6 +3618,10 @@ class IslautopiaIntercomCardEditor extends HTMLElement {
         <div style="display: flex; flex-direction: column;">
           <label style="font-size: 14px; margin-bottom: 4px; color: var(--primary-text-color);">${getLocalText(this._hass, 'ed_motion_entity')}</label>
           <input type="text" id="motion_entity" value="${this._config.motion_entity || ''}" style="padding: 10px; border: 1px solid var(--divider-color, #ccc); border-radius: 4px; background: var(--card-background-color, #fff); color: var(--primary-text-color);">
+        </div>
+        <div style="display: flex; flex-direction: column;">
+          <label style="font-size: 14px; margin-bottom: 4px; color: var(--primary-text-color);">${getLocalText(this._hass, 'ed_ring_entity')}</label>
+          <input type="text" id="ring_entity" value="${this._config.ring_entity || ''}" style="padding: 10px; border: 1px solid var(--divider-color, #ccc); border-radius: 4px; background: var(--card-background-color, #fff); color: var(--primary-text-color);">
         </div>
         <div style="display: flex; flex-direction: column;">
           <label style="font-size: 14px; margin-bottom: 4px; color: var(--primary-text-color);">${getLocalText(this._hass, 'ed_duration')}</label>

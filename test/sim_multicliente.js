@@ -77,7 +77,12 @@ function newCard() {
   c.intercomButton = fakeEl();
   c.intercomIcon = fakeEl();
   c.micLabel = fakeEl();
-  c.videoEl = { muted: true };
+  // play() y volume forman parte del doble desde 2026-08-03: el control de sonido de §1.10
+  // (_setAudioOn) llama a play() al desmutear, porque desmutear sin activacion del usuario puede
+  // hacer que el navegador PAUSE el elemento en vez de lanzar un error.
+  c.videoEl = { muted: true, volume: 1, play: () => Promise.resolve() };
+  c.volIcon = fakeEl();
+  c.sndBtn = fakeEl();
   c.audioPill = fakeEl();
   // Estos tres nacen con display:none en el HTML real de render() - reproducirlo aqui, o la
   // simulacion "encontraria" visible algo que en la card de verdad esta oculto de partida.
@@ -297,26 +302,39 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   // ============================================================================================
   console.log('\n== 12. Validacion del destinatario del turno (regla comun a los 3 clientes) ==');
 
-  // (a) Slot propio DESCONOCIDO => rechazar. El caso peligroso real: dos usuarios pulsan el micro
-  //     a la vez, los dos con peticion en vuelo, y el talk_granted de uno le llega al otro por el
-  //     fan-out del relay. `_talkPending` es true en AMBOS, asi que esa guardia no para nada:
-  //     solo lo para comparar el slot. Si se acepta "porque no se quien soy", se le abre el
-  //     microfono al usuario equivocado.
+  // (a) Slot propio DESCONOCIDO y peticion PROPIA en vuelo => se ACEPTA, a conciencia.
+  //
+  //     ESTE CASO CAMBIO DE SIGNO el 2026-07-29 (commit "los cuatro fallos vistos en el iPhone
+  //     real") y la simulacion se quedo sin actualizar hasta el 2026-08-03: las dos
+  //     comprobaciones de este bloque llevaban desde entonces en rojo describiendo una regla que
+  //     el codigo ya no sigue, y una suite roja de serie deja de avisar de nada.
+  //
+  //     Por que se relajo, con el razonamiento entero en _handleTalkGranted(): por el camino
+  //     REMOTO la oferta no lleva `slot` (el relay enruta por device_id), asi que el slot propio
+  //     no se conoce hasta el primer session_info. Rechazar ahi descartaba nuestro PROPIO
+  //     talk_granted, se agotaban los 3s y la card acusaba de "firmware anterior" a un portero al
+  //     dia - visto en un iPhone real. Y no protegia nada: al agotarse los 3s el micro se abria
+  //     igual, solo que mas tarde y mintiendo.
   c = newCard();
   c._slot = null;
   await c.toggleIntercom();
-  check('con peticion en vuelo pero slot propio desconocido, se RECHAZA', c._talkPending === true);
+  check('con peticion en vuelo pero slot propio desconocido, se ACEPTA (ver _handleTalkGranted)', c._talkPending === true);
   await c.handleNativeSignal({ type: 'talk_granted', slot: 1 });
-  check('  -> el micro sigue cerrado', c.intercomActive === false);
+  check('  -> el micro se abre, apoyandose en que la peticion era nuestra', c.intercomActive === true);
 
   // (b) La validacion NO debe ser circular: `talk_granted` no puede enseñarnos nuestro propio
   //     slot (si pudiera, msg.slot === this._slot seria cierto SIEMPRE y no validaria nada). Es
   //     el fallo que tenia la app Android (`_mySlot ??= msg.slot` dentro del propio handler).
+  //     Esta regla NO se relajo, y es la que sigue sosteniendo el caso (c).
   check('  -> y talk_granted NO nos ha enseñado un slot propio', c._slot === null);
   await c.handleNativeSignal({ type: 'session_info', clients: 2, slot: 0, talker: -1 });
   check('solo session_info (u offer) fija el slot propio', c._slot === 0);
 
-  // (c) Con el slot ya conocido, el ajeno se rechaza y el propio se acepta.
+  // (c) Con el slot ya conocido, el ajeno se rechaza y el propio se acepta. Card nueva: aqui se
+  //     comprueba el filtro por slot, no el arrastre de estado del caso anterior.
+  c = newCard();
+  c._slot = 0;
+  await c.toggleIntercom();
   await c.handleNativeSignal({ type: 'talk_granted', slot: 1 });
   check('talk_granted ajeno rechazado con slot propio conocido', c.intercomActive === false);
   await c.handleNativeSignal({ type: 'talk_granted', slot: 0 });
@@ -329,6 +347,130 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   await c.toggleIntercom();
   await c.handleNativeSignal({ type: 'talk_granted' }); // sin campo slot
   check('mensaje sin slot (firmware intermedio) sigue aceptandose', c.intercomActive === true);
+
+  // ============================================================================================
+  // 13. GIRO DE LA IMAGEN (API_CONTRACT.md §1.9). El fallo que motivo todo esto se vio en el
+  //     aparato real: la camara va montada girada 90° a proposito y la card pintaba la imagen
+  //     tumbada, porque nunca leyo el campo `rot` de session_info.
+  // ============================================================================================
+  console.log('\n== 13. Giro de la imagen (§1.9) ==');
+  function cardConMarco() {
+    const card = newCard();
+    card.feedWrap = fakeEl();
+    card.feedWrap.clientWidth = 400;
+    card.feedWrap.clientHeight = 711;
+    card.videoEl.style = {};
+    card._rot = 0;
+    card._rotConfirmed = false;
+    card.content = fakeEl();
+    return card;
+  }
+
+  c = cardConMarco();
+  await c.handleNativeSignal({ type: 'session_info', clients: 1, slot: 0, talker: -1, rot: 90 });
+  check('rot=90 leido de session_info', c._rot === 90);
+  check('  -> el marco pasa a vertical (9/16)', c.feedWrap.style.aspectRatio === '9/16');
+  check('  -> el video se gira 90° en sentido horario', /rotate\(90deg\)/.test(c.videoEl.style.transform));
+  // Con 90/270 hay que INTERCAMBIAR ancho y alto, o la imagen girada no cubre el hueco.
+  check('  -> caja con ancho y alto intercambiados', c.videoEl.style.width === '711px' && c.videoEl.style.height === '400px');
+
+  await c.handleNativeSignal({ type: 'session_info', clients: 1, slot: 0, talker: -1, rot: 180 });
+  check('rot=180 gira sin intercambiar medidas', c.videoEl.style.transform === 'rotate(180deg)' && c.videoEl.style.width === '');
+
+  await c.handleNativeSignal({ type: 'session_info', clients: 1, slot: 0, talker: -1, rot: 0 });
+  check('rot=0 no gira nada', c.videoEl.style.transform === '' && c.feedWrap.style.aspectRatio === '16/9');
+
+  // Un valor raro se ignora en vez de pintarse: pintar torcido sin que nada lo explique es peor
+  // que no girar (mismo criterio que el firmware, que tampoco lo guarda).
+  await c.handleNativeSignal({ type: 'session_info', clients: 1, slot: 0, talker: -1, rot: 45 });
+  check('un rot no admitido se ignora', c._rot === 0);
+
+  // Firmware anterior a §1.9: sin campo `rot` no se toca nada de lo ya conocido.
+  c = cardConMarco();
+  c._rot = 90; c._rotConfirmed = true;
+  await c.handleNativeSignal({ type: 'session_info', clients: 1, slot: 0, talker: -1 });
+  check('session_info sin rot no altera el giro conocido', c._rot === 90);
+
+  // ============================================================================================
+  // 14. VER NO ES ESCUCHAR (API_CONTRACT.md §1.10)
+  // ============================================================================================
+  console.log('\n== 14. El altavoz del cliente arranca mudo (§1.10) ==');
+  c = newCard();
+  c._audioOn = false; c._audioOnBeforeMic = false; c.videoEl.muted = true;
+  check('arranca mudo', c.videoEl.muted === true && c._audioOn === false);
+  c._setAudioOn(true, 'usuario');
+  check('el usuario abre el sonido -> suena', c.videoEl.muted === false && c._audioOn === true);
+  check('  -> y el icono lo dice', c.volIcon.getAttribute('icon') === 'mdi:volume-high');
+  c._setAudioOn(false, 'usuario');
+  check('y puede volver a silenciarlo', c.videoEl.muted === true && c.volIcon.getAttribute('icon') === 'mdi:volume-off');
+
+  // Escuchar y hablar son ejes independientes: al cerrar el micro, el sonido vuelve a como estaba
+  // ANTES de abrirlo - si solo estabas mirando en silencio, sigues mirando en silencio.
+  c = newCard();
+  c._audioOn = true; c._audioOnBeforeMic = false; c.intercomActive = true; c.videoEl.muted = false;
+  await c._stopIntercom();
+  check('al cerrar el micro el sonido vuelve a como estaba', c._audioOn === false && c.videoEl.muted === true);
+
+  // El timbre es el UNICO motivo por el que el sonido se enciende solo.
+  c = newCard();
+  c._audioOn = false; c.videoEl.muted = true;
+  c.config.ring_entity = 'binary_sensor.timbre';
+  c._hass.states['binary_sensor.timbre'] = { state: 'off' };
+  c._updateRingState();
+  check('primera lectura del timbre: no dispara nada', c._audioOn === false);
+  c._hass.states['binary_sensor.timbre'] = { state: 'on' };
+  c._updateRingState();
+  check('alguien llama al timbre -> suena solo', c._audioOn === true && c.videoEl.muted === false);
+
+  // Un binary_sensor que YA estaba en 'on' al abrir el dashboard no es una llamada de ahora.
+  c = newCard();
+  c._audioOn = false; c.videoEl.muted = true;
+  c.config.ring_entity = 'binary_sensor.timbre';
+  c._hass.states['binary_sensor.timbre'] = { state: 'on' };
+  c._updateRingState();
+  check('un timbre que ya estaba sonando al abrir no desmutea', c._audioOn === false);
+
+  // ============================================================================================
+  // 15. ABRIR LA PUERTA EXIGE CONFIRMACION (API_CONTRACT.md §1.8)
+  // ============================================================================================
+  console.log('\n== 15. Doble pulsacion para abrir (§1.8) ==');
+  function cardConPuerta() {
+    const card = newCard();
+    card.unlockButton = fakeEl();
+    card.unlockIcon = fakeEl();
+    card.unlockLabel = fakeEl();
+    card._doorArmedAt = 0;
+    card._doorArmTimer = null;
+    card.abierta = false;
+    card.triggerNativeOpen = () => { card.abierta = true; };
+    return card;
+  }
+
+  c = cardConPuerta();
+  c._onDoorPress();
+  check('la primera pulsacion NO abre', c.abierta === false);
+  check('  -> el boton queda armado y se ve', c._doorArmedAt > 0 && c.unlockButton.classList.contains('confirming'));
+
+  // Regla 2: un doble toque RAPIDO no vale. Un movil en el bolsillo o un dedo que rebota producen
+  // exactamente eso.
+  c._onDoorPress();
+  check('un doble toque rapido (<300ms) NO abre', c.abierta === false);
+
+  // Pasado el minimo, la segunda pulsacion si abre.
+  c._doorArmedAt = Date.now() - 400;
+  c._onDoorPress();
+  check('la segunda pulsacion, ya separada, abre', c.abierta === true);
+  check('  -> y el boton deja de estar armado (regla 3)', c._doorArmedAt === 0 && !c.unlockButton.classList.contains('confirming'));
+
+  // Regla 1, la que de verdad protege: la confirmacion CADUCA. Sin esto, una pulsacion accidental
+  // deja la puerta armada y la siguiente -igual de accidental- la abre.
+  c = cardConPuerta();
+  c._onDoorPress();
+  await new Promise((r) => setTimeout(r, 3200));
+  check('la confirmacion caduca sola a los ~3s', c._doorArmedAt === 0 && !c.unlockButton.classList.contains('confirming'));
+  c._doorArmedAt = 0;
+  c._onDoorPress();
+  check('  -> y tras caducar, una pulsacion vuelve a solo armar', c.abierta === false);
 
   console.log(failures === 0 ? '\nTODO OK\n' : `\n${failures} COMPROBACIONES FALLIDAS\n`);
   process.exit(failures === 0 ? 0 : 1);
