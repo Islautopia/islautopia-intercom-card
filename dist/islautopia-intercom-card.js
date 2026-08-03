@@ -2636,11 +2636,23 @@ class IslautopiaIntercomCard extends HTMLElement {
       // peticion llega. Una respuesta opaca ya significa "alcanzable"; un rechazo, "no".
       // `cache:'no-store'` para que una respuesta cacheada no de un veredicto rancio.
       //
-      // Las dos reglas, y la segunda importa tanto como la primera:
-      //  1. La sonda falla o expira -> se abandona el local YA, sin esperar el resto del timeout.
+      // Las TRES reglas. La tercera se aprendio midiendo contra el portero real (2026-08-03) y
+      // corrige un fallo que estaba tirando el camino local en la mejor situacion posible:
+      //  1. La sonda falla de verdad (error de red/DNS) -> se abandona el local YA, sin esperar el
+      //     resto del timeout.
       //  2. La sonda responde -> el portero es alcanzable, asi que se SIGUE esperando la oferta
       //     hasta los 3000ms de siempre. Que responda la sonda no garantiza que la SSE entregue
       //     rapido, y cortar aqui cambiaria un fallo lento por un fallo prematuro.
+      //  3. La sonda EXPIRA -> no se abandona nada. Una expiracion no es un veredicto: dice que el
+      //     portero es lento, no que no este. Medido con curl contra el aparato real en la misma
+      //     red: el handshake TLS del ESP32 solo tarda entre 0,40s y 0,90s, y la peticion completa
+      //     entre 0,46s y 1,06s. Con el presupuesto anterior de 1200ms, una conexion perfecta en la
+      //     propia casa se declaraba "inalcanzable" por unas decenas de milisegundos y se salia por
+      //     el relay -- a Alemania, para ver una camara del pasillo. Visto en dos ejecuciones
+      //     seguidas: una dio 1094ms (paso por los pelos) y la siguiente 1202ms (fallo). El
+      //     presupuesto sube ademas a 2000ms, pero lo que de verdad arregla esto es que expirar ya
+      //     no mata el camino: se deja decidir al timeout de 3000ms, que es quien tiene el dato
+      //     bueno -- si llego la oferta o no.
       //
       // Sospechoso principal de este caso concreto, y por eso la sonda es del mismo tipo que la
       // peticion real: iCloud Private Relay bloquea a proposito un hostname publico que resuelve a
@@ -2657,7 +2669,11 @@ class IslautopiaIntercomCard extends HTMLElement {
       // Home Assistant - cosa que contesta el mismo con un 502 inmediato en vez de con silencio.
       if (via === 'directo' && typeof fetch === 'function' && probeCtl) {
         const probeT0 = performance.now();
-        probeTimer = setTimeout(() => { try { probeCtl.abort(); } catch (err) { /* noop */ } }, 1200);
+        let probeExpirada = false;
+        probeTimer = setTimeout(() => {
+          probeExpirada = true;
+          try { probeCtl.abort(); } catch (err) { /* noop */ }
+        }, 2000);
         fetch(`${this._localBase}/api/device_id`, { mode: 'no-cors', cache: 'no-store', signal: probeCtl.signal })
           .then(() => {
             if (settled) return;
@@ -2666,6 +2682,11 @@ class IslautopiaIntercomCard extends HTMLElement {
           })
           .catch(() => {
             if (settled) return; // abortada por nosotros al terminar: no es un veredicto
+            if (probeExpirada) {
+              // Regla 3: lento no es ausente. Se deja seguir a la SSE con su propio plazo.
+              this._mark(`sonda de alcance: expiro a los ${Math.round(performance.now() - probeT0)}ms sin veredicto - NO se abandona el local, decide el timeout de 3000ms`);
+              return;
+            }
             this._mark(`sonda de alcance: el portero NO es alcanzable (${Math.round(performance.now() - probeT0)}ms) - al relay sin esperar el resto de los 3000ms`);
             abandonarLocal();
             finish(false);
