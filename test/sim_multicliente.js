@@ -472,6 +472,38 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   c._onDoorPress();
   check('  -> y tras caducar, una pulsacion vuelve a solo armar', c.abierta === false);
 
+  // ============================================================================================
+  // 16. NADA OCURRE EN SILENCIO (API_CONTRACT.md §1.0). El caso de la puerta no era un hueco: era
+  //     una MENTIRA. La card pintaba "Abierta" en verde al pulsar, antes de que el portero
+  //     contestara nada - asi que un open_result que no llegaba dejaba al usuario mirando un
+  //     boton que decia "Abierta" con la puerta cerrada.
+  // ============================================================================================
+  console.log('\n== 16. Nada ocurre en silencio (§1.0) ==');
+  c = cardConPuerta();
+  c._doorArmedAt = Date.now() - 400; // ya confirmado (§1.8), lo que se prueba aqui es lo de despues
+  c.triggerNativeOpen = CardClass.prototype.triggerNativeOpen.bind(c);
+  c._onDoorPress();
+  check('al mandar el open se ve "abriendo"', c.unlockButton.classList.contains('opening'));
+  check('  -> y NO se afirma que este abierta', !c.unlockButton.classList.contains('active-unlock'));
+  check('  -> con el aviso a la vista desde el primer instante', c._flashes.includes('door_opening'));
+  check('  -> y un plazo armado, para que el indicador TERMINE', !!c._doorWaitTimer);
+
+  // Un tiempo agotado es un tiempo agotado, nunca un "abierta".
+  c._doorOpenSinRespuesta();
+  check('sin respuesta: el indicador termina', !c.unlockButton.classList.contains('opening'));
+  check('  -> sigue sin afirmarse que se abriera', !c.unlockButton.classList.contains('active-unlock'));
+  check('  -> y se dice que no hubo respuesta', c._flashes.includes('door_no_answer'));
+
+  // Y con confirmacion real del portero, entonces si.
+  c = cardConPuerta();
+  c._doorArmedAt = Date.now() - 400;
+  c.triggerNativeOpen = CardClass.prototype.triggerNativeOpen.bind(c);
+  c._startDoorCountdown = () => {};
+  c._onDoorPress();
+  c.handleNativeOpenResult({ status: 'opened' });
+  check('con open_result: ahora si "abierta"', c.unlockButton.classList.contains('active-unlock'));
+  check('  -> y la espera se ha cerrado', !c.unlockButton.classList.contains('opening') && !c._doorWaitTimer);
+
   console.log(failures === 0 ? '\nTODO OK\n' : `\n${failures} COMPROBACIONES FALLIDAS\n`);
   process.exit(failures === 0 ? 0 : 1);
 })();

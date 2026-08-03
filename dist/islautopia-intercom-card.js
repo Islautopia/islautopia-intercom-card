@@ -35,6 +35,8 @@ const islautopiaLocales = {
     fs_enter: "Pantalla completa", fs_exit: "Salir de pantalla completa",
     door_confirm: "¿Abrir la puerta? Pulsa otra vez", lbl_door_confirm: "¿Abrir?",
     snd_on: "Silenciar", snd_off: "Escuchar", snd_ring: "Están llamando — sonido activado",
+    door_opening: "Abriendo la puerta...", lbl_door_opening: "Abriendo", door_no_answer: "El portero no respondió — la puerta NO se ha abierto",
+    conn_relay: "El camino local no responde · conectando por la nube", retry_prefix: "Sin conexión · reintentando en",
     snd_blocked: "Toca el altavoz para oír", cred_revoked: "El portero rechazó el emparejamiento — vuelve a emparejarlo en Ajustes › Dispositivos y servicios",
     ed_device_id: "Device ID nativo IG Doorbell (recomendado - ver Ajustes > Dispositivos y servicios)",
     ed_mode_entity: "Entidad de Modo (Opcional - select.* para mostrar los chips Normal/Ausente/Noche/Custom)",
@@ -56,6 +58,8 @@ const islautopiaLocales = {
     fs_enter: "Fullscreen", fs_exit: "Exit fullscreen",
     door_confirm: "Open the door? Press again", lbl_door_confirm: "Open?",
     snd_on: "Mute", snd_off: "Listen", snd_ring: "Someone is calling — sound on",
+    door_opening: "Opening the door...", lbl_door_opening: "Opening", door_no_answer: "No answer from the doorbell — the door did NOT open",
+    conn_relay: "Local path not answering · connecting via the cloud", retry_prefix: "No connection · retrying in",
     snd_blocked: "Tap the speaker to listen", cred_revoked: "The doorbell rejected this pairing — re-pair it in Settings › Devices & services",
     ed_device_id: "Native IG Doorbell Device ID (recommended - see Settings > Devices & services)",
     ed_mode_entity: "Mode Entity (Optional - select.* to show the Normal/Away/Night/Custom chips)",
@@ -77,6 +81,8 @@ const islautopiaLocales = {
     fs_enter: "Ecrã inteiro", fs_exit: "Sair do ecrã inteiro",
     door_confirm: "Abrir a porta? Prima outra vez", lbl_door_confirm: "Abrir?",
     snd_on: "Silenciar", snd_off: "Ouvir", snd_ring: "Estão a chamar — som ligado",
+    door_opening: "A abrir a porta...", lbl_door_opening: "A abrir", door_no_answer: "O porteiro não respondeu — a porta NÃO foi aberta",
+    conn_relay: "O caminho local não responde · a ligar pela nuvem", retry_prefix: "Sem ligação · a tentar de novo em",
     snd_blocked: "Toque no altifalante para ouvir", cred_revoked: "O porteiro rejeitou este emparelhamento — volte a emparelhá-lo em Definições › Dispositivos e serviços",
     ed_device_id: "Device ID nativo do IG Doorbell (recomendado)",
     ed_mode_entity: "Entidade de Modo (Opcional - select.* para mostrar os chips Normal/Ausente/Noite/Custom)",
@@ -98,6 +104,8 @@ const islautopiaLocales = {
     fs_enter: "Vollbild", fs_exit: "Vollbild beenden",
     door_confirm: "Tür öffnen? Nochmal drücken", lbl_door_confirm: "Öffnen?",
     snd_on: "Stummschalten", snd_off: "Mithören", snd_ring: "Es klingelt — Ton an",
+    door_opening: "Tür wird geöffnet...", lbl_door_opening: "Öffnet", door_no_answer: "Keine Antwort der Türsprechanlage — die Tür wurde NICHT geöffnet",
+    conn_relay: "Lokaler Weg antwortet nicht · Verbindung über die Cloud", retry_prefix: "Keine Verbindung · neuer Versuch in",
     snd_blocked: "Auf den Lautsprecher tippen, um zu hören", cred_revoked: "Die Türsprechanlage hat diese Kopplung abgelehnt — in Einstellungen › Geräte & Dienste neu koppeln",
     ed_device_id: "Native IG Doorbell Device ID (empfohlen)",
     ed_mode_entity: "Modus-Entität (Optional - select.* für die Chips Normal/Abwesend/Nacht/Custom)",
@@ -119,6 +127,8 @@ const islautopiaLocales = {
     fs_enter: "Plein écran", fs_exit: "Quitter le plein écran",
     door_confirm: "Ouvrir la porte ? Appuyez encore", lbl_door_confirm: "Ouvrir ?",
     snd_on: "Couper le son", snd_off: "Écouter", snd_ring: "On sonne — son activé",
+    door_opening: "Ouverture de la porte...", lbl_door_opening: "Ouverture", door_no_answer: "Pas de réponse du portier — la porte n'a PAS été ouverte",
+    conn_relay: "Le chemin local ne répond pas · connexion via le cloud", retry_prefix: "Pas de connexion · nouvel essai dans",
     snd_blocked: "Touchez le haut-parleur pour écouter", cred_revoked: "Le portier a refusé cet appairage — réappairez-le dans Paramètres › Appareils et services",
     ed_device_id: "Device ID natif IG Doorbell (recommandé)",
     ed_mode_entity: "Entité de Mode (Optionnel - select.* pour afficher les puces Normal/Absent/Nuit/Custom)",
@@ -140,6 +150,8 @@ const islautopiaLocales = {
     fs_enter: "Полный экран", fs_exit: "Выйти из полного экрана",
     door_confirm: "Открыть дверь? Нажмите ещё раз", lbl_door_confirm: "Открыть?",
     snd_on: "Выключить звук", snd_off: "Слушать", snd_ring: "Звонят — звук включён",
+    door_opening: "Открывание двери...", lbl_door_opening: "Открывание", door_no_answer: "Домофон не ответил — дверь НЕ открыта",
+    conn_relay: "Локальный путь не отвечает · подключение через облако", retry_prefix: "Нет связи · повтор через",
     snd_blocked: "Коснитесь динамика, чтобы слышать", cred_revoked: "Домофон отклонил эту привязку — выполните привязку заново в Настройки › Устройства и службы",
     ed_device_id: "Собственный Device ID IG Doorbell (рекомендуется)",
     ed_mode_entity: "Объект режима (Необязательно - select.* для чипов Обычный/Отсутствие/Ночь/Custom)",
@@ -161,6 +173,8 @@ const islautopiaLocales = {
     fs_enter: "全屏", fs_exit: "退出全屏",
     door_confirm: "确定开门？再按一次", lbl_door_confirm: "开门？",
     snd_on: "静音", snd_off: "收听", snd_ring: "有人按门铃 — 已开启声音",
+    door_opening: "正在开门...", lbl_door_opening: "开门中", door_no_answer: "门口机没有响应 — 门并未打开",
+    conn_relay: "本地通道无响应 · 正在通过云端连接", retry_prefix: "无连接 · 重试倒计时",
     snd_blocked: "点击扬声器以收听", cred_revoked: "门口机拒绝了此配对 — 请在 设置 › 设备与服务 中重新配对",
     ed_device_id: "原生 IG Doorbell 设备 ID (推荐)",
     ed_mode_entity: "模式实体 (可选 - select.* 用于显示 正常/离开/夜间/自定义 标签)",
@@ -182,6 +196,8 @@ const islautopiaLocales = {
     fs_enter: "पूर्ण स्क्रीन", fs_exit: "पूर्ण स्क्रीन से बाहर",
     door_confirm: "दरवाज़ा खोलें? फिर से दबाएँ", lbl_door_confirm: "खोलें?",
     snd_on: "म्यूट करें", snd_off: "सुनें", snd_ring: "कोई घंटी बजा रहा है — ध्वनि चालू",
+    door_opening: "दरवाज़ा खोला जा रहा है...", lbl_door_opening: "खुल रहा है", door_no_answer: "डोरबेल ने जवाब नहीं दिया — दरवाज़ा नहीं खुला",
+    conn_relay: "लोकल रास्ता जवाब नहीं दे रहा · क्लाउड से जुड़ रहे हैं", retry_prefix: "कनेक्शन नहीं · फिर कोशिश",
     snd_blocked: "सुनने के लिए स्पीकर पर टैप करें", cred_revoked: "डोरबेल ने यह पेयरिंग अस्वीकार कर दी — सेटिंग्स › डिवाइस और सेवाएँ में दोबारा पेयर करें",
     ed_device_id: "नेटिव IG Doorbell डिवाइस ID (अनुशंसित)",
     ed_mode_entity: "मोड एंटिटी (वैकल्पिक - select.* सामान्य/अनुपस्थित/रात/कस्टम चिप्स दिखाने के लिए)",
@@ -203,6 +219,8 @@ const islautopiaLocales = {
     fs_enter: "ملء الشاشة", fs_exit: "إنهاء ملء الشاشة",
     door_confirm: "هل تفتح الباب؟ اضغط مرة أخرى", lbl_door_confirm: "فتح؟",
     snd_on: "كتم الصوت", snd_off: "استماع", snd_ring: "هناك من يطرق — تم تشغيل الصوت",
+    door_opening: "جارٍ فتح الباب...", lbl_door_opening: "جارٍ الفتح", door_no_answer: "لا رد من الجهاز — لم يُفتح الباب",
+    conn_relay: "المسار المحلي لا يستجيب · الاتصال عبر السحابة", retry_prefix: "لا يوجد اتصال · إعادة المحاولة خلال",
     snd_blocked: "المس مكبر الصوت للاستماع", cred_revoked: "رفض الجهاز هذا الاقتران — أعد الاقتران من الإعدادات › الأجهزة والخدمات",
     ed_device_id: "معرّف الجهاز الأصلي IG Doorbell (موصى به)",
     ed_mode_entity: "كيان الوضع (اختياري - select.* لعرض رقائق عادي/غائب/ليلي/مخصص)",
@@ -489,6 +507,9 @@ class IslautopiaIntercomCard extends HTMLElement {
     if (this._hudClockTimer) { clearInterval(this._hudClockTimer); this._hudClockTimer = null; }
     if (this._doorArmTimer) { clearTimeout(this._doorArmTimer); this._doorArmTimer = null; }
     this._doorArmedAt = 0;
+    this._stopRetryCountdown();
+    if (this._doorWaitTimer) { clearTimeout(this._doorWaitTimer); this._doorWaitTimer = null; }
+    if (this._doorCountdownTimer) { clearInterval(this._doorCountdownTimer); this._doorCountdownTimer = null; }
     if (this._feedRO) { this._feedRO.disconnect(); this._feedRO = null; }
     if (this._onWindowResizeForRot) {
       window.removeEventListener('resize', this._onWindowResizeForRot);
@@ -562,7 +583,8 @@ class IslautopiaIntercomCard extends HTMLElement {
     }
     if (this.audioPill) this.audioPill.style.display = 'none';
     this._updateMotionPill(); // la regla "nunca con el mic activo" ya no aplica tras este reset
-    this._disarmDoorConfirm(); // una confirmacion a medias no sobrevive a un corte de sesion
+    this._disarmDoorConfirm();     // una confirmacion a medias no sobrevive a un corte de sesion
+    this._limpiarEsperaDePuerta(); // ni un "Abriendo..." de una sesion que ya no existe
     if (this.unlockButton) {
       this.unlockButton.classList.remove('active-unlock');
       this.unlockButton.setAttribute('disabled', '');
@@ -703,6 +725,11 @@ class IslautopiaIntercomCard extends HTMLElement {
     // reconecto realmente trae video de vuelta, ver setupRemoteStream().
     const backoffMs = Math.min(2000 * Math.pow(2, this._reconnectAttempt - 1), 15000);
     this._mark(`_scheduleReconnect: reintento #${this._reconnectAttempt} en ${backoffMs}ms`);
+    // §1.0: el velo de carga vuelve a girar aqui, y hasta ahora giraba SIN DECIR NADA. Un
+    // indicador que gira indefinidamente sin explicacion es peor que no tener ninguno: el usuario
+    // no sabe si esperar o si la card esta rota. Con la cuenta atras a la vista, girar deja de ser
+    // ambiguo - se ve que hay un plan y cuando toca el siguiente intento.
+    this._startRetryCountdown(backoffMs);
 
     this._clearReconnectTimer();
     this._reconnectTimer = setTimeout(() => {
@@ -901,13 +928,49 @@ class IslautopiaIntercomCard extends HTMLElement {
     }, 1000);
   }
 
+  // Cuenta atras del proximo reintento de conexion (§1.0). Misma forma que la de la puerta, y por
+  // el mismo motivo: un numero que baja se lee de un vistazo como "esto sigue vivo", mientras que
+  // un texto fijo -o peor, solo un circulito girando- no distingue "esperando" de "colgado".
+  //
+  // Cede ante el aviso pegajoso de emparejamiento rechazado: ahi el problema no es la espera sino
+  // que hay algo que hacer, y tapar esa frase con un contador seria cambiar informacion util por
+  // ruido.
+  _startRetryCountdown(ms) {
+    if (!this.statusLine || this._stickyStatusKey) return;
+    if (this._doorCountdownTimer) { clearInterval(this._doorCountdownTimer); this._doorCountdownTimer = null; }
+    if (this._retryCountdownTimer) { clearInterval(this._retryCountdownTimer); this._retryCountdownTimer = null; }
+    let restante = Math.max(1, Math.round(ms / 1000));
+    const pintar = () => {
+      this.statusLine.textContent = `${getLocalText(this._hass, 'retry_prefix')} ${restante}s`;
+      this.statusLine.classList.remove('open');
+      this.statusLine.classList.add('warn');
+    };
+    pintar();
+    this._retryCountdownTimer = setInterval(() => {
+      restante -= 1;
+      if (restante <= 0) {
+        clearInterval(this._retryCountdownTimer);
+        this._retryCountdownTimer = null;
+        // No se vuelve a "Sistema operativo": se esta reconectando de verdad en este instante.
+        this.statusLine.textContent = getLocalText(this._hass, 'connecting');
+        return;
+      }
+      pintar();
+    }, 1000);
+  }
+
+  _stopRetryCountdown() {
+    if (this._retryCountdownTimer) { clearInterval(this._retryCountdownTimer); this._retryCountdownTimer = null; }
+  }
+
   _flashStatusLine(stateKey, ms) {
     if (!this.statusLine) return;
+    this._stopRetryCountdown();
     if (this._doorCountdownTimer) { clearInterval(this._doorCountdownTimer); this._doorCountdownTimer = null; }
     this.statusLine.textContent = getLocalText(this._hass, stateKey);
     this.statusLine.classList.remove('open');
     this.statusLine.classList.add('warn');
-    setTimeout(() => { if (!this._doorCountdownTimer) this._resetStatusLine(); }, ms);
+    setTimeout(() => { if (!this._doorCountdownTimer && !this._retryCountdownTimer) this._resetStatusLine(); }, ms);
   }
 
   _resetStatusLine() {
@@ -2342,6 +2405,12 @@ class IslautopiaIntercomCard extends HTMLElement {
       this._mark(`tryLocalSignaling: terminado (exito=${connectedLocally})`);
       if (!connectedLocally) {
         this._mark('startRelaySignaling: empieza el intento remoto (fallback)');
+        // §1.0: este es el tramo que mas tarda y el que peor se explica solo. Caer al relay
+        // significa negociar contra un servidor en Alemania en vez de contra el portero de la
+        // habitacion de al lado, y son varios segundos mas de recuadro negro. Decirlo convierte
+        // una espera sospechosa en una espera entendida - y de paso avisa de que se esta usando
+        // el camino lento, que es informacion util para quien pueda arreglarlo.
+        this._flashStatusLine('conn_relay', 6000);
         await this.startRelaySignaling(info);
       }
     } catch (err) {
@@ -2913,18 +2982,68 @@ class IslautopiaIntercomCard extends HTMLElement {
   triggerNativeOpen() {
     if (!this.unlockButton) return;
     this.sendNativeSignal({ type: 'open' });
-    this.unlockButton.classList.add('active-unlock');
-    this.unlockIcon.setAttribute('icon', 'mdi:door-open');
-    this._setDoorLabel(true);
+    this._paintDoorOpening();
+    // 6s: el `open` viaja por el mismo canal de senalizacion que la oferta, que en el peor caso
+    // real medido (camino remoto, por el relay) tarda ~2,5s en ida. El doble de largo, para no
+    // acusar de fallo a una red simplemente lenta.
+    if (this._doorWaitTimer) clearTimeout(this._doorWaitTimer);
+    this._doorWaitTimer = setTimeout(() => this._doorOpenSinRespuesta(), 6000);
+  }
+
+  // ==============================================================================
+  // NADA OCURRE EN SILENCIO (API_CONTRACT.md §1.0) - abrir la puerta
+  //
+  // Esto corrige UNA MENTIRA, no solo un hueco: al pulsar, la card pintaba el boton en verde y la
+  // etiqueta en "Abierta" ANTES de que el portero hubiera contestado nada. Si el `open_result` no
+  // llegaba -- red mala, sesion caida, rele que no responde -- el usuario se quedaba mirando un
+  // boton que decia "Abierta" con la puerta cerrada. En un videoportero eso no es un detalle de
+  // interfaz: es alguien que se va de la puerta creyendo que ha abierto.
+  //
+  // Ahora hay tres estados y ninguno se adelanta al siguiente: ABRIENDO (se ha mandado), ABIERTA
+  // (el portero lo ha confirmado) y SIN RESPUESTA (se agoto el plazo). Un tiempo agotado es un
+  // tiempo agotado, nunca un "abierta" (§1.8).
+  // ==============================================================================
+  _paintDoorOpening() {
+    if (!this.unlockButton) return;
+    this.unlockButton.classList.add('opening');
+    this.unlockButton.classList.remove('active-unlock');
+    if (this.unlockIcon) this.unlockIcon.setAttribute('icon', 'mdi:loading');
+    if (this.unlockLabel) {
+      this.unlockLabel.textContent = getLocalText(this._hass, 'lbl_door_opening');
+      this.unlockLabel.classList.remove('on-green');
+      this.unlockLabel.classList.add('on-amber');
+    }
+    // 8s de aviso, mas que el plazo de 6s: el mensaje no puede desaparecer ANTES de que se sepa
+    // como acabo la cosa, o el usuario se queda sin ninguna respuesta a lo que acaba de pulsar.
+    this._flashStatusLine('door_opening', 8000);
+  }
+
+  _limpiarEsperaDePuerta() {
+    if (this._doorWaitTimer) { clearTimeout(this._doorWaitTimer); this._doorWaitTimer = null; }
+    if (this.unlockButton) this.unlockButton.classList.remove('opening');
+    if (this.unlockLabel) this.unlockLabel.classList.remove('on-amber');
+  }
+
+  _doorOpenSinRespuesta() {
+    this._limpiarEsperaDePuerta();
+    if (this.unlockIcon) this.unlockIcon.setAttribute('icon', 'mdi:key');
+    this._setDoorLabel(false);
+    console.warn('[islautopia-intercom-card] no llego ningun open_result en 6s - NO se afirma que la puerta se haya abierto');
+    this._flashStatusLine('door_no_answer', 6000);
   }
 
   handleNativeOpenResult(msg) {
+    this._limpiarEsperaDePuerta();
     if (!this.unlockButton) return;
     const duration = parseInt(this.config.unlock_duration) || 3;
     if (msg.status === 'opened') {
       // Si el portero abre, es que SI tiene cerradura: se olvida lo aprendido a base de fallar
       // (solo aplica contra un firmware anterior, ver _applyDoorAvailability).
       if (this._noLockLegacy) { this._noLockLegacy = false; this._applyDoorAvailability(); }
+      // AHORA si: confirmado por el portero, no antes.
+      this.unlockButton.classList.add('active-unlock');
+      this.unlockIcon.setAttribute('icon', 'mdi:door-open');
+      this._setDoorLabel(true);
       this._startDoorCountdown(duration);
       setTimeout(() => {
         this.unlockButton.classList.remove('active-unlock');
@@ -3119,6 +3238,10 @@ class IslautopiaIntercomCard extends HTMLElement {
       // Hay video: sea cual sea el camino, este portero SI acepta esta credencial. Si habia un
       // aviso de emparejamiento rechazado colgado, deja de ser cierto y se retira.
       this._clearPairingRejected();
+      // §1.0: todo indicador TERMINA. La cuenta atras de reintento y cualquier aviso de espera se
+      // retiran en el mismo instante en que hay imagen, que es la unica prueba de que se acabo.
+      this._stopRetryCountdown();
+      if (this.statusLine && this.statusLine.classList.contains('warn')) this._resetStatusLine();
       this.videoEl.srcObject = stream;
       // MUDO salvo que el usuario ya lo hubiera abierto a proposito en esta misma card (§1.10):
       // una reconexion no debe dejar sordo a quien estaba escuchando, pero tampoco encender el
@@ -3174,25 +3297,40 @@ class IslautopiaIntercomCard extends HTMLElement {
     else if (domain === 'cover') service = 'open_cover';
     else service = 'turn_on'; // switch, light, y cualquier otro dominio generico con turn_on/off
 
-    this._hass.callService(domain, service, { entity_id: entityId });
-    this.unlockButton.classList.add('active-unlock');
-    this.unlockIcon.setAttribute('icon', 'mdi:door-open');
-    this._setDoorLabel(true);
-    // Camino unlock_entity: no hay una confirmacion equivalente a open_result (§3.3) del propio
-    // dispositivo - la cuenta atras aqui es optimista (asume que el callService tuvo exito),
-    // igual que ya lo era el resto de este flujo antes del rediseño visual.
-    this._startDoorCountdown(duration);
-
-    setTimeout(() => {
-      this.unlockButton.classList.remove('active-unlock');
-      this.unlockIcon.setAttribute('icon', 'mdi:key');
-      this._setDoorLabel(false);
-      if (domain === 'switch' || domain === 'light') {
-        this._hass.callService(domain, 'turn_off', { entity_id: entityId });
-      } else if (domain === 'cover') {
-        this._hass.callService(domain, 'close_cover', { entity_id: entityId });
-      }
-    }, duration * 1000);
+    // §1.0: se enseña "Abriendo" DESDE EL PRIMER INSTANTE y se espera a que Home Assistant acepte
+    // la llamada, en vez de pintar "Abierta" y cruzar los dedos. Aqui no hay un `open_result` del
+    // portero -- la apertura la hace una entidad de HA -- pero si hay algo que esperar: que el
+    // servicio se despache sin error. Un dominio equivocado o una entidad que ya no existe
+    // fallaban antes en SILENCIO, con el boton en verde y la puerta cerrada.
+    this._paintDoorOpening();
+    Promise.resolve(this._hass.callService(domain, service, { entity_id: entityId }))
+      .then(() => {
+        this._limpiarEsperaDePuerta();
+        this.unlockButton.classList.add('active-unlock');
+        this.unlockIcon.setAttribute('icon', 'mdi:door-open');
+        this._setDoorLabel(true);
+        this._startDoorCountdown(duration);
+        // El cierre automatico se programa DESDE AQUI, no en paralelo a la apertura: si la
+        // apertura fallo no hay nada que cerrar, y mandar un turn_off a una entidad que nunca se
+        // encendio es ruido en el registro de alguien que ya tiene un problema.
+        setTimeout(() => {
+          this.unlockButton.classList.remove('active-unlock');
+          this.unlockIcon.setAttribute('icon', 'mdi:key');
+          this._setDoorLabel(false);
+          if (domain === 'switch' || domain === 'light') {
+            this._hass.callService(domain, 'turn_off', { entity_id: entityId });
+          } else if (domain === 'cover') {
+            this._hass.callService(domain, 'close_cover', { entity_id: entityId });
+          }
+        }, duration * 1000);
+      })
+      .catch((err) => {
+        this._limpiarEsperaDePuerta();
+        this.unlockIcon.setAttribute('icon', 'mdi:key');
+        this._setDoorLabel(false);
+        console.error(`[islautopia-intercom-card] Home Assistant rechazo ${domain}.${service} sobre ${entityId}`, err);
+        this._flashStatusLine('door_no_answer', 6000);
+      });
   }
 
   injectStyles() {
@@ -3472,6 +3610,14 @@ class IslautopiaIntercomCard extends HTMLElement {
         pointer-events: none;
       }
       @keyframes ig-armed { 0% { transform: scale(1.25); opacity: 0.9; } 100% { transform: scale(1); opacity: 0; } }
+
+      /* ---- estado ABRIENDO (§1.0): se ha mandado el mensaje de apertura y se espera respuesta --
+         Visualmente distinto del verde de "abierta", que es la afirmacion que no se puede
+         adelantar. El icono gira mientras dura: una accion que tarda tiene que verse en curso
+         desde el primer instante, y este estado SIEMPRE termina - o llega open_result, o salta el
+         plazo de 6s y se dice que no hubo respuesta. */
+      .action .btn.opening { border-color: var(--ig-amber); color: var(--ig-amber); }
+      .action .btn.opening ha-icon { animation: ig-spin 1s linear infinite; }
 
       /* ==========================================================================
          PANTALLA COMPLETA. Un SOLO juego de reglas para los dos niveles

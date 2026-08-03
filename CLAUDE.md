@@ -419,5 +419,140 @@ que son justo los que nadie prueba a mano.
 
 ---
 
+# NOTA DE TRASPASO — rama `feature-giro-imagen-audio-confirmacion` (2026-08-03)
+
+Cuatro secciones del contrato que a esta card le faltaban ENTERAS, más un fallo real medido en
+el camino local. Todo verificado contra el portero de verdad (`f9b31fc3bb64bc26`) y el Home
+Assistant real de Iñaki, con un navegador real — no solo `node --check`, que es como se había
+verificado casi todo lo anterior de este repo.
+
+## Cómo se probó sin tocar nada del Home Assistant de Iñaki
+
+Merece la pena que quede escrito, porque es reutilizable y evita el "no se puede probar":
+se entra con Playwright, se **inyecta el `dist/` de la rama en la página** (`addScriptTag`) y se
+monta la card a mano tomando el `hass` real del propio frontend (`document.querySelector
+('home-assistant').hass`). Cero cambios en su instalación: ni recurso Lovelace, ni dashboard, ni
+entidades. La card que sirve HACS ahí sigue siendo la publicada.
+
+Un detalle del arnés que costó una sesión de slots del portero: hay que **añadir el elemento al
+DOM ANTES de `setConfig()`**. Al revés, `render()` arranca una sesión y `connectedCallback()`
+arranca otra, y el portero se queda sin slots por culpa del arnés, no de la card.
+
+## 1. El giro (§1.9) — el fallo que motivó todo
+
+La cámara va montada girada 90° dentro de la carcasa **a propósito** y esta card pintaba la
+imagen tumbada. No era un ajuste mal puesto: `rot` no se leía en ningún sitio del fichero.
+
+Verificado con el aparato real a `rot=90`: se recibe en `session_info`, el marco pasa a 9:16, la
+caja del vídeo se declara con ancho y alto **intercambiados** (648×398 dentro de un marco de
+398×648) y se gira sobre su centro, de modo que tras el giro cubre el hueco exacto. Comparación
+con y sin giro capturada en la misma sesión: sin el arreglo la marca de tiempo del OSD corre
+**vertical** por el borde izquierdo; con él se lee en horizontal arriba y la escena está derecha.
+
+Lo que no hay que "mejorar" luego sin releer §1.9: **no se recorta para llenar**. Un zoom hasta
+cubrir el ancho tira la parte de arriba y la de abajo — justo lo que se ganó girando el sensor.
+
+El carril lateral de pantalla completa se decide **midiendo el marco en JS**, no con una
+`@container`: `.feed-wrap` es `container-type: inline-size` y por eso no admite consultas por
+proporción. Cambiarlo a `size` para poder consultarla afectaría a las reglas de ancho que ya hay.
+
+## 2. Ver no es escuchar (§1.10)
+
+El altavoz arranca mudo y solo suena por un motivo explícito. De paso se arregló un control que
+**mentía**: el deslizador cambiaba el volumen de un elemento que seguía mudo. Ahora el icono es
+un botón de verdad y el deslizador, al subir de cero, cuenta como el gesto que el navegador exige
+para desmutear.
+
+El timbre se lee de una entidad de HA opcional (`ring_entity`) porque esa señal no viaja por la
+señalización WebRTC; el firmware ya la publica por MQTT (`videoportero/timbre`). Se admite
+`binary_sensor` (transición a `on`) y `event` (cambio de la marca de tiempo), y **la primera
+lectura nunca dispara**: un sensor que ya estaba en `on` al abrir el dashboard no es una llamada
+de ahora.
+
+## 3. Doble pulsación para abrir (§1.8)
+
+Las tres reglas están implementadas y probadas, incluida la caducidad de 3s (el caso de prueba
+espera de verdad). Contra el portero real se comprobó lo importante: la primera pulsación **no
+manda ningún `open`**, y un rebote inmediato tampoco. No se abrió ninguna puerta de Iñaki.
+
+## 4. Camino local: dos cosas distintas
+
+**(a) La sonda de alcance estaba tirando el camino local por lento.** Medido con `curl` contra el
+aparato en la misma red: el handshake TLS del ESP32 tarda 0,40–0,90s y la petición completa
+0,46–1,06s. La sonda tenía 1200ms y trataba **su propia expiración** como veredicto de
+"inalcanzable". Visto en dos ejecuciones seguidas: 1094ms (pasó por los pelos) y 1202ms (falló, y
+la sesión se fue a Alemania por el relay para ver una cámara del pasillo). Corregido: expirar ya
+no decide nada, decide el timeout de 3000ms, que sabe si llegó la oferta. Tras el cambio, con el
+mismo portero: sonda 1340ms → **oferta recibida por SSE, sesión local, sin tocar el relay**.
+
+**(b) El proxy de señalización de la integración existía y esta card no lo usaba.** Ya está
+cableado y es el camino preferente (`get_local_signal_url` → `/api/islautopia_doorbell/signal/
+<device_id>`), con caída al hostname público si la integración es anterior. **NO se ha podido
+verificar todavía**: la integración instalada en el HA de Iñaki responde `unknown_command`, o sea
+que es anterior al commit `71fb052` del repo `islautopia-doorbell-integration`. Lo que sí se
+verificó es la degradación: la card lo detecta, lo dice en el log y sigue por el camino de
+siempre.
+
+Cuando esa integración se actualice hay **una incógnita concreta** que hay que mirar: el `bye` de
+cierre de pestaña usa `sendBeacon` contra la URL **firmada**, y no está confirmado que Home
+Assistant acepte una firma en un POST. Si no la acepta, lo único que se pierde es la liberación
+inmediata del slot, que el portero recupera solo a los 20s — pero conviene comprobarlo en vez de
+suponerlo. Los POST normales de señalización no dependen de eso: van por `hass.callApi`.
+
+## 5. Nada ocurre en silencio (§1.0, regla nueva del 2026-08-04)
+
+De los tres casos que la regla señala para esta card, **uno no era un hueco sino una mentira**:
+`triggerNativeOpen()` pintaba el botón en verde y la etiqueta en "Abierta" **al pulsar**, antes de
+que el portero contestara nada. Si el `open_result` no llegaba, el usuario se quedaba mirando un
+botón que decía "Abierta" con la puerta cerrada. Ahora hay tres estados que no se adelantan entre
+sí: **Abriendo** (mandado, icono girando, aviso en línea), **Abierta** (confirmado por
+`open_result`) y **sin respuesta** a los 6s, que dice explícitamente que la puerta NO se ha
+abierto. El camino `unlock_entity` tenía el mismo problema y ahora espera al `callService`: un
+dominio equivocado fallaba antes en silencio con el botón en verde.
+
+Verificado en el navegador real contra el portero, **interceptando el mensaje `open` a propósito
+para no abrir la puerta de Iñaki** (`door_m=1`, iría a Home Assistant): "Abriendo" con etiqueta
+ámbar, y a los 6s el indicador termina con "El portero no respondió — la puerta NO se ha abierto".
+
+Los otros dos: caer al relay lo dice en la línea de estado (es el tramo que más tarda y peor se
+explica solo), y una reconexión pinta la cuenta atrás del siguiente intento — el velo de carga ya
+giraba, pero giraba **sin decir nada**, que es justo el caso que la regla llama peor que no tener
+indicador.
+
+## 6. Credencial rechazada — probado de verdad contra el relay
+
+Con una credencial inventada, el relay cierra con **4401** y la card escribe un aviso pegajoso y
+traducido ("El portero rechazó el emparejamiento — vuelve a emparejarlo en Ajustes › Dispositivos
+y servicios") en vez de reintentar en silencio detrás de un "Conectando..." eterno. Se retira sola
+en cuanto vuelve el vídeo.
+
+**Lo que este aviso NO cubre, y hay que saberlo**: tras un factory reset del portero se borra la
+NVS y con ella `paired_app_hash[]`, así que **el camino local da 401 pero el remoto sigue
+funcionando** (la nube conserva el `app_instance`). O sea que la card seguiría dando vídeo por el
+relay, más lenta, sin decir nada. `EventSource` no expone el código de estado, así que por el
+camino directo eso no es detectable. **Con el proxy de la integración sí lo sería** — pasa el 401
+tal cual, precisamente para esto. Es un argumento más para actualizar la integración.
+
+## La simulación ya cubre lo nuevo
+
+`node test/sim_multicliente.js dist/islautopia-intercom-card.js` — bloques 13 (giro), 14 (sonido)
+y 15 (puerta) nuevos. Y **dos comprobaciones del bloque 12 estaban en rojo desde el 2026-07-29**:
+describían una regla del turno de palabra que cambió de signo ese día (commit "los cuatro fallos
+vistos en el iPhone real") y nadie actualizó el caso. Una suite roja de serie deja de avisar de
+nada, así que se corrigió el caso explicando por qué cambió, no el código.
+
+## Lo que queda por verificar en hardware
+
+- [ ] Micrófono y audio bidireccional: el HA de Iñaki se sirve por **HTTP plano** (IP de la LAN),
+      así que `navigator.mediaDevices` es `undefined` y `getUserMedia()` falla antes de tocar
+      nada de esta card. Es la misma limitación de siempre del entorno de pruebas, no del
+      producto. Hace falta un origen con TLS real (Nabu Casa).
+- [ ] El carril lateral de pantalla completa sobre una tablet apaisada de verdad.
+- [ ] El camino por el proxy de la integración, cuando la integración se actualice.
+- [ ] `ring_entity`: probado en simulación con las dos formas de entidad, no con un timbre real
+      sonando.
+
+---
+
 **No hacer commit/push sin autorización explícita.** Trabaja directo en esta carpeta, sin
 worktree aislado.
