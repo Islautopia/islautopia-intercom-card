@@ -1886,8 +1886,14 @@ class IslautopiaIntercomCard extends HTMLElement {
 
   // El timbre es el unico motivo por el que el sonido se enciende SOLO (§1.10): es el momento para
   // el que existe el aparato. La señal no viaja por la señalizacion WebRTC, asi que se lee de una
-  // entidad de Home Assistant que el usuario configura (`ring_entity`) - el propio firmware
-  // publica el timbre por MQTT (`videoportero/timbre`, §4), asi que la entidad ya existe.
+  // entidad de Home Assistant que el usuario configura (`ring_entity`).
+  //
+  // ⚠️ DE DONDE SALE ESA ENTIDAD CAMBIO EL 2026-08-24, y este comentario decia lo de antes: la
+  // publicaba el firmware por MQTT (`videoportero/timbre`). MQTT se retiro (§4) y ahora la crea la
+  // integracion de Home Assistant, como **una entidad de tipo `event`** -- la de eventos, que lleva
+  // todo lo que el portero cuenta. Aqui no cambia nada, porque la rama de `event` de mas abajo ya
+  // existia; lo que cambia es que hay que configurar ESA, y que un `binary_sensor` de timbre de
+  // los de antes se quedara sin actualizarse.
   //
   // Se admiten las dos formas que puede tener esa entidad: un `binary_sensor` (transicion a 'on')
   // y un `event` (cuyo `state` es la marca de tiempo del ultimo evento, no 'on'/'off' - tratarlo

@@ -464,10 +464,15 @@ un botón de verdad y el deslizador, al subir de cero, cuenta como el gesto que 
 para desmutear.
 
 El timbre se lee de una entidad de HA opcional (`ring_entity`) porque esa señal no viaja por la
-señalización WebRTC; el firmware ya la publica por MQTT (`videoportero/timbre`). Se admite
-`binary_sensor` (transición a `on`) y `event` (cambio de la marca de tiempo), y **la primera
-lectura nunca dispara**: un sensor que ya estaba en `on` al abrir el dashboard no es una llamada
-de ahora.
+señalización WebRTC. Se admite `binary_sensor` (transición a `on`) y `event` (cambio de la marca de
+tiempo), y **la primera lectura nunca dispara**: un sensor que ya estaba en `on` al abrir el
+dashboard no es una llamada de ahora.
+
+⚠️ **De dónde sale esa entidad cambió el 2026-08-24**, y este párrafo decía lo de antes: la
+publicaba el firmware por MQTT. MQTT se retiró (§4), y ahora la crea la **integración** como una
+entidad de tipo `event` -- la de eventos, que lleva todo lo que el portero cuenta. La card no
+necesita ningún cambio, porque su rama de `event` ya existía; lo que cambia es **cuál hay que
+configurar**, y que un `binary_sensor` de timbre de los de antes deja de actualizarse.
 
 ## 3. Doble pulsación para abrir (§1.8)
 
