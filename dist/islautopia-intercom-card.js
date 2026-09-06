@@ -16,7 +16,7 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_BUILD_ID = '2026-09-06-soltar-el-video-sin-interaccion';
+const CARD_BUILD_ID = '2026-09-06-la-cuenta-atras-solo-la-reinicia-un-dedo';
 console.log(`[islautopia-intercom-card] modulo cargado - build=${CARD_BUILD_ID} (compara este valor contra CARD_BUILD_ID en el repo si tienes dudas de si el navegador esta sirviendo una copia cacheada vieja)`);
 
 // Diccionario global de traducciones para Tarjeta y Editor (Top 9 Idiomas + HA Community)
@@ -1826,7 +1826,21 @@ class IslautopiaIntercomCard extends HTMLElement {
   // Se escucha en la PROPIA card y no en `document`: un toque en otra parte del panel no es mirar
   // el portero, y contarlo mantendria la pantalla encendida por algo que no tiene que ver.
   // `pointerdown` cubre dedo y raton; `keydown` va en document porque el teclado no tiene posicion.
-  _armIdleWakeLockTimer() {
+  // ⚠️ `reiniciar` DISTINGUE LAS DOS LLAMADAS, Y CONFUNDIRLAS ROMPIA ESTO ENTERO (2026-09-06).
+  //
+  // Esta cuenta atras mide **tiempo sin que nadie toque**, y hasta ahora se reiniciaba cada vez que
+  // se conseguia el wake lock -- o sea en cada (re)conexion del stream. Medido en la tablet por la
+  // sesion de HASS: con `idle_release_seconds: 15` funcionaba y con `60` NO disparaba nunca, porque
+  // el stream renegocia hacia los 30-45 s y le devolvia la cuenta a cero. Con 15 daba tiempo a
+  // saltar antes del primer reconecte; con 60, jamas.
+  //
+  // Lo que lo hacia dificil de ver es que el sintoma dependia del VALOR configurado, asi que parecia
+  // «va con 15 y no con 60» -- que se lee como un problema de duracion y no de disparador.
+  //
+  // Solo la interaccion reinicia. El ciclo de vida del stream arma la cuenta si no habia ninguna,
+  // pero no la toca si ya esta corriendo.
+  _armIdleWakeLockTimer(reiniciar = false) {
+    if (!reiniciar && this._idleWakeLockTimer) return;
     this._clearIdleWakeLockTimer();
     if (!this._idleReleaseMs) return;                 // 0 = desactivado (telefonos)
     this._registerIdleActivityListeners();
@@ -1876,7 +1890,7 @@ class IslautopiaIntercomCard extends HTMLElement {
         this.startWebRTC();
         return;
       }
-      if (!this._wakeLock) this._acquireWakeLock(); else this._armIdleWakeLockTimer();
+      if (!this._wakeLock) this._acquireWakeLock(); else this._armIdleWakeLockTimer(true);
     };
     this.addEventListener('pointerdown', this._onIdleActivity, { passive: true });
     document.addEventListener('keydown', this._onIdleActivity, { passive: true });
