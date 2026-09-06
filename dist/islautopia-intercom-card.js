@@ -16,7 +16,7 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_BUILD_ID = '2026-08-03-giro-sonido-confirmacion';
+const CARD_BUILD_ID = '2026-09-06-soltar-el-stream-al-ocultarse';
 console.log(`[islautopia-intercom-card] modulo cargado - build=${CARD_BUILD_ID} (compara este valor contra CARD_BUILD_ID en el repo si tienes dudas de si el navegador esta sirviendo una copia cacheada vieja)`);
 
 // Diccionario global de traducciones para Tarjeta y Editor (Top 9 Idiomas + HA Community)
@@ -492,11 +492,66 @@ class IslautopiaIntercomCard extends HTMLElement {
 
   connectedCallback() {
     if (this.content) this._registerFullscreenListeners();
+    this._registerVisibilityStreamHandler();
     if (this.content && !this.pc) this.startWebRTC();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════════════════
+  //  SOLTAR EL STREAM AL OCULTARSE (2026-09-06)
+  //
+  //  disconnectedCallback() ya desmontaba la conexion y soltaba el wake lock. El problema no era
+  //  que faltara ese codigo: era que NADIE LO LLAMABA en los casos que importan. Medido en la
+  //  tablet del salon (Galaxy Tab, wallpanel) por la sesion de HASS de casa:
+  //
+  //    · navegar a otra vista de Lovelace NO corta el WebRTC -- la SPA no retira la card del DOM,
+  //      asi que disconnectedCallback() no se dispara;
+  //    · `command_webview` a about:blank tampoco lo corta;
+  //    · cada navegacion ABRE una conexion nueva sin cerrar la anterior (espectadores 1 -> 3);
+  //    · lo unico que lo cortaba era `am force-stop` de la app de Home Assistant.
+  //
+  //  Consecuencia real: la tablet se quedaba con la pantalla encendida y consumiendo video
+  //  INDEFINIDAMENTE, porque el stream retiene el wakelock de brillo. Y ademas gastaba plazas del
+  //  portero, que solo tiene 4 para toda la casa.
+  //
+  //  `visibilitychange` es el disparador que si llega en todos esos casos: pantalla apagada, app
+  //  al fondo, y tambien cuando la vista deja de estar delante. Ojo -- NO es el mismo manejador
+  //  que `_onVisibilityForWakeLock`: aquel solo REPONE el wake lock al volver a ser visible, y no
+  //  hace nada al ocultarse, que es justo la mitad que faltaba.
+  // ══════════════════════════════════════════════════════════════════════════════════════════
+  _registerVisibilityStreamHandler() {
+    if (this._onVisibilityForStream) return;
+    this._onVisibilityForStream = () => {
+      if (document.visibilityState === 'hidden') {
+        if (!this.pc && !this._reconnecting) return;   // no habia nada que soltar
+        // Se recuerda que habia stream para poder reponerlo: sin esto, volver a mirar la tablet
+        // dejaria la card muda y con el video negro, que es peor que el problema que arregla.
+        this._streamPausedByHide = true;
+        this._clearReconnectTimer();
+        this._reconnecting = false;
+        this._teardownConnectionObjects();
+        this._releaseWakeLock();
+        if (this.intercomButton) this._setLiveState('connecting');
+        if (this.loader) this.loader.style.opacity = '1';
+      } else if (document.visibilityState === 'visible' && this._streamPausedByHide) {
+        this._streamPausedByHide = false;
+        // `isConnected` y no un booleano propio: si la card ya no esta en el DOM, reconectar
+        // crearia exactamente el cliente zombi que esto viene a evitar.
+        if (this.isConnected && this.content && !this.pc) this.startWebRTC();
+      }
+    };
+    document.addEventListener('visibilitychange', this._onVisibilityForStream);
+  }
+
+  _unregisterVisibilityStreamHandler() {
+    if (!this._onVisibilityForStream) return;
+    document.removeEventListener('visibilitychange', this._onVisibilityForStream);
+    this._onVisibilityForStream = null;
+    this._streamPausedByHide = false;
   }
 
   disconnectedCallback() {
     this._unregisterUnloadHandler();
+    this._unregisterVisibilityStreamHandler();
     this._clearReconnectTimer();
     this._reconnecting = false;
     this._teardownConnectionObjects();
