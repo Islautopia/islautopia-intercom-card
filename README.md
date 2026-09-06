@@ -90,8 +90,8 @@ type: custom:islautopia-intercom-card
 # Settings > Devices & services > Islautopia Doorbell after pairing it.
 device_id: a1b2c3d4e5f60718
 
-# OPTIONAL: seconds without any interaction (touch, pointer or keyboard) before the card lets
-# go of the screen wake lock. Default 60. Set to 0 to disable.
+# OPTIONAL: seconds without any interaction (touch, pointer or keyboard) before the card releases
+# the video stream, letting the screen turn off. Default 60. Set to 0 to disable.
 #
 # WHY THIS EXISTS: while video is playing the card holds a screen wake lock so the display does
 # not dim mid-conversation. On a phone that lasts as long as the call. On a WALL PANEL it does

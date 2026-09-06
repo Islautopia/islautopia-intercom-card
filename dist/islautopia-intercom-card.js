@@ -16,7 +16,7 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_BUILD_ID = '2026-09-06-soltar-la-pantalla-sin-interaccion';
+const CARD_BUILD_ID = '2026-09-06-soltar-el-video-sin-interaccion';
 console.log(`[islautopia-intercom-card] modulo cargado - build=${CARD_BUILD_ID} (compara este valor contra CARD_BUILD_ID en el repo si tienes dudas de si el navegador esta sirviendo una copia cacheada vieja)`);
 
 // Diccionario global de traducciones para Tarjeta y Editor (Top 9 Idiomas + HA Community)
@@ -1832,9 +1832,29 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._registerIdleActivityListeners();
     this._idleWakeLockTimer = setTimeout(() => {
       this._idleWakeLockTimer = null;
-      if (!this._wakeLock) return;
-      console.info('[islautopia-intercom-card] sin interacción: se suelta la pantalla para que el sistema pueda apagarla');
+      // ⚠️ SOLTAR EL WAKE LOCK NO BASTA, Y LA v1.4.0 SE QUEDO EN ESO (2026-09-06).
+      //
+      // Medido en la tablet: con la card visible y NADIE tocando, a los 2m22s seguian retenidos
+      // `SCREEN_BRIGHT_WAKE_LOCK` y `PARTIAL_WAKE_LOCK 'AudioMix'`, y la pantalla sin apagarse --
+      // con `screen_off_timeout` en 60 s.
+      //
+      // El motivo: **un `<video>` reproduciendose mantiene la pantalla encendida por su cuenta**.
+      // Es un keep-awake implicito del navegador, independiente de `navigator.wakeLock`, asi que
+      // soltar el nuestro no cambia nada mientras haya video corriendo. Por eso ocultar la card SI
+      // funcionaba (ahi se para el video) y quedarse quieto NO.
+      //
+      // La accion correcta al agotarse la espera es la MISMA que al ocultarse: soltar el stream
+      // entero. Y ademas es lo que Inaki pidio de verdad -- «apagar la pantalla Y dejar de consumir
+      // el stream», no solo lo primero.
+      if (!this.pc && !this._reconnecting) return;
+      console.info('[islautopia-intercom-card] sin interacción: se suelta el vídeo para que la pantalla pueda apagarse');
+      this._streamPausedByHide = true;      // mismo camino de vuelta que al ocultarse
+      this._clearReconnectTimer();
+      this._reconnecting = false;
+      this._teardownConnectionObjects();
       this._releaseWakeLock();
+      if (this.intercomButton) this._setLiveState('connecting');
+      if (this.loader) this.loader.style.opacity = '1';
     }, this._idleReleaseMs);
   }
 
@@ -1849,6 +1869,13 @@ class IslautopiaIntercomCard extends HTMLElement {
       // puesto solo se reinicia la cuenta. Nunca se pide con la pagina oculta -- ahi el navegador
       // lo rechazaria, y ademas seria pedir pantalla para nadie.
       if (document.visibilityState !== 'visible') return;
+      // Si la espera ya se habia agotado y solto el video, tocar lo repone -- igual que volver a
+      // ser visible. Sin esto, quien tocara la pantalla se encontraria la card en negro.
+      if (this._streamPausedByHide && this.isConnected && this.content && !this.pc) {
+        this._streamPausedByHide = false;
+        this.startWebRTC();
+        return;
+      }
       if (!this._wakeLock) this._acquireWakeLock(); else this._armIdleWakeLockTimer();
     };
     this.addEventListener('pointerdown', this._onIdleActivity, { passive: true });
