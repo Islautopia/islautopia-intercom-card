@@ -16,7 +16,7 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_BUILD_ID = '2026-09-06-soltar-el-stream-al-ocultarse';
+const CARD_BUILD_ID = '2026-09-06-soltar-la-pantalla-sin-interaccion';
 console.log(`[islautopia-intercom-card] modulo cargado - build=${CARD_BUILD_ID} (compara este valor contra CARD_BUILD_ID en el repo si tienes dudas de si el navegador esta sirviendo una copia cacheada vieja)`);
 
 // Diccionario global de traducciones para Tarjeta y Editor (Top 9 Idiomas + HA Community)
@@ -383,6 +383,24 @@ class IslautopiaIntercomCard extends HTMLElement {
     this.style.width = '100%';
     this.style.boxSizing = 'border-box';
     this.config = config;
+    // ⚠️ SOLTAR LA PANTALLA CUANDO YA NADIE MIRA (2026-09-06, pedido por Inaki).
+    //
+    // Mientras hay video la card pide un wake lock para que la pantalla no se atenue a mitad de
+    // conversacion. En un TELEFONO eso dura lo que dura la llamada. En un PANEL DE PARED no: la
+    // pantalla se quedaba encendida indefinidamente despues de un timbrazo, y el wake lock ademas
+    // GANABA a `command_screen_off` de Home Assistant. Un pez que se muerde la cola -- medido en la
+    // Galaxy Tab del salon: para soltar el stream hay que ocultar la card, y el wake lock no dejaba
+    // apagar la pantalla para ocultarla.
+    //
+    // A los `idle_release_seconds` sin que nadie toque, se suelta el lock. Entonces el sistema apaga
+    // la pantalla por su propio tiempo de espera, la card queda oculta, y el arreglo de la v1.3.0
+    // cierra el WebRTC. Se recupera en cuanto alguien toca, asi que mirar o hablar no se interrumpe.
+    //
+    // `0` lo desactiva -- para un telefono, donde este problema no existe y soltar la pantalla a
+    // mitad de conversacion seria un fallo, no un ahorro.
+    const idleCrudo = Number(config.idle_release_seconds);
+    this._idleReleaseMs = Number.isFinite(idleCrudo) && idleCrudo >= 0 ? idleCrudo * 1000 : 60000;
+
     // Modo go2rtc/gateway legacy RETIRADO por completo (2026-07-10, decision explicita del
     // usuario - ver COORDINATION.md en ig_hassio_addons): el proyecto habla WebRTC nativo
     // directo con el dispositivo/relay, nunca go2rtc - mantener esa rama muerta solo anadia
@@ -552,6 +570,8 @@ class IslautopiaIntercomCard extends HTMLElement {
   disconnectedCallback() {
     this._unregisterUnloadHandler();
     this._unregisterVisibilityStreamHandler();
+    this._unregisterIdleActivityListeners();
+    this._clearIdleWakeLockTimer();
     this._clearReconnectTimer();
     this._reconnecting = false;
     this._teardownConnectionObjects();
@@ -1789,6 +1809,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       // El sistema lo revoca al minimizar la app o cambiar de pestaña; hay que volver a pedirlo
       // al regresar o la pantalla se apagaria a mitad de conversacion en la segunda vuelta.
       this._wakeLock.addEventListener('release', () => { this._wakeLock = null; });
+      this._armIdleWakeLockTimer();
       if (!this._onVisibilityForWakeLock) {
         this._onVisibilityForWakeLock = () => {
           if (document.visibilityState === 'visible' && this._fsActive) this._acquireWakeLock();
@@ -1800,7 +1821,49 @@ class IslautopiaIntercomCard extends HTMLElement {
     }
   }
 
+  // ── Soltar la pantalla por inactividad ──────────────────────────────────────────────────────
+  //
+  // Se escucha en la PROPIA card y no en `document`: un toque en otra parte del panel no es mirar
+  // el portero, y contarlo mantendria la pantalla encendida por algo que no tiene que ver.
+  // `pointerdown` cubre dedo y raton; `keydown` va en document porque el teclado no tiene posicion.
+  _armIdleWakeLockTimer() {
+    this._clearIdleWakeLockTimer();
+    if (!this._idleReleaseMs) return;                 // 0 = desactivado (telefonos)
+    this._registerIdleActivityListeners();
+    this._idleWakeLockTimer = setTimeout(() => {
+      this._idleWakeLockTimer = null;
+      if (!this._wakeLock) return;
+      console.info('[islautopia-intercom-card] sin interacción: se suelta la pantalla para que el sistema pueda apagarla');
+      this._releaseWakeLock();
+    }, this._idleReleaseMs);
+  }
+
+  _clearIdleWakeLockTimer() {
+    if (this._idleWakeLockTimer) { clearTimeout(this._idleWakeLockTimer); this._idleWakeLockTimer = null; }
+  }
+
+  _registerIdleActivityListeners() {
+    if (this._onIdleActivity) return;
+    this._onIdleActivity = () => {
+      // Tocar devuelve la pantalla: si el lock ya se habia soltado se vuelve a pedir, y si sigue
+      // puesto solo se reinicia la cuenta. Nunca se pide con la pagina oculta -- ahi el navegador
+      // lo rechazaria, y ademas seria pedir pantalla para nadie.
+      if (document.visibilityState !== 'visible') return;
+      if (!this._wakeLock) this._acquireWakeLock(); else this._armIdleWakeLockTimer();
+    };
+    this.addEventListener('pointerdown', this._onIdleActivity, { passive: true });
+    document.addEventListener('keydown', this._onIdleActivity, { passive: true });
+  }
+
+  _unregisterIdleActivityListeners() {
+    if (!this._onIdleActivity) return;
+    this.removeEventListener('pointerdown', this._onIdleActivity);
+    document.removeEventListener('keydown', this._onIdleActivity);
+    this._onIdleActivity = null;
+  }
+
   _releaseWakeLock() {
+    this._clearIdleWakeLockTimer();
     if (this._wakeLock) {
       try { this._wakeLock.release(); } catch (err) { /* best effort */ }
       this._wakeLock = null;

@@ -90,6 +90,19 @@ type: custom:islautopia-intercom-card
 # Settings > Devices & services > Islautopia Doorbell after pairing it.
 device_id: a1b2c3d4e5f60718
 
+# OPTIONAL: seconds without any interaction (touch, pointer or keyboard) before the card lets
+# go of the screen wake lock. Default 60. Set to 0 to disable.
+#
+# WHY THIS EXISTS: while video is playing the card holds a screen wake lock so the display does
+# not dim mid-conversation. On a phone that lasts as long as the call. On a WALL PANEL it does
+# not: after a doorbell ring the screen stayed on forever, and the wake lock also overrode Home
+# Assistant's `command_screen_off` — measured on a Galaxy Tab. That is a deadlock: releasing the
+# stream requires hiding the card, and the wake lock would not let the screen turn off to hide it.
+#
+# With this, an untouched panel lets go after a minute, the OS turns the screen off on its own
+# timeout, the card becomes hidden and the stream is released. A touch brings it all back.
+idle_release_seconds: 60
+
 # OPTIONAL: a switch/light/lock/cover/button entity to trigger door-open through Home
 # Assistant instead of the doorbell's own native open/open_result signaling message.
 unlock_entity: switch.front_door_relay
