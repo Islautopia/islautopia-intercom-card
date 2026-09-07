@@ -2564,12 +2564,29 @@ class IslautopiaIntercomCard extends HTMLElement {
       // pegado a right:var(--ig-rail-gap) y ancho RAIL_WIDTH, su borde IZQUIERDO cae exactamente
       // en `w - sobranteCadaLado`, que es el borde derecho real de la imagen centrada - sin
       // huecos muertos entre medias, sea cual sea sobranteCadaLado.
+      //
+      // DECISION (Iñaki, 2026-09-08): el bloque imagen+carril NO queda centrado como conjunto en
+      // el marco - la imagen se queda exactamente donde object-fit:contain la centraria SIN
+      // carril (sobranteCadaLado a cada lado), y el carril se añade a continuacion consumiendo
+      // solo del margen derecho. Eso deja ~RAIL_WIDTH de mas vacio a la izquierda que a la
+      // derecha del conjunto (medido en el wallpanel real: ~707px vs ~603px). NO SE COMPENSA A
+      // PROPOSITO: la unica forma de centrar el conjunto seria desplazar la imagen del centro del
+      // marco, y en un videoportero la imagen centrada vale mas que el conjunto centrado - los
+      // ~104px de diferencia apenas se notan, pero mover la imagen de su centro SI se notaria,
+      // siempre, en cada arranque. Si esta asimetria "se ve mal" en una revision futura, la
+      // respuesta no es recentrar aqui: es la que ya se dio una vez.
       if (carril) huecoTrasImagen = Math.max(0, sobranteCadaLado - IslautopiaIntercomCard.RAIL_WIDTH);
     }
     this._railActive = carril;
     if (this.content) {
       this.content.classList.toggle('ig-rail', carril);
       this.content.style.setProperty('--ig-rail-gap', `${huecoTrasImagen}px`);
+      // Se expone tambien el ancho del carril como variable (no solo el hueco tras el): la hoja
+      // de estilos necesita `gap + RAIL_WIDTH` para llegar al borde IZQUIERDO de la imagen (ver
+      // .status-line mas abajo) y calcularlo con un "104" suelto en la hoja de estilos seria
+      // duplicar la constante - justo el tipo de numero que se desincroniza si alguien cambia
+      // RAIL_WIDTH aqui y no se acuerda de tocar el otro sitio.
+      this.content.style.setProperty('--ig-rail-width', `${IslautopiaIntercomCard.RAIL_WIDTH}px`);
     }
 
     if (!rotSwap) {
@@ -4584,10 +4601,22 @@ class IslautopiaIntercomCard extends HTMLElement {
         left: auto; right: var(--ig-rail-gap, 0px); top: 0; bottom: 0; width: 168px; height: auto;
         background: linear-gradient(90deg, transparent, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.72));
       }
-      /* La linea de estado vuelve abajo del todo: encima de los botones ya no hay botones. El
-         desplazamiento fijo (112px) despejaba el ancho del carril pegado al MARCO; con el carril
-         pegado a la IMAGEN hay que sumarle el mismo hueco. */
-      .intercom-container.ig-rail .status-line { bottom: 14px; right: calc(112px + var(--ig-rail-gap, 0px)); left: 0; }
+      /* La linea de estado vuelve abajo del todo: encima de los botones ya no hay botones.
+         Iñaki, 2026-09-08, tras ver "System idle" flotando a la izquierda del video en la
+         captura del wallpanel: el left:0 de esta regla es EL MISMO fallo que el del carril,
+         sobreviviendo en otro elemento - anclado al borde del MARCO en vez de al de la IMAGEN. Y
+         no es cosmetico: es la linea que dice "Puerta abierta" o "canal ocupado", justo lo que
+         hay que leer con alguien esperando en la puerta.
+         gap + RAIL_WIDTH es exactamente sobranteCadaLado (el margen que la imagen centrada ya
+         deja a cada lado, ver _layoutRotation) - con left Y right a esa misma distancia de
+         cada borde del marco, la caja de la linea de estado mide EXACTO el ancho de la imagen, no
+         el del marco. El right ya sumaba el hueco (112px de despeje respecto al borde del
+         carril, que es un desplazamiento relativo al CARRIL y sigue siendo valido tal cual). */
+      .intercom-container.ig-rail .status-line {
+        bottom: 14px;
+        left: calc(var(--ig-rail-gap, 0px) + var(--ig-rail-width, 104px));
+        right: calc(112px + var(--ig-rail-gap, 0px));
+      }
       /* Y el cluster del HUD se aparta del carril para no solaparse con el - mismo razonamiento
          que la linea de estado: el desplazamiento fijo (118px) era para el carril pegado al
          marco, y ahora hay que sumarle el hueco que el carril deja hasta el marco. */
