@@ -2453,11 +2453,22 @@ class IslautopiaIntercomCard extends HTMLElement {
     const h = this.feedWrap.clientHeight;
     const vertical = (this._rot === 90 || this._rot === 270);
 
-    // Carril lateral (§1.9 + §1.7): video vertical dentro de un marco APAISADO. El caso real es una
-    // tablet de pared, que vive en apaisado permanentemente. Solo en pantalla completa, que es
-    // donde los botones ya flotan sobre la imagen; en el modo normal viven debajo del video y
-    // moverlos encima seria un cambio de diseño distinto, no este.
-    const carril = !!this._fsActive && vertical && w > h * 1.05;
+    // Carril lateral (§1.9 + §1.7 + §1.9-bis): video vertical dentro de un marco APAISADO. El caso
+    // real es una tablet de pared, que vive en apaisado permanentemente. Hasta 2026-09-07 esto
+    // solo se activaba en pantalla completa, porque solo alli los botones flotaban sobre la
+    // imagen - en modo normal vivian debajo del video, y moverlos encima habria sido rehacer el
+    // diseño en dos sitios a la vez. Iñaki, 2026-09-07: "necesitamos un diseño VERSATIL para
+    // todos los formatos posibles: movil y tablet / vertical y horizontal" - ahora que
+    // .actions-row/.status-line flotan SIEMPRE sobre el video (ver CSS), la condicion que los
+    // limitaba a pantalla completa ya no tiene motivo y se retira: el carril se decide SOLO por
+    // la geometria real del marco, en cualquier modo.
+    //
+    // El caso limite que hay que respetar es el opuesto: movil VERTICAL con video VERTICAL. Ahi
+    // no hay banda negra lateral que aprovechar - el marco entero es vertical, sin ancho de sobra
+    // - y un carril se comeria el poco ancho que hay. `w > h * 1.05` ya lo excluye solo con la
+    // medida: un marco mas alto que ancho nunca cumple esa desigualdad, entre en pantalla completa
+    // o no.
+    const carril = vertical && w > h * 1.05;
     if (this.content) this.content.classList.toggle('ig-rail', carril);
 
     if (!vertical) {
@@ -2573,23 +2584,35 @@ class IslautopiaIntercomCard extends HTMLElement {
                   </button>
                 </div>
               </div>
-            </div>
 
-            <div class="status-line" id="status-line">${getLocalText(this._hass, 'idle_status')}</div>
+              <!-- Linea de estado + botones de accion: DENTRO del propio feed-wrap, flotando sobre
+                   la imagen de video (Iñaki, 2026-09-07: "para una solucion universal para
+                   cualquier dispositivo, sera mejor que la card ponga esos botones DENTRO de la
+                   propia imagen de video en la parte inferior"). Antes eran hermanos de feed-wrap,
+                   fuera del video y con una linea de estado entre medias - en un wallpanel en
+                   apaisado (tablet de pared, la card nunca sale de ese modo) quedaban bajo el
+                   pliegue y hacia falta scroll para abrir la puerta, justo lo que un panel de
+                   pared no puede exigir. Viven aqui dentro para que el posicionamiento absoluto de
+                   .actions-row/.status-line (ver CSS) sea relativo al MARCO DE VIDEO real y no al
+                   contenedor entero de la card (que tambien incluye .mode-row encima, de alto
+                   variable) - exactamente el mismo truco que ya usaba pantalla completa, donde
+                   funcionaba solo porque alli el contenedor SI coincide con el marco de video. -->
+              <div class="status-line" id="status-line">${getLocalText(this._hass, 'idle_status')}</div>
 
-            <div class="actions-row">
-              <div class="action">
-                <button id="intercom-button" class="btn mic" disabled>
-                  <div class="pulsering"></div>
-                  <ha-icon icon="mdi:microphone-off"></ha-icon>
-                </button>
-                <span class="lbl" id="mic-lbl">${getLocalText(this._hass, 'lbl_mic_off')}</span>
-              </div>
-              <div class="action">
-                <button id="unlock-button" class="btn door" disabled>
-                  <ha-icon icon="mdi:key"></ha-icon>
-                </button>
-                <span class="lbl" id="unlock-lbl">${getLocalText(this._hass, 'lbl_door_idle')}</span>
+              <div class="actions-row">
+                <div class="action">
+                  <button id="intercom-button" class="btn mic" disabled>
+                    <div class="pulsering"></div>
+                    <ha-icon icon="mdi:microphone-off"></ha-icon>
+                  </button>
+                  <span class="lbl" id="mic-lbl">${getLocalText(this._hass, 'lbl_mic_off')}</span>
+                </div>
+                <div class="action">
+                  <button id="unlock-button" class="btn door" disabled>
+                    <ha-icon icon="mdi:key"></ha-icon>
+                  </button>
+                  <span class="lbl" id="unlock-lbl">${getLocalText(this._hass, 'lbl_door_idle')}</span>
+                </div>
               </div>
             </div>
 
@@ -4209,19 +4232,53 @@ class IslautopiaIntercomCard extends HTMLElement {
         .hud-time .ymd { display: none; }
       }
 
-      /* ---- linea de estado bajo el video (puerta), distinta del live-tag (conexion) ---- */
-      .status-line { font-size: 12px; text-align: center; color: var(--ig-dim); font-weight: 500; }
+      /* ---- linea de estado + botones de accion: SOBRE el video, no debajo ----
+         Iñaki, 2026-09-07: "para una solucion universal para cualquier dispositivo, sera mejor
+         que la card ponga esos botones DENTRO de la propia imagen de video en la parte
+         inferior". Medido en el wallpanel real (Galaxy Tab en apaisado): con los botones bajo el
+         marco de video quedaban cortados por debajo del pliegue y hacia falta scroll para abrir
+         la puerta - un panel de pared no deberia necesitar scroll para eso. Este es el MISMO
+         diseño que pantalla completa ya resolvia (velo degradado + controles flotantes mas
+         abajo), traido al modo normal en vez de reinventado - la unica diferencia real es que
+         aqui el marco de video puede ser pequeño, así que el velo es porcentual y no en pixeles
+         fijos como el de pantalla completa (que siempre ocupa la pantalla entera). */
+      .status-line {
+        position: absolute; left: 0; right: 0; bottom: 122px; z-index: 7;
+        font-size: 12px; text-align: center; font-weight: 500; pointer-events: none;
+        color: rgba(232,240,254,0.85); text-shadow: 0 1px 4px rgba(0,0,0,0.85);
+      }
       .status-line.open { color: var(--ig-green); font-weight: 600; }
       .status-line.warn { color: var(--ig-amber); font-weight: 600; }
 
-      /* ---- botones de accion asimetricos: mic protagonista, puerta secundario ---- */
-      .actions-row { display: flex; justify-content: center; align-items: flex-end; gap: 30px; padding: 2px 4px 4px; }
+      /* Velo de legibilidad bajo los controles flotantes - mismo motivo que en pantalla completa
+         (ver mas abajo): sobre un portal a mediodia el texto claro se vuelve ilegible, y aqui hay
+         que leer "Puerta abierta" o "canal ocupado". Contenido por el overflow:hidden y el
+         border-radius de .feed-wrap, asi que no se sale del marco redondeado. */
+      .feed-wrap::after {
+        content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 46%; z-index: 4;
+        background: linear-gradient(180deg, transparent, rgba(0,0,0,0.5) 55%, rgba(0,0,0,0.72));
+        pointer-events: none;
+      }
+
+      /* ---- botones de accion asimetricos: mic protagonista, puerta secundario ----
+         position:absolute + pointer-events:none en la fila y :auto en cada accion, igual criterio
+         que pantalla completa: la fila no debe robar clicks al video en la zona donde no hay
+         boton, solo los circulos en si. */
+      .actions-row {
+        position: absolute; left: 0; right: 0; bottom: 10px; z-index: 8;
+        display: flex; justify-content: center; align-items: flex-end; gap: 24px;
+        padding: 0; pointer-events: none;
+      }
+      .actions-row .action { pointer-events: auto; }
       .action { display: flex; flex-direction: column; align-items: center; gap: 6px; }
       .action .btn {
         border-radius: 50%; border: 2px solid rgba(255,255,255,0.08); cursor: pointer;
         display: flex; align-items: center; justify-content: center; position: relative;
-        background: linear-gradient(135deg, var(--ig-surf2), var(--ig-surf3));
-        box-shadow: 0 6px 18px rgba(0,0,0,0.4); color: var(--ig-muted); transition: all 0.3s ease;
+        /* Translucido + blur (no el solido surf2/surf3 de antes): el boton ahora vive SOBRE el
+           video en cualquier escena, no sobre el fondo oscuro fijo de la card. */
+        background: linear-gradient(135deg, rgba(22,35,54,0.92), rgba(29,45,66,0.92));
+        backdrop-filter: blur(6px);
+        box-shadow: 0 6px 22px rgba(0,0,0,0.65); color: var(--ig-muted); transition: all 0.3s ease;
       }
       .action .btn:disabled { opacity: 0.5; cursor: not-allowed; }
       /* 80px/60px EXACTOS confirmados contra el codigo fuente real (2026-07-10, antes 76/56
@@ -4235,10 +4292,23 @@ class IslautopiaIntercomCard extends HTMLElement {
       .pulsering { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--ig-cyan); animation: ig-ring 1.2s infinite; pointer-events: none; display: none; }
       .action .btn.active-intercom .pulsering { display: block; }
       @keyframes ig-ring { 0% { transform: scale(1); opacity: 0.55; } 100% { transform: scale(1.55); opacity: 0; } }
-      .action .lbl { font-size: 12px; font-weight: 500; color: var(--ig-dim); }
+      /* Etiquetas claras + sombra, no el gris apagado de antes: tienen que leerse sobre CUALQUIER
+         fondo de video, igual que ya resolvia pantalla completa. */
+      .action .lbl { font-size: 12px; font-weight: 500; color: rgba(232,240,254,0.9); text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
       .action .lbl.on-cyan { color: var(--ig-cyan); }
       .action .lbl.on-green { color: var(--ig-green); }
       .action .lbl.on-amber { color: var(--ig-amber); }
+
+      /* ---- HUD inferior-dcha (volumen/calidad/pantalla completa): no puede pisar los botones de
+         accion ni la linea de estado que ahora flotan encima del video. Con el marco ancho hay
+         sitio de sobra a la derecha de los botones centrados; por debajo de ~520px de ancho de
+         video (un movil en vertical, o el carril NO aplica porque el video no es vertical-en-
+         marco-apaisado) el cluster ya no cabe al lado y sube por encima de toda la pila
+         (boton+etiqueta+linea de estado). Mismo umbral que pantalla completa (ver mas abajo), y
+         medido igual: hay que probarlo, no calcularlo de memoria. */
+      @container igfeed (max-width: 520px) {
+        .hud-bottom { bottom: 148px; }
+      }
 
       /* ---- estados del boton de micro introducidos por el turno de palabra (§1.4-ter #1) ----
          Los tres son visualmente DISTINTOS entre si y del "hablando" (cian): pidiendo turno
@@ -4368,22 +4438,28 @@ class IslautopiaIntercomCard extends HTMLElement {
             pierde el video.
          La clase la pone _layoutRotation() midiendo el marco de verdad, no una @container: este
          contenedor es de tipo inline-size y por tanto no puede consultarse por proporcion.
-         ========================================================================== */
-      .intercom-container.ig-fs.ig-rail .actions-row {
+
+         SIN el prefijo .ig-fs a proposito desde 2026-09-07: antes esta seccion solo regia en
+         pantalla completa porque solo alli los botones flotaban sobre el video. Ahora que
+         flotan SIEMPRE (ver .actions-row/.status-line mas arriba), el carril tiene que poder
+         aparecer tambien en modo normal - es literalmente el mismo wallpanel en apaisado, la
+         card nunca sale de ese modo. La decision de CUANDO sigue siendo solo de _layoutRotation()
+         (geometria real), no de esta hoja. */
+      .intercom-container.ig-rail .actions-row {
         left: auto; right: 0; bottom: auto; top: 50%;
         transform: translateY(-50%);
         width: 104px; flex-direction: column; align-items: center; gap: 22px;
       }
       /* El velo de legibilidad pasa de la banda inferior al lateral, que es donde estan ahora los
          controles. */
-      .intercom-container.ig-fs.ig-rail .feed-wrap::after {
+      .intercom-container.ig-rail .feed-wrap::after {
         left: auto; right: 0; top: 0; bottom: 0; width: 168px; height: auto;
         background: linear-gradient(90deg, transparent, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.72));
       }
       /* La linea de estado vuelve abajo del todo: encima de los botones ya no hay botones. */
-      .intercom-container.ig-fs.ig-rail .status-line { bottom: 14px; right: 112px; left: 0; }
+      .intercom-container.ig-rail .status-line { bottom: 14px; right: 112px; left: 0; }
       /* Y el cluster del HUD se aparta del carril para no solaparse con el. */
-      .intercom-container.ig-fs.ig-rail .hud-bottom { right: 118px; bottom: 12px; }
+      .intercom-container.ig-rail .hud-bottom { right: 118px; bottom: 12px; }
 
       /* Nivel 2: respaldo propio. El tamano lo dan 'inset: 0' y 'width/height: auto', NO unidades
          de viewport, y eso es deliberado: '100vw' INCLUYE la barra de desplazamiento y el bloque
