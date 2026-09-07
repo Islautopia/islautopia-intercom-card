@@ -20,6 +20,15 @@ function rectsIntersect(a, b) {
   return !noOverlap;
 }
 
+// NOTA IMPORTANTE (encontrada midiendo, no prevista al escribir esto): tanto .actions-row como
+// .hud-bottom se declaran con `left:0(o 14px);right:0(o 14px)` -- son contenedores flex a
+// proposito de ANCHO COMPLETO (para poder centrar/anclar sus hijos), con pointer-events:none en
+// el propio contenedor y :auto solo en los hijos reales. Comparar getBoundingClientRect() de
+// esos DOS contenedores entre si SIEMPRE da interseccion nada mas compartan banda vertical,
+// pase lo que pase horizontalmente -- no mide un solape real, mide que los dos son anchos.
+// La comprobacion que SI significa algo es contra los hijos visibles: los botones circulares
+// (.action) de un lado y el cluster real de controles (.hud-bottom-right) del otro. Se reportan
+// ambas para que quede constancia de la diferencia.
 async function measure(page, id) {
   return page.evaluate((id) => {
     const card = window.__cards[id];
@@ -27,14 +36,24 @@ async function measure(page, id) {
     const feedWrap = card.feedWrap;
     const actionsRow = card.querySelector('.actions-row');
     const hudBottom = card.querySelector('.hud-bottom');
+    const hudBottomRight = card.querySelector('.hud-bottom-right');
     const statusLine = card.statusLine;
+    const actions = Array.from(card.querySelectorAll('.actions-row .action'));
     const r = (el) => { const b = el.getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, bottom: b.bottom, width: b.width, height: b.height }; };
+    // Union de los rects de los botones reales (mic + puerta).
+    const actionRects = actions.map(r);
+    const actionsUnion = actionRects.reduce((u, b) => u ? {
+      left: Math.min(u.left, b.left), right: Math.max(u.right, b.right),
+      top: Math.min(u.top, b.top), bottom: Math.max(u.bottom, b.bottom),
+    } : b, null);
     return {
       isRail: content.classList.contains('ig-rail'),
       rot: card._rot,
       feedWrap: r(feedWrap),
-      actionsRow: r(actionsRow),
-      hudBottom: r(hudBottom),
+      actionsRowContainer: r(actionsRow),
+      actionsUnion,
+      hudBottomContainer: r(hudBottom),
+      hudBottomRight: r(hudBottomRight),
       statusLine: r(statusLine),
       docScrollHeight: document.documentElement.scrollHeight,
       innerHeight: window.innerHeight,
@@ -48,29 +67,32 @@ function within(outer, inner, tol) {
     && inner.top >= outer.top - tol && inner.bottom <= outer.bottom + tol;
 }
 
-// MediaStream de un <canvas> con color+etiqueta, para que el <video> tenga algo real que pintar
-// (en vez de quedar negro) y las capturas sean fieles a como se veria con camara real.
-async function feedFakeVideo(page, id, label, color) {
+// NOTA (encontrada probando, no prevista): un <canvas> real via captureStream() + object-fit:
+// contain expone que _layoutRotation() calcula el ajuste de aspecto sobre la caja PRE-rotacion
+// (eso es asunto de _layoutRotation, no de este overlay) -- con un canvas 480x270 el contenido
+// visible queda como una tira estrecha tras rotar 90 grados, que NO es representativo de una
+// camara real y solo confundiria la captura. Como lo que este banco mide es la GEOMETRIA de
+// botones/HUD (con getBoundingClientRect, independiente del contenido del video), se pinta
+// directamente el fondo de .video-wrapper en vez de pasar por setupRemoteStream()+<canvas> --
+// visualmente mas fiel para esta captura, y no cambia ninguna medida.
+//
+// El color se pinta en el <video> MISMO, no en .video-wrapper (que siempre es 100% de
+// feed-wrap): asi se respeta el hueco que _layoutRotation() ya reservo para el carril (el propio
+// elemento <video> mide menos ancho que el marco cuando hay carril), en vez de tapar ese hueco
+// con "video" de borde a borde -- que ocultaria justo la banda negra que el carril aprovecha.
+async function fakeLiveVisual(page, id, label, color) {
   await page.evaluate(({ id, label, color }) => {
     const card = window.__cards[id];
-    const canvas = document.createElement('canvas');
-    canvas.width = 480; canvas.height = 270;
-    const ctx = canvas.getContext('2d');
-    function draw() {
-      ctx.fillStyle = color;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-      ctx.lineWidth = 6;
-      ctx.strokeRect(3, 3, canvas.width - 6, canvas.height - 6);
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 28px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(label, canvas.width / 2, canvas.height / 2);
-      requestAnimationFrame(draw);
-    }
-    draw();
-    const stream = canvas.captureStream(10);
-    card.setupRemoteStream(stream);
+    card._setLiveState('live');
+    card.feedWrap.dataset.state = 'live';
+    card.intercomButton.removeAttribute('disabled');
+    if (card.unlockButton) card.unlockButton.removeAttribute('disabled');
+    if (card.loader) { card.loader.style.opacity = '0'; card.loader.style.pointerEvents = 'none'; }
+    card.videoEl.style.background = color;
+    const lbl = document.createElement('div');
+    lbl.textContent = label;
+    lbl.style.cssText = 'position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:#fff; font:bold 24px sans-serif; opacity:0.5; z-index:1; pointer-events:none;';
+    card.querySelector('.video-wrapper').appendChild(lbl);
   }, { id, label, color });
 }
 
@@ -92,24 +114,28 @@ async function runScenario(browser, { name, viewport, rot, label, color, screens
   }, id);
   await sleep(200);
   await page.evaluate(({ id, rot }) => { window.__cards[id]._applyRotation(rot); }, { id, rot });
-  await feedFakeVideo(page, id, label, color);
+  await fakeLiveVisual(page, id, label, color);
   await sleep(250); // deja asentar el ResizeObserver tras el cambio de aspecto/stream
 
   const m = await measure(page, id);
   console.log('isRail =', m.isRail, ' rot =', m.rot);
-  console.log('feedWrap  =', JSON.stringify(m.feedWrap));
-  console.log('actionsRow=', JSON.stringify(m.actionsRow));
-  console.log('hudBottom =', JSON.stringify(m.hudBottom));
-  console.log('statusLine=', JSON.stringify(m.statusLine));
+  console.log('feedWrap          =', JSON.stringify(m.feedWrap));
+  console.log('actionsRow (caja) =', JSON.stringify(m.actionsRowContainer), '<- contenedor ancho completo, ver nota');
+  console.log('actionsUnion(real)=', JSON.stringify(m.actionsUnion), '<- union de los 2 botones reales');
+  console.log('hudBottom (caja)  =', JSON.stringify(m.hudBottomContainer), '<- contenedor ancho completo, ver nota');
+  console.log('hudBottomRight    =', JSON.stringify(m.hudBottomRight), '<- cluster real (volumen/calidad/fs)');
+  console.log('statusLine        =', JSON.stringify(m.statusLine));
 
-  const containedActions = within(m.feedWrap, m.actionsRow, 1);
+  const containedActions = within(m.feedWrap, m.actionsUnion, 1);
   const containedStatus = within(m.feedWrap, m.statusLine, 1);
-  const overlapActionsHud = rectsIntersect(m.actionsRow, m.hudBottom);
+  const overlapContainers = rectsIntersect(m.actionsRowContainer, m.hudBottomContainer);
+  const overlapReal = rectsIntersect(m.actionsUnion, m.hudBottomRight);
   const noVScroll = m.docScrollHeight <= m.innerHeight + 1;
 
-  console.log(`actions-row dentro de feed-wrap: ${containedActions}`);
+  console.log(`botones dentro de feed-wrap: ${containedActions}`);
   console.log(`status-line dentro de feed-wrap: ${containedStatus}`);
-  console.log(`actions-row NO solapa hud-bottom: ${!overlapActionsHud}`);
+  console.log(`(informativo, no concluyente) cajas .actions-row/.hud-bottom solapan: ${overlapContainers}`);
+  console.log(`SOLAPE REAL (botones vs cluster visible del HUD): ${overlapReal} (debe ser false)`);
   console.log(`sin scroll vertical (docScrollHeight=${m.docScrollHeight} <= innerHeight=${m.innerHeight}): ${noVScroll}`);
 
   const outPath = path.join(OUTDIR, screenshotName);
@@ -117,7 +143,7 @@ async function runScenario(browser, { name, viewport, rot, label, color, screens
   console.log('captura ->', outPath);
 
   await page.close();
-  return { name, m, containedActions, containedStatus, overlapActionsHud, noVScroll };
+  return { name, m, containedActions, containedStatus, overlapReal, noVScroll };
 }
 
 async function positiveControl(browser) {
@@ -127,33 +153,38 @@ async function positiveControl(browser) {
   await page.evaluate((id) => { window.tCreateCard(id, {}); window.tAttach(id); }, id);
   await sleep(200);
   await page.evaluate((id) => { window.__cards[id]._applyRotation(90); }, id);
-  await feedFakeVideo(page, id, 'CTRL', '#333333');
+  await fakeLiveVisual(page, id, "CTRL", "#333333");
   await sleep(250);
 
   // Control negativo (estado real, sin forzar nada): confirmar que la comprobacion dice "no hay
-  // solape" cuando en efecto no lo hay.
+  // solape" cuando en efecto no lo hay -- usando la misma metrica REAL (botones vs cluster
+  // visible) que se usara en los 4 escenarios, no la caja completa (ver nota en measure()).
   const before = await measure(page, id);
-  const overlapBefore = rectsIntersect(before.actionsRow, before.hudBottom);
-  console.log('antes de forzar nada, solape detectado =', overlapBefore, '(debe ser false)');
+  const overlapBefore = rectsIntersect(before.actionsUnion, before.hudBottomRight);
+  console.log('antes de forzar nada, solape (real) detectado =', overlapBefore, '(debe ser false)');
 
-  // Forzar el solape de verdad: mover hud-bottom encima de actions-row con un estilo en linea.
+  // Forzar el solape DE VERDAD: mover .hud-bottom-right (el cluster visible) a `position:fixed`
+  // con las coordenadas EXACTAS (en viewport) del boton mic real, medidas un instante antes. Con
+  // fixed + coordenadas en px no hay ambiguedad de "auto" ni de contenedor de posicionamiento.
   await page.evaluate((id) => {
     const card = window.__cards[id];
-    const hudBottom = card.querySelector('.hud-bottom');
-    const actionsRow = card.querySelector('.actions-row');
-    const r = actionsRow.getBoundingClientRect();
-    hudBottom.style.setProperty('position', 'absolute', 'important');
-    hudBottom.style.setProperty('left', '0', 'important');
-    hudBottom.style.setProperty('right', '0', 'important');
-    hudBottom.style.setProperty('bottom', getComputedStyle(actionsRow).bottom, 'important');
-    hudBottom.style.setProperty('top', 'auto', 'important');
+    const hudBottomRight = card.querySelector('.hud-bottom-right');
+    const micBtn = card.querySelector('#intercom-button');
+    const r = micBtn.getBoundingClientRect();
+    hudBottomRight.style.setProperty('position', 'fixed', 'important');
+    hudBottomRight.style.setProperty('left', r.left + 'px', 'important');
+    hudBottomRight.style.setProperty('top', r.top + 'px', 'important');
+    hudBottomRight.style.setProperty('right', 'auto', 'important');
+    hudBottomRight.style.setProperty('bottom', 'auto', 'important');
+    hudBottomRight.style.setProperty('margin', '0', 'important');
+    hudBottomRight.style.setProperty('z-index', '999', 'important');
   }, id);
   await sleep(50);
   const after = await measure(page, id);
-  const overlapAfter = rectsIntersect(after.actionsRow, after.hudBottom);
-  console.log('actionsRow=', JSON.stringify(after.actionsRow));
-  console.log('hudBottom (forzado)=', JSON.stringify(after.hudBottom));
-  console.log('tras forzar el solape, solape detectado =', overlapAfter, '(debe ser true)');
+  const overlapAfter = rectsIntersect(after.actionsUnion, after.hudBottomRight);
+  console.log('actionsUnion=', JSON.stringify(after.actionsUnion));
+  console.log('hudBottomRight (forzado encima del boton mic)=', JSON.stringify(after.hudBottomRight));
+  console.log('tras forzar el solape, solape (real) detectado =', overlapAfter, '(debe ser true)');
 
   const veredicto = (overlapBefore === false && overlapAfter === true)
     ? 'CONTROL POSITIVO OK: la comprobacion distingue solape de no-solape'
@@ -197,7 +228,7 @@ async function main() {
   console.log('\n\n================ RESUMEN ================');
   console.log('control positivo:', ctrl.veredicto);
   for (const r of results) {
-    console.log(`${r.name}: isRail=${r.m.isRail} contained_actions=${r.containedActions} contained_status=${r.containedStatus} no_overlap_hud=${!r.overlapActionsHud} no_vscroll=${r.noVScroll}`);
+    console.log(`${r.name}: isRail=${r.m.isRail} contained_actions=${r.containedActions} contained_status=${r.containedStatus} no_overlap_real=${!r.overlapReal} no_vscroll=${r.noVScroll}`);
   }
 
   await browser.close();
