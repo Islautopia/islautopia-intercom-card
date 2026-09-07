@@ -16,7 +16,7 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_BUILD_ID = '2026-09-07-al-vencer-se-suelta-tambien-el-elemento-video';
+const CARD_BUILD_ID = '2026-09-07-el-toque-que-repone-reinicia-el-reloj';
 
 // ⚠️ ESTA MARCA VIVE EN EL MODULO Y NO EN EL ELEMENTO, Y ESA ES TODA LA GRACIA (2026-09-07).
 //
