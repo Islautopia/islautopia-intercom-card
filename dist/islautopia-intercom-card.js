@@ -16,7 +16,7 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_BUILD_ID = '2026-09-07-el-plazo-de-inactividad-es-absoluto';
+const CARD_BUILD_ID = '2026-09-07-generacion-de-conexion-y-el-reloj-de-inactividad-existe';
 
 // ⚠️ ESTA MARCA VIVE EN EL MODULO Y NO EN EL ELEMENTO, Y ESA ES TODA LA GRACIA (2026-09-07).
 //
@@ -35,6 +35,23 @@ const CARD_BUILD_ID = '2026-09-07-el-plazo-de-inactividad-es-absoluto';
 // y una instancia nueva que nace cuando ya han pasado 60 s suelta INMEDIATAMENTE, en vez de
 // regalar otro minuto.
 let ULTIMA_INTERACCION_MS = Date.now();
+
+// ⚠️ FUSIBLE DEL GUARDIA DE REENTRADA DE startWebRTC() -- ver esa funcion para el argumento entero.
+//
+// Un guardia que dijera "ya hay uno en vuelo, no arranco otro" y nada mas seria PEOR que el fallo
+// que arregla: un arranque que se quede colgado para siempre (un `fetch` de credenciales TURN
+// contra Alemania y un `new WebSocket()` contra el relay NO tienen plazo propio; un socket TCP
+// atascado puede estar minutos sin resolver ni fallar) dejaria la card en negro sin ningun camino
+// de vuelta, y en un panel de pared eso no se distingue de una card rota.
+//
+// Por eso el guardia CADUCA. 12 s es deliberadamente incomodo entre las dos escalas que importan:
+// muy por encima de cualquier arranque sano (get_connection_info por el WebSocket de HA, sub-
+// segundo; credenciales TURN, ~1 s; camino local, tope propio de 3 s; apertura del WS del relay,
+// otro par de segundos) y muy por debajo de lo que tarda en rendirse un socket atascado. Lo que
+// se compra con el: pasados 12 s, CUALQUIER disparo posterior releva al colgado en vez de
+// respetarlo.
+const ARRANQUE_EN_VUELO_MAX_MS = 12000;
+
 console.log(`[islautopia-intercom-card] modulo cargado - build=${CARD_BUILD_ID} (compara este valor contra CARD_BUILD_ID en el repo si tienes dudas de si el navegador esta sirviendo una copia cacheada vieja)`);
 
 // Diccionario global de traducciones para Tarjeta y Editor (Top 9 Idiomas + HA Community)
@@ -430,6 +447,52 @@ class IslautopiaIntercomCard extends HTMLElement {
     this.nativeSSE = null;
     this.nativeWS = null;
     this._slot = null;
+
+    // ══════════════════════════════════════════════════════════════════════════════════════════
+    //  GENERACION DE CONEXION (2026-09-07) -- quien tiene DERECHO a escribir en this.pc /
+    //  this.nativeSSE / this.nativeWS.
+    //
+    //  El fallo medido: la tablet del salon acumulaba conexiones sin cerrar. Firma exacta, vista
+    //  dos veces y siempre tras un timbrazo -- tres conexiones abiertas en 0,3 s y solo la ULTIMA
+    //  se cierra a los 8 s; las otras dos seguian abiertas 87 minutos despues. "De N simultaneas
+    //  se cierra exactamente UNA" es la firma de una carrera de reentrada, no de una fuga.
+    //
+    //  Por que ocurria: startWebRTC() tiene CINCO puntos de llamada y el unico guardia era
+    //  `!this.pc` en cuatro de ellos (el quinto, render(), no tenia ninguno). Pero `this.pc` no se
+    //  asigna hasta DESPUES de dos esperas -- get_connection_info por el WebSocket de HA, y las
+    //  credenciales TURN, que son una peticion HTTPS a Alemania. Durante esa ventana `this.pc`
+    //  sigue valiendo `null` y el guardia deja pasar a todo el mundo. Un timbrazo dispara los tres
+    //  a la vez: despierta la tablet (visibilitychange), el wallpanel navega a la vista (render), y
+    //  HA vuelve a insertar el elemento (connectedCallback).
+    //
+    //  Y _teardownConnectionObjects() solo puede cerrar lo que este EN this.*, o sea la ultima
+    //  asignacion. Las invocaciones adelantadas quedaban huerfanas: su WebSocket no se cerraba
+    //  nunca, y cada una retiene una de las CUATRO plazas WebRTC que tiene el portero para la casa
+    //  entera.
+    //
+    //  ⚠️ EL ARREGLO NO ES UN GUARDIA MEJOR EN LOS CINCO SITIOS, Y ESO ES LO IMPORTANTE. Una
+    //  defensa repartida en N puntos de llamada se cae entera en cuanto UNO se queda atras -- que
+    //  es literalmente lo que ya habia pasado aqui (cuatro con `!this.pc`, uno desnudo). El
+    //  guardia vive DENTRO de startWebRTC(), donde ningun punto de llamada nuevo puede saltarselo
+    //  por descuido.
+    //
+    //  Dos piezas, y hacen falta las dos:
+    //
+    //   · `_connGen` -- sube en CADA _teardownConnectionObjects(). Una invocacion en vuelo compara
+    //     su generacion con esta antes de publicar nada en `this.*`; si no coincide, CIERRA LO
+    //     SUYO y se va en silencio en vez de abandonarlo. Esto es lo que recoge la basura.
+    //   · `_arranqueEnVueloGen` -- la generacion del startWebRTC() que esta en curso, o `null`.
+    //     Es lo que evita GENERARLA: mientras haya uno en vuelo Y siga siendo el vigente, los
+    //     disparos siguientes se descartan en vez de abrir una segunda conexion.
+    //
+    //  Que el guardia solo bloquee mientras el en vuelo SIGUE SIENDO EL VIGENTE no es un detalle:
+    //  es lo que deja pasar a una reconexion legitima. _scheduleReconnect() desmonta (subiendo la
+    //  generacion) y arranca de nuevo 2 s despues -- si el guardia mirara solo "hay uno en vuelo",
+    //  se comeria esa reconexion y la card se quedaria mirando a un cadaver.
+    // ══════════════════════════════════════════════════════════════════════════════════════════
+    this._connGen = 0;
+    this._arranqueEnVueloGen = null;
+    this._arranqueEnVueloAt = 0;
     this.localAudioStream = null;
     this.dummyAudioTrack = null;
 
@@ -529,7 +592,8 @@ class IslautopiaIntercomCard extends HTMLElement {
   connectedCallback() {
     if (this.content) this._registerFullscreenListeners();
     this._registerVisibilityStreamHandler();
-    if (this.content && !this.pc) this.startWebRTC();
+    this._registerOffscreenStreamHandler();
+    if (this.content && !this.pc) this.startWebRTC('connectedCallback');
   }
 
   // ══════════════════════════════════════════════════════════════════════════════════════════
@@ -549,10 +613,22 @@ class IslautopiaIntercomCard extends HTMLElement {
   //  INDEFINIDAMENTE, porque el stream retiene el wakelock de brillo. Y ademas gastaba plazas del
   //  portero, que solo tiene 4 para toda la casa.
   //
-  //  `visibilitychange` es el disparador que si llega en todos esos casos: pantalla apagada, app
-  //  al fondo, y tambien cuando la vista deja de estar delante. Ojo -- NO es el mismo manejador
-  //  que `_onVisibilityForWakeLock`: aquel solo REPONE el wake lock al volver a ser visible, y no
-  //  hace nada al ocultarse, que es justo la mitad que faltaba.
+  //  `visibilitychange` cubre DOS de esos tres casos: pantalla apagada y app al fondo. Ojo -- NO
+  //  es el mismo manejador que `_onVisibilityForWakeLock`: aquel solo REPONE el wake lock al
+  //  volver a ser visible, y no hace nada al ocultarse, que es justo la mitad que faltaba.
+  //
+  //  ⚠️ Y AQUI ESTABA ESCRITA UNA MENTIRA, CORREGIDA EL 2026-09-07. Este mismo comentario decia
+  //  que `visibilitychange` llega «tambien cuando la vista deja de estar delante», y por tanto que
+  //  el PRIMER caso de la lista de arriba -- navegar a otra vista de Lovelace -- quedaba cubierto.
+  //  Es falso: `document.visibilityState` es del DOCUMENTO, y una aplicacion de una sola pagina
+  //  que intercambia vistas no cambia la visibilidad de su documento. El evento no llega.
+  //
+  //  O sea que el caso que ENCABEZABA la lista de sintomas medidos era el unico que este manejador
+  //  no cubria, y el comentario afirmaba lo contrario. Es la peor de las familias de fallo que
+  //  persigue CLAUDE.md: no una defensa que falta, sino una que se cree puesta -- quien viniera a
+  //  arreglar ese sintoma leeria aqui que ya esta resuelto y buscaria en otro sitio.
+  //
+  //  Lo cubre ahora _registerOffscreenStreamHandler() (mas abajo), con un IntersectionObserver.
   // ══════════════════════════════════════════════════════════════════════════════════════════
   _registerVisibilityStreamHandler() {
     if (this._onVisibilityForStream) return;
@@ -564,6 +640,7 @@ class IslautopiaIntercomCard extends HTMLElement {
         this._streamPausedByHide = true;
         this._clearReconnectTimer();
         this._reconnecting = false;
+        this._clearIdleWakeLockTimer();   // la sesion termina aqui: _releaseWakeLock() ya no la para
         this._teardownConnectionObjects();
         this._releaseWakeLock();
         if (this.intercomButton) this._setLiveState('connecting');
@@ -572,7 +649,7 @@ class IslautopiaIntercomCard extends HTMLElement {
         this._streamPausedByHide = false;
         // `isConnected` y no un booleano propio: si la card ya no esta en el DOM, reconectar
         // crearia exactamente el cliente zombi que esto viene a evitar.
-        if (this.isConnected && this.content && !this.pc) this.startWebRTC();
+        if (this.isConnected && this.content && !this.pc) this.startWebRTC('visibilitychange: vuelve a ser visible');
       }
     };
     document.addEventListener('visibilitychange', this._onVisibilityForStream);
@@ -585,9 +662,87 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._streamPausedByHide = false;
   }
 
+  // ══════════════════════════════════════════════════════════════════════════════════════════
+  //  LA CARD DEJA DE ESTAR EN PANTALLA SIN SALIR DEL DOM (2026-09-07)
+  //
+  //  Cubre el caso que `visibilitychange` NO puede cubrir: navegar a otra vista de Lovelace. Home
+  //  Assistant es una aplicacion de una sola pagina, asi que ni retira la card del DOM
+  //  (disconnectedCallback no se dispara) ni cambia la visibilidad del documento. Los dos
+  //  mecanismos que habia miraban justo esas dos cosas, y por eso el sintoma medido en la tablet
+  //  del salon -- «cada navegacion ABRE una conexion nueva sin cerrar la anterior, espectadores
+  //  1 -> 3» -- seguia vivo.
+  //
+  //  Un IntersectionObserver responde a la pregunta correcta, que no es "sigues en el arbol" ni
+  //  "esta la pestaña delante", sino **se te esta viendo**. Una vista de Lovelace escondida deja a
+  //  sus cards sin area visible, y eso lo ve el observador sin saber nada de las interioridades de
+  //  Home Assistant -- que es lo que hace que esto no se rompa con la proxima version del frontend.
+  //
+  //  ⚠️ DOS CONTROLES DE NO DISPARAR, Y SON LO IMPORTANTE DE ESTA FUNCION. Soltar el video de quien
+  //  esta mirando es peor que cualquier plaza malgastada:
+  //
+  //   1. **Plazo de gracia.** Salir de pantalla no desmonta nada: hay que seguir fuera 30 s. Bajar
+  //      la vista para leer otra card y volver es un gesto de dos segundos, y sin plazo de gracia
+  //      costaria una reconexion entera con su recuadro negro. 30 s es ademas mas que el plazo de
+  //      abandono del propio portero (20 s), asi que la plaza se libera de verdad y no "casi".
+  //   2. **Nunca en pantalla completa.** _portalABody() traslada el CONTENEDOR a <body> cuando un
+  //      ancestro atrapa el `position:fixed`, y entonces el elemento propio de la card se queda sin
+  //      area -- o sea que el observador diria "no se ve" con el video ocupando la pantalla entera.
+  //      Sin esta linea, mirar a pantalla completa mas de 30 s cortaria el video solo.
+  //
+  //  ⚠️ RAZONADO, NO MEDIDO (2026-09-07): esto se escribio sin un portero delante y sin un panel de
+  //  pared con Home Assistant real. Lo que esta medido es el SINTOMA (la sesion de HASS de casa,
+  //  con `dumpsys`), no que este remedio lo cierre. Si alguien lo comprueba, que borre esta nota y
+  //  ponga lo que vio.
+  // ══════════════════════════════════════════════════════════════════════════════════════════
+  _registerOffscreenStreamHandler() {
+    if (this._offscreenObserver || typeof IntersectionObserver === 'undefined') return;
+    this._offscreenObserver = new IntersectionObserver((entries) => {
+      const visible = entries.some((e) => e.isIntersecting);
+      if (visible) {
+        this._clearOffscreenTimer();
+        if (this._streamPausedByHide && this.isConnected && this.content && !this.pc) {
+          this._streamPausedByHide = false;
+          this.startWebRTC('la card vuelve a estar en pantalla');
+        }
+        return;
+      }
+      if (this._offscreenTimer) return;               // ya hay una cuenta en marcha
+      this._offscreenTimer = setTimeout(() => {
+        this._offscreenTimer = null;
+        if (this._fsActive) return;                   // control 2: ver la cabecera
+        if (!this.pc && !this._reconnecting) return;  // no habia nada que soltar
+        console.info('[islautopia-intercom-card] la card lleva 30s fuera de pantalla (otra vista de Lovelace?) - se suelta el video y la plaza del portero');
+        // MISMO camino de vuelta que ocultarse o agotar la espera de inactividad: un solo estado
+        // (`_streamPausedByHide`) y un solo sitio que repone. Tres banderas distintas para tres
+        // formas de esconderse acabarian divergiendo.
+        this._streamPausedByHide = true;
+        this._clearReconnectTimer();
+        this._reconnecting = false;
+        this._clearIdleWakeLockTimer();
+        this._teardownConnectionObjects();
+        this._releaseWakeLock();
+        if (this.intercomButton) this._setLiveState('connecting');
+        if (this.loader) this.loader.style.opacity = '1';
+      }, 30000);
+    });
+    this._offscreenObserver.observe(this);
+  }
+
+  _clearOffscreenTimer() {
+    if (this._offscreenTimer) { clearTimeout(this._offscreenTimer); this._offscreenTimer = null; }
+  }
+
+  _unregisterOffscreenStreamHandler() {
+    this._clearOffscreenTimer();
+    if (!this._offscreenObserver) return;
+    this._offscreenObserver.disconnect();
+    this._offscreenObserver = null;
+  }
+
   disconnectedCallback() {
     this._unregisterUnloadHandler();
     this._unregisterVisibilityStreamHandler();
+    this._unregisterOffscreenStreamHandler();
     this._unregisterIdleActivityListeners();
     this._clearIdleWakeLockTimer();
     this._clearReconnectTimer();
@@ -638,6 +793,19 @@ class IslautopiaIntercomCard extends HTMLElement {
   // a un solo sitio para no duplicar la logica de cierre entre ambos casos.
   // ==============================================================================
   _teardownConnectionObjects() {
+    // ⚠️ SUBIR LA GENERACION ES PARTE DEL CIERRE, NO UN ADORNO (2026-09-07 -- ver el bloque de
+    // GENERACION DE CONEXION en el constructor).
+    //
+    // Esta funcion cierra lo que hay EN `this.*`. Lo que no puede cerrar es lo que todavia no
+    // existe: un startWebRTC() a medias, esperando credenciales TURN, que dentro de un segundo
+    // creara un RTCPeerConnection y un WebSocket y los escribira aqui encima. Ese es el huerfano.
+    //
+    // Poner el contador AQUI, y no en startWebRTC(), es lo que hace que la invalidacion no se
+    // pueda olvidar: los CINCO sitios que desmontan (salir del DOM, ocultarse, la espera de
+    // inactividad, reconectar, y el propio arranque) pasan todos por esta linea. Un sitio nuevo
+    // que desmonte hereda la invalidacion sin tener que acordarse de nada -- que es justo la
+    // familia de fallo de "defensa repartida en N sitios" que ya se cobro el `!this.pc`.
+    this._connGen += 1;
     this._stopLifeWatchdog();
     this._stopAudioSendDiagnostics();
     // Si el micro estaba abierto, el sonido se encendio POR EL MICRO - al cerrarse hay que
@@ -686,7 +854,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     }
     if (this._doorCountdownTimer) { clearInterval(this._doorCountdownTimer); this._doorCountdownTimer = null; }
     this._resetStatusLine();
-    if (this.pc) { this.pc.close(); this.pc = null; }
+    if (this.pc) { this._cerrarPeerConnection(this.pc); this.pc = null; }
     if (this.nativeSSE) {
       // Corregido (2026-07-10, ver COORDINATION.md): faltaba mandar 'bye' aqui para el camino
       // local antes de cerrar - solo el camino remoto (mas abajo) lo hacia, así que cambiar de
@@ -706,6 +874,26 @@ class IslautopiaIntercomCard extends HTMLElement {
       this.nativeWS = null;
     }
     this._slot = null;
+  }
+
+  // Cierra un RTCPeerConnection Y el AudioContext que buildNativePeerConnection() creo para
+  // colgarle la pista muda de salida. Existe como funcion aparte porque hay DOS sitios que
+  // cierran un `pc`: el desmontaje de arriba (el `pc` vigente) y el camino de relevo de
+  // startNativeSession() (un `pc` que nacio adelantado y nunca llego a publicarse). El segundo no
+  // tiene ningun `this.*` al que mirar, asi que la limpieza tiene que ir pegada al objeto.
+  //
+  // El AudioContext no se cerraba NUNCA hasta hoy. Con una sola sesion no se nota; con el bucle
+  // de reconexion de un panel de pared son decenas de contextos de audio vivos, y Chrome tiene un
+  // tope duro por pestaña (~6 en versiones antiguas, mas alto hoy pero finito): pasado ese tope
+  // `new AudioContext()` lanza y la card se queda sin pista de salida -- o sea, sin microfono,
+  // que se leeria como un fallo del interfono y no como una fuga de la reconexion.
+  _cerrarPeerConnection(pc) {
+    if (!pc) return;
+    try { pc.close(); } catch (err) { /* best effort */ }
+    if (pc.__igAudioCtx) {
+      try { pc.__igAudioCtx.close(); } catch (err) { /* best effort */ }
+      pc.__igAudioCtx = null;
+    }
   }
 
   // ==============================================================================
@@ -801,7 +989,14 @@ class IslautopiaIntercomCard extends HTMLElement {
   // sesion). Reutiliza startWebRTC() (el mismo punto de entrada de la conexion inicial) en vez
   // de duplicar la logica de conexion - vuelve a intentar local-primero-luego-remoto desde cero,
   // razonable porque las condiciones de red pueden haber cambiado.
-  _scheduleReconnect(reason) {
+  //
+  // `gen` es OPCIONAL a proposito: los disparadores que no nacen de un arranque concreto (el
+  // vigilante de vida, un `bye` recibido) no tienen ninguna generacion que citar y deben poder
+  // reconectar siempre. Los que SI nacen de uno -- los manejadores de un `pc` o de un WebSocket
+  // concretos -- lo pasan, y entonces un disparo de una sesion ya relevada se descarta: sin esto,
+  // el `pc` moribundo de un arranque adelantado tumbaria la sesion del arranque bueno al cerrarse.
+  _scheduleReconnect(reason, gen) {
+    if (gen !== undefined && this._relevado(gen)) return;
     if (this._reconnecting) return;
     this._reconnecting = true;
 
@@ -828,7 +1023,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._reconnectTimer = setTimeout(() => {
       this._reconnectTimer = null;
       this._reconnecting = false;
-      this.startWebRTC();
+      this.startWebRTC(`_scheduleReconnect: ${reason}`);
     }, backoffMs);
   }
 
@@ -1827,6 +2022,20 @@ class IslautopiaIntercomCard extends HTMLElement {
       // El sistema lo revoca al minimizar la app o cambiar de pestaña; hay que volver a pedirlo
       // al regresar o la pantalla se apagaria a mitad de conversacion en la segunda vuelta.
       this._wakeLock.addEventListener('release', () => { this._wakeLock = null; });
+      // ⚠️ ESTA LINEA YA NO ES EL SITIO DONDE NACE LA CUENTA ATRAS, Y NO SE PUEDE VOLVER A SERLO.
+      //
+      // Lo fue hasta el 2026-09-07, y costo TRES versiones seguidas (v1.5.0, v1.5.1, v1.6.0) que
+      // fallaban identico en el panel de pared: `_acquireWakeLock()` solo se invoca desde las
+      // rutas de PANTALLA COMPLETA (_enterFullscreen / _syncFullscreenFromBrowser), asi que un
+      // panel que enseña el dashboard sin entrar en pantalla completa no armaba el reloj JAMAS
+      // -- y encima se iba por la primera linea de esta funcion si la webview no trae
+      // `navigator.wakeLock`. Medido en Chromium con el plazo en 4 s y ocho segundos de quietud
+      // total: el reloj no llego a armarse ni una vez. La logica del plazo estaba bien; lo que no
+      // existia era el reloj.
+      //
+      // Ahora la cuenta la arma quien de verdad la justifica: que haya sesion (startWebRTC) y que
+      // haya video (setupRemoteStream). Esto se queda por si acaso -- rearmar es idempotente y el
+      // plazo es absoluto, asi que no regala tiempo -- pero ya no es de lo que cuelga.
       this._armIdleWakeLockTimer();
       if (!this._onVisibilityForWakeLock) {
         this._onVisibilityForWakeLock = () => {
@@ -1867,6 +2076,26 @@ class IslautopiaIntercomCard extends HTMLElement {
     const restante = this._idleReleaseMs - (Date.now() - ULTIMA_INTERACCION_MS);
     this._idleWakeLockTimer = setTimeout(() => {
       this._idleWakeLockTimer = null;
+      // ⚠️ EL CONTROL DE NO DISPARAR, Y VA AQUI DENTRO A PROPOSITO (2026-09-07).
+      //
+      // Lo caro de esta funcion no es que no suelte: es que suelte cuando no toca. Cortarle el
+      // video en la cara a alguien que esta mirando es un fallo mucho peor que dejar la pantalla
+      // encendida de mas, y ademas es de los que no se reproducen contando segundos.
+      //
+      // Y el modo de fallo es real, no teorico: el plazo es ABSOLUTO desde `ULTIMA_INTERACCION_MS`,
+      // pero el temporizador se calculo con el valor de hace un rato. Cualquier camino que
+      // actualice la marca sin rearmar (y hasta hoy _onIdleActivity() era exactamente eso cuando
+      // no habia wake lock) deja este disparo apuntando a una hora que ya no es la buena.
+      //
+      // Asi que en vez de fiarse del reloj, se vuelve a mirar el dato: si todavia queda plazo, no
+      // se suelta nada y se rearma con lo que de verdad falta. Un reloj que se arme de mas es
+      // gratis; uno que dispare de mas, no. Esta comprobacion es la que hace que "armar la cuenta
+      // en mas sitios" sea seguro.
+      const pendiente = this._idleReleaseMs - (Date.now() - ULTIMA_INTERACCION_MS);
+      if (this._idleReleaseMs && pendiente > 0) {
+        this._armIdleWakeLockTimer();
+        return;
+      }
       // ⚠️ SOLTAR EL WAKE LOCK NO BASTA, Y LA v1.4.0 SE QUEDO EN ESO (2026-09-06).
       //
       // Medido en la tablet: con la card visible y NADIE tocando, a los 2m22s seguian retenidos
@@ -1886,6 +2115,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       this._streamPausedByHide = true;      // mismo camino de vuelta que al ocultarse
       this._clearReconnectTimer();
       this._reconnecting = false;
+      this._clearOffscreenTimer();
       this._teardownConnectionObjects();
       this._releaseWakeLock();
       if (this.intercomButton) this._setLiveState('connecting');
@@ -1908,11 +2138,17 @@ class IslautopiaIntercomCard extends HTMLElement {
       // ser visible. Sin esto, quien tocara la pantalla se encontraria la card en negro.
       if (this._streamPausedByHide && this.isConnected && this.content && !this.pc) {
         this._streamPausedByHide = false;
-        this.startWebRTC();
+        this.startWebRTC('interaccion tras soltar por inactividad');
         return;
       }
-      ULTIMA_INTERACCION_MS = Date.now();
-      if (!this._wakeLock) this._acquireWakeLock(); else this._armIdleWakeLockTimer(true);
+      // ⚠️ SE REARMA SIEMPRE, Y ANTES ERA UN `else` (2026-09-07). La version anterior decia
+      // `if (!this._wakeLock) this._acquireWakeLock(); else this._armIdleWakeLockTimer(true)`: o
+      // sea que en un aparato sin wake lock -- el panel de pared-- un toque actualizaba
+      // `ULTIMA_INTERACCION_MS` y NO rearmaba nada, dejando en marcha un disparo calculado con la
+      // marca vieja. Son dos cosas independientes: rearmar la cuenta es de la interaccion, pedir
+      // la pantalla es del wake lock. Pedirlo sigue siendo best-effort y puede no existir.
+      this._armIdleWakeLockTimer(true);
+      if (!this._wakeLock) this._acquireWakeLock();
     };
     this.addEventListener('pointerdown', this._onIdleActivity, { passive: true });
     document.addEventListener('keydown', this._onIdleActivity, { passive: true });
@@ -1926,7 +2162,13 @@ class IslautopiaIntercomCard extends HTMLElement {
   }
 
   _releaseWakeLock() {
-    this._clearIdleWakeLockTimer();
+    // ⚠️ AQUI YA NO SE PARA LA CUENTA ATRAS, Y ES LA OTRA MITAD DEL ARREGLO DEL 2026-09-07.
+    //
+    // Esta funcion la llaman tambien _exitFullscreen() y _syncFullscreenFromBrowser(): salir de
+    // pantalla completa mataba el reloj dejando el stream vivo, o sea el mismo agujero por el otro
+    // extremo. La cuenta la para quien de verdad termina la sesion -- el desmontaje por ocultarse,
+    // el propio disparo por inactividad, y disconnectedCallback() -- que son los tres sitios donde
+    // ya se llama a _clearIdleWakeLockTimer() a mano.
     if (this._wakeLock) {
       try { this._wakeLock.release(); } catch (err) { /* best effort */ }
       this._wakeLock = null;
@@ -2449,17 +2691,85 @@ class IslautopiaIntercomCard extends HTMLElement {
 
       this.injectStyles();
       this._updateHassBoundUI();
-      this.startWebRTC();
+      this.startWebRTC('render: primera construccion del DOM de la card');
     }
   }
 
-  async startWebRTC() {
+  // ══════════════════════════════════════════════════════════════════════════════════════════
+  //  EL UNICO PUNTO DE ENTRADA DE UNA CONEXION -- y desde 2026-09-07, el unico guardia.
+  //
+  //  ⚠️ `!this.pc` EN EL PUNTO DE LLAMADA NO ES UN GUARDIA, Y NO SE PUEDE VOLVER A CONFIAR EN EL.
+  //  `this.pc` no se asigna hasta despues de dos esperas (una de ellas, credenciales TURN contra
+  //  un servidor en Alemania), asi que durante todo ese tramo vale `null` y CUALQUIER numero de
+  //  invocaciones pasa el filtro a la vez. Los cinco puntos de llamada lo siguen teniendo delante
+  //  y esta bien que lo tengan -- ahorra una llamada en el caso comun -- pero es una optimizacion,
+  //  no una defensa. La defensa esta aqui dentro, donde nadie puede olvidarse de ponerla.
+  //
+  //  `motivo` no es decoracion: cuando esto se descarte o releve a alguien, lo unico que quedara
+  //  en la consola del panel es esa cadena. Sin ella, "se descarto un arranque" no dice cual de
+  //  los cinco caminos lo disparo, que es la mitad util del dato.
+  // ══════════════════════════════════════════════════════════════════════════════════════════
+  async startWebRTC(motivo = 'sin motivo') {
+    const enVuelo = this._arranqueEnVueloGen;
+    // Solo bloquea el que sigue siendo VIGENTE. Un arranque al que ya le han desmontado la sesion
+    // por debajo (p.ej. _scheduleReconnect(), que desmonta y vuelve a arrancar 2 s despues) esta
+    // condenado y no debe frenar a su relevo. Ver el bloque de GENERACION en el constructor.
+    if (enVuelo !== null && enVuelo === this._connGen) {
+      const edad = Date.now() - this._arranqueEnVueloAt;
+      if (edad < ARRANQUE_EN_VUELO_MAX_MS) {
+        console.info(`[islautopia-intercom-card] ya hay un arranque en vuelo (${edad}ms) - se deja terminar, no se lanza otro (${motivo})`);
+        return;
+      }
+      // Fusible (ver ARRANQUE_EN_VUELO_MAX_MS arriba). Se traza como WARN a proposito: si esto
+      // sale en un registro, hay un camino que se cuelga sin plazo propio y hay que arreglarlo
+      // ahi. Esto es la red, no la solucion.
+      console.warn(`[islautopia-intercom-card] el arranque en vuelo lleva ${edad}ms sin resolver - se le releva (${motivo})`);
+    }
+
     // Reutiliza la misma limpieza que disconnectedCallback()/_scheduleReconnect() - defensivo
     // ademas contra el vigilante de vida quedando "colgado" de una sesion anterior si esta
     // funcion se llama de nuevo por otro motivo (p.ej. HA re-renderiza la card).
+    // Y ademas sube la generacion: a partir de esta linea, cualquier arranque anterior en vuelo
+    // queda relevado y recogera lo suyo en vez de escribirlo encima de lo nuestro.
     this._teardownConnectionObjects();
-    await this.startNativeSession();
+    const gen = this._connGen;
+    this._arranqueEnVueloGen = gen;
+    this._arranqueEnVueloAt = Date.now();
+
+    // ⚠️ LA CUENTA ATRAS DE INACTIVIDAD SE ARMA AQUI, Y NO DONDE ESTABA (2026-09-07).
+    //
+    // Vivia dentro de _acquireWakeLock(), DESPUES de conseguir el wake lock -- o sea que colgaba
+    // de algo que en un panel de pared no ocurre nunca. `_acquireWakeLock()` solo se llama al
+    // entrar en pantalla completa, y ademas sale por la primera linea si `navigator.wakeLock` no
+    // existe en esa webview. Resultado: en la Galaxy Tab del salon NO SE ARMABA NINGUN RELOJ, y
+    // por eso las v1.5.0, v1.5.1 y v1.6.0 -- tres versiones seguidas arreglando el plazo -- fallan
+    // las tres identico: no arreglaban el plazo, arreglaban un reloj que no existia.
+    //
+    // Lo delataba una medida que ya estaba sobre la mesa: el `SCREEN_BRIGHT_WAKE_LOCK` que veia
+    // `dumpsys power` era un bloqueo de VENTANA con id fijo y retenido de forma continua -- o sea
+    // que no era nuestro, lo mantenia el propio <video> reproduciendose. Nuestro wake lock no
+    // existia siquiera.
+    //
+    // Soltar la pantalla no depende del wake lock y nunca dependio: al vencer el plazo lo que se
+    // hace es DESMONTAR EL STREAM (ver el temporizador), y al pararse el <video> el navegador
+    // suelta su bloqueo de ventana el solo. Asi que la cuenta tiene que colgar de lo unico que de
+    // verdad la justifica -- que haya sesion -- y eso es exactamente aqui.
+    this._armIdleWakeLockTimer();
+
+    try {
+      await this.startNativeSession(gen);
+    } finally {
+      // Solo lo suelta quien lo cogio. Si otro arranque nos releva mientras esperabamos, el
+      // marcador ya es SUYO y borrarlo aqui abriria de nuevo la puerta a la reentrada.
+      if (this._arranqueEnVueloGen === gen) this._arranqueEnVueloGen = null;
+    }
   }
+
+  // `true` si otro desmontaje o arranque nos ha relevado mientras esperabamos. Quien lo lea tiene
+  // que CERRAR LO SUYO antes de irse: soltarlo sin cerrarlo es exactamente la fuga que todo esto
+  // viene a arreglar -- un WebSocket huerfano ocupa un cliente del relay y, si llego a pedir la
+  // oferta, retiene una de las cuatro plazas del portero para toda la casa.
+  _relevado(gen) { return gen !== this._connGen; }
 
   // ==============================================================================
   // Habla el protocolo propio del doorbell (ICE-Lite + DTLS-SRTP + RTP), directo o vía relay.
@@ -2533,7 +2843,13 @@ class IslautopiaIntercomCard extends HTMLElement {
     }
   }
 
-  async startNativeSession() {
+  async startNativeSession(gen) {
+    // `gen` es la generacion con la que se arranco (ver el bloque de GENERACION en el
+    // constructor). Se comprueba DESPUES DE CADA ESPERA, porque cada una es una ventana en la que
+    // otro disparo puede haber desmontado la sesion y arrancado la suya. Sin esto, esta funcion
+    // escribe su RTCPeerConnection y su WebSocket encima de los del arranque vigente y los deja
+    // abiertos para siempre -- el fallo medido.
+    if (this._relevado(gen)) return;
     this._t0 = performance.now();
     this._mark('startNativeSession: inicio');
     this._registerUnloadHandler();
@@ -2555,7 +2871,10 @@ class IslautopiaIntercomCard extends HTMLElement {
     if (!this._hass || !this._hass.connection) {
       this._hassWaitAttempts = (this._hassWaitAttempts || 0) + 1;
       if (this._hassWaitAttempts <= 20) {
-        setTimeout(() => this.startNativeSession(), 250);
+        // La generacion viaja con el reintento: esta cadena de esperas vive FUERA del `await` de
+        // startWebRTC() (esa promesa ya se resolvio), asi que es justo el tipo de cola que puede
+        // despertar cuando ya manda otro arranque.
+        setTimeout(() => this.startNativeSession(gen), 250);
         return;
       }
       console.error('[islautopia-intercom-card] hass.connection no disponible tras esperar ~5s - no se puede pedir la info de conexion a la integracion islautopia_doorbell');
@@ -2565,7 +2884,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       // de fallo de este fichero debe dejar la card muerta sin ningun camino de recuperacion -
       // si hass.connection sigue sin aparecer, seguimos reintentando con backoff en vez de
       // rendirnos para siempre.
-      this._scheduleReconnect('hass.connection no disponible tras esperar ~5s');
+      this._scheduleReconnect('hass.connection no disponible tras esperar ~5s', gen);
       return;
     }
     this._hassWaitAttempts = 0;
@@ -2575,11 +2894,23 @@ class IslautopiaIntercomCard extends HTMLElement {
         type: 'islautopia_doorbell/get_connection_info',
         device_id: this.config.device_id,
       });
+      // Espera nº1 (WebSocket de HA) superada. Si nos relevaron aqui no hay nada abierto todavia:
+      // basta con no escribir `_connInfo`/`_slot` encima de los del arranque vigente.
+      if (this._relevado(gen)) return;
       this._mark('get_connection_info: respuesta recibida');
       this._connInfo = info;
       this._slot = null;
 
-      this.pc = await this.buildNativePeerConnection();
+      // Espera nº2 (credenciales TURN: HTTPS a Alemania). ESTA es la larga, y la que abria la
+      // ventana del fallo medido. A partir de aqui SI hay objetos que cerrar, asi que un relevo
+      // ya no puede limitarse a salir: tiene que recoger.
+      const pc = await this.buildNativePeerConnection(gen);
+      if (!pc) return;                      // relevados DENTRO de build: no llego a crearse nada
+      if (this._relevado(gen)) {            // relevados en el propio `await` de arriba
+        this._cerrarPeerConnection(pc);
+        return;
+      }
+      this.pc = pc;
       this._mark('buildNativePeerConnection: RTCPeerConnection lista');
 
       // Arranca el vigilante de vida DESDE AQUI - cubre tanto la fase de negociacion (via
@@ -2588,8 +2919,14 @@ class IslautopiaIntercomCard extends HTMLElement {
       this._startLifeWatchdog();
 
       this._mark('tryLocalSignaling: empieza el intento local');
-      const connectedLocally = await this.tryLocalSignaling();
+      const connectedLocally = await this.tryLocalSignaling(gen);
       this._mark(`tryLocalSignaling: terminado (exito=${connectedLocally})`);
+      // ⚠️ ESTE ES EL CONTROL QUE MAS FALTA HACIA, y el que explica la firma medida de tres
+      // conexiones abiertas y una sola cerrada. El camino local tiene un plazo propio de 3 s: un
+      // arranque adelantado se pasa esos 3 s esperando una oferta que no llega, y al terminar
+      // seguia de largo hasta abrir un WebSocket contra el relay -- pisando el `nativeWS` del
+      // arranque bueno, que quedaba huerfano y sin nadie que lo cerrase jamas.
+      if (this._relevado(gen)) return;
       if (!connectedLocally) {
         this._mark('startRelaySignaling: empieza el intento remoto (fallback)');
         // §1.0: este es el tramo que mas tarda y el que peor se explica solo. Caer al relay
@@ -2598,9 +2935,13 @@ class IslautopiaIntercomCard extends HTMLElement {
         // una espera sospechosa en una espera entendida - y de paso avisa de que se esta usando
         // el camino lento, que es informacion util para quien pueda arreglarlo.
         this._flashStatusLine('conn_relay', 6000);
-        await this.startRelaySignaling(info);
+        await this.startRelaySignaling(info, gen);
       }
     } catch (err) {
+      // Un fallo de un arranque ya relevado no es noticia: quien manda es otro, y programar una
+      // reconexion desde aqui tumbaria SU sesion. Se sale en silencio, con lo suyo ya recogido
+      // por los controles de arriba.
+      if (this._relevado(gen)) return;
       // Bug real encontrado y corregido (2026-07-10, ver COORDINATION.md - investigando un
       // "Error" persistente que el lider vio en una card real apuntando a un dispositivo
       // probablemente antiguo/desactivado): este catch es el UNICO punto de fallo de todo el
@@ -2622,11 +2963,14 @@ class IslautopiaIntercomCard extends HTMLElement {
       // decir nada el usuario solo ve "Conectando..." para siempre y no tiene forma de saber que
       // lo que falta es volver a emparejar. Ver _reportPairingRejected().
       if (err && err.code === 'not_found') this._reportPairingRejected('get_connection_info: not_found');
-      this._scheduleReconnect(`fallo iniciando sesion nativa: ${err && err.message ? err.message : err}`);
+      this._scheduleReconnect(`fallo iniciando sesion nativa: ${err && err.message ? err.message : err}`, gen);
     }
   }
 
-  async buildNativePeerConnection() {
+  // Devuelve `null` si nos relevaron mientras se pedian las credenciales TURN. Se comprueba ANTES
+  // de construir nada, asi que en ese caso no hay ni RTCPeerConnection ni AudioContext que cerrar
+  // -- la basura que no se genera no hay que recogerla.
+  async buildNativePeerConnection(gen) {
     // STUN propio por defecto (API_CONTRACT.md §3.1/B11) - sin credencial, siempre disponible.
     let iceServers = [{ urls: 'stun:46.225.57.138:3478' }];
     try {
@@ -2654,11 +2998,23 @@ class IslautopiaIntercomCard extends HTMLElement {
       this._mark('get_turn_credentials: fallo, se sigue solo con STUN');
     }
 
+    // ⚠️ EL CONTROL VA AQUI, ENTRE LA ULTIMA ESPERA Y LA PRIMERA CONSTRUCCION, y no es casualidad:
+    // de esta linea hacia abajo no hay ni un `await`, asi que el resto se ejecuta entero sin que
+    // nadie pueda colarse en medio (JavaScript es de un solo hilo). O construimos siendo los
+    // vigentes, o no construimos nada.
+    if (this._relevado(gen)) {
+      this._mark('buildNativePeerConnection: relevados mientras se pedian las credenciales TURN - no se construye nada');
+      return null;
+    }
+
     const pc = new RTCPeerConnection({ iceServers });
 
     // Pista de audio muda desde el arranque para no bloquear el video detras del dialogo de
     // permiso de microfono; replaceTrack() al activar el interfono (ver toggleIntercom).
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Colgado del propio `pc` para que quien lo cierre pueda cerrar tambien esto, venga del
+    // desmontaje normal o del camino de relevo -- ver _cerrarPeerConnection().
+    pc.__igAudioCtx = audioCtx;
     const dest = audioCtx.createMediaStreamDestination();
     this.dummyAudioTrack = dest.stream.getAudioTracks()[0];
 
@@ -2693,15 +3049,24 @@ class IslautopiaIntercomCard extends HTMLElement {
       `sender.track=${audioSender.track ? audioSender.track.id : 'null'}`
     );
 
-    pc.ontrack = (event) => this.setupRemoteStream(event.streams[0]);
+    // Los tres manejadores llevan el control de generacion delante, y por el mismo motivo en los
+    // tres: `pc.close()` no vacia la cola de eventos ya encolados del navegador. Un `ontrack` de
+    // una sesion relevada pintaria su video encima del bueno; un `onicecandidate` mandaria un
+    // candidato de una negociacion muerta por el canal de la viva.
+    pc.ontrack = (event) => {
+      if (this._relevado(gen)) return;
+      this.setupRemoteStream(event.streams[0]);
+    };
 
     // El dispositivo es ICE-Lite: solo emite su candidato una vez, en el SDP de la oferta -
     // pero SI espera trickle ICE de este lado (API_CONTRACT.md §3.3).
     pc.onicecandidate = (e) => {
+      if (this._relevado(gen)) return;
       if (e.candidate) this.sendNativeSignal({ type: 'candidate', candidate: e.candidate.candidate });
     };
 
     pc.onconnectionstatechange = () => {
+      if (this._relevado(gen)) return;
       this._mark(`RTCPeerConnection.connectionState -> ${pc.connectionState}`);
       // Atajo AGRESIVO (2026-07-10, decision del usuario, ver COORDINATION.md Q19 - mismo
       // criterio que android_app en su propio watchdog): tanto 'failed' COMO 'disconnected'
@@ -2713,7 +3078,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       // despues sin plan B) - ahora SI hay plan B: reconectar, que vuelve a intentar
       // local-primero-luego-remoto desde cero.
       if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-        this._scheduleReconnect(`RTCPeerConnection.connectionState=${pc.connectionState}`);
+        this._scheduleReconnect(`RTCPeerConnection.connectionState=${pc.connectionState}`, gen);
       }
     };
 
@@ -2760,14 +3125,19 @@ class IslautopiaIntercomCard extends HTMLElement {
   // pair_app NO llega nunca al JavaScript del navegador - se queda en el lado servidor de la
   // integracion, que es quien la adjunta al hablar con el portero.
   // ==============================================================================
-  async tryLocalSignaling() {
+  async tryLocalSignaling(gen) {
     if (typeof EventSource === 'undefined') return false;
 
     const proxyUrl = await this._askLocalSignalUrl();
+    // Otra espera, otro control. `_localVia`/`_localBase`/`_localSignedUrl` gobiernan a DONDE
+    // manda sendNativeSignal(): escribirlos desde un arranque relevado desviaria la señalizacion
+    // de la sesion viva a la direccion de una muerta, y eso no se ve como una fuga sino como
+    // "el turno de palabra no funciona".
+    if (this._relevado(gen)) return false;
     if (proxyUrl) {
       this._localVia = 'proxy';
       this._localSignedUrl = proxyUrl;
-      const ok = await this._openLocalSse(proxyUrl, 'proxy');
+      const ok = await this._openLocalSse(proxyUrl, 'proxy', gen);
       if (ok) return true;
       // La SSE no distingue un 401 de un 502 (el navegador no expone el codigo de estado a
       // EventSource), y esa diferencia es justo la que decide entre "vuelve a emparejar" y
@@ -2781,7 +3151,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     const hostname = `${this.config.device_id}.doorbell.islautopia.com`;
     this._localBase = `https://${hostname}:8443`;
     const token = encodeURIComponent(this._connInfo.credential);
-    return this._openLocalSse(`${this._localBase}/webrtc/signal?token=${token}`, 'directo');
+    return this._openLocalSse(`${this._localBase}/webrtc/signal?token=${token}`, 'directo', gen);
   }
 
   // `null` = esta integracion no ofrece el proxy (version anterior) o no sabe de este portero.
@@ -2823,9 +3193,20 @@ class IslautopiaIntercomCard extends HTMLElement {
     }
   }
 
-  _openLocalSse(sseUrl, via) {
+  _openLocalSse(sseUrl, via, gen) {
     return new Promise((resolve) => {
       let settled = false;
+      // ⚠️ REFERENCIA PROPIA AL EventSource, ADEMAS DE `this.nativeSSE` (2026-09-07).
+      //
+      // Todo lo de dentro de esta promesa vive hasta 3 s despues de crearse, y en ese rato la
+      // sesion puede haber sido desmontada y sustituida. Mirando solo `this.nativeSSE` habia dos
+      // formas de hacer daño, y las dos son reales: cerrar el EventSource de OTRO (el del arranque
+      // que nos relevo, dejando la card sin señalizacion local sin que nada lo explique) y poner
+      // `this.nativeSSE = null` sobre el suyo, que es como se fabrica un canal huerfano.
+      //
+      // Con la referencia propia, cada cual cierra lo suyo y solo suelta el hueco global si
+      // todavia lo ocupa el.
+      let es = null;
       let probeTimer = null;
       const probeCtl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
 
@@ -2849,11 +3230,18 @@ class IslautopiaIntercomCard extends HTMLElement {
       // el problema y no donde esta. Si nunca llegamos a tener slot no hay nada que soltar, y el
       // `bye` se ahorra.
       const abandonarLocal = () => {
-        if (!this.nativeSSE) return;
+        if (!es) return;
+        if (this.nativeSSE !== es) {
+          // Ya nos relevaron: el desmontaje que subio la generacion cerro este canal y se despidio
+          // por el. Cerrar otra vez es inofensivo; mandar `bye` NO lo seria, porque saldria por el
+          // camino de la sesion viva con el slot de la viva. Se cierra y punto.
+          try { es.close(); } catch (err) { /* ya cerrado */ }
+          return;
+        }
         if (this._slot !== null) {
           try { this.sendNativeSignal({ type: 'bye' }); } catch (err) { /* best effort */ }
         }
-        this.nativeSSE.close();
+        es.close();
         this.nativeSSE = null;
       };
 
@@ -2863,9 +3251,19 @@ class IslautopiaIntercomCard extends HTMLElement {
         finish(false);
       }, 3000);
 
+      // Ultimo control antes de abrir nada. Si nos relevaron entre el `await` de arriba y aqui,
+      // abrir la SSE gastaria una de las cuatro plazas del portero para una sesion que ya nadie
+      // va a usar -- y el portero solo la recupera sola a los 20 s.
+      if (this._relevado(gen)) {
+        this._mark(`tryLocalSignaling(${via}): relevados antes de abrir la SSE - no se gasta plaza del portero`);
+        finish(false);
+        return;
+      }
+
       this._mark(`tryLocalSignaling(${via}): abriendo EventSource`);
       try {
-        this.nativeSSE = new EventSource(sseUrl);
+        es = new EventSource(sseUrl);
+        this.nativeSSE = es;
       } catch (err) {
         clearTimeout(timeout);
         console.warn('[islautopia-intercom-card] no se pudo abrir EventSource local, cayendo al relay remoto:', err);
@@ -2964,7 +3362,8 @@ class IslautopiaIntercomCard extends HTMLElement {
       // application/json y por tanto NO es una peticion "simple"). Verificado leyendo el
       // firmware real, no asumido. Mantener aqui el diagnostico viejo mandaria a quien depure
       // esto en el futuro directo a una pista falsa - hoy las causas realistas son otras.
-      this.nativeSSE.onerror = () => {
+      es.onerror = () => {
+        if (this._relevado(gen)) { abandonarLocal(); finish(false); return; }
         abandonarLocal();
         if (via === 'proxy') {
           console.warn(
@@ -2989,7 +3388,11 @@ class IslautopiaIntercomCard extends HTMLElement {
         finish(false);
       };
 
-      this.nativeSSE.onmessage = (ev) => {
+      es.onmessage = (ev) => {
+        // Un mensaje que llega por el canal de una sesion relevada no es una señal de vida de
+        // nada, y handleNativeSignal() lo aplicaria sobre el `pc` del arranque VIGENTE -- una
+        // oferta de otra negociacion metida en la buena.
+        if (this._relevado(gen)) { abandonarLocal(); finish(false); return; }
         let msg;
         try { msg = JSON.parse(ev.data); } catch (err) { return; }
         // Cualquier mensaje (incluido el heartbeat) es una señal de vida real del canal de
@@ -3005,23 +3408,49 @@ class IslautopiaIntercomCard extends HTMLElement {
     });
   }
 
-  async startRelaySignaling(info) {
+  // ⚠️ ESTE ES EL WEBSOCKET QUE SE QUEDABA HUERFANO (medido 2026-09-07). Tres arranques a la vez
+  // tras un timbrazo abrian tres WS contra el relay en 0,3 s; `this.nativeWS` se quedaba con el
+  // ultimo y los otros dos seguian abiertos 87 minutos despues, ocupando cliente en el relay y
+  // plaza en el portero. De ahi la firma "de N se cierra exactamente UNA".
+  async startRelaySignaling(info, gen) {
+    // Control ANTES de abrir: lo mas barato es no abrirlo.
+    if (this._relevado(gen)) {
+      this._mark('startRelaySignaling: relevados antes de abrir el WS - no se abre');
+      return;
+    }
     return new Promise((resolve, reject) => {
       const url = `${info.relay_ws_url}?token=${encodeURIComponent(info.credential)}`;
       let opened = false;
       this._mark(`startRelaySignaling: abriendo WS contra ${info.relay_ws_url}`);
-      this.nativeWS = new WebSocket(url);
+      // Referencia propia, por el mismo motivo que la SSE: un WS abierto por un arranque relevado
+      // tiene que cerrarse SOLO, sin tocar `this.nativeWS`, que ya es de otro.
+      const ws = new WebSocket(url);
+      this.nativeWS = ws;
 
-      this.nativeWS.onopen = () => {
+      // La apertura de un WebSocket no tiene plazo propio: puede tardar lo que tarde el TCP en
+      // rendirse. Si en ese rato nos relevan, este manejador es el unico sitio donde queda una
+      // referencia a este socket -- si no cierra aqui, no cierra nunca.
+      ws.onopen = () => {
         opened = true;
+        if (this._relevado(gen)) {
+          this._mark('startRelaySignaling: el WS abrio ya relevados - se cierra en el acto');
+          try { ws.close(); } catch (err) { /* best effort */ }
+          if (this.nativeWS === ws) this.nativeWS = null;
+          resolve();
+          return;
+        }
         this._mark('startRelaySignaling: WS abierto, enviando request_offer');
         this.sendNativeSignal({ type: 'request_offer' });
         resolve();
       };
-      this.nativeWS.onerror = (err) => {
+      ws.onerror = (err) => {
         if (!opened) reject(err);
       };
-      this.nativeWS.onmessage = (ev) => {
+      ws.onmessage = (ev) => {
+        if (this._relevado(gen)) {
+          try { ws.close(); } catch (e) { /* best effort */ }
+          return;
+        }
         let msg;
         try { msg = JSON.parse(ev.data); } catch (err) { return; }
         // Cualquier mensaje del relay es una señal de vida real del canal de señalización -
@@ -3029,7 +3458,10 @@ class IslautopiaIntercomCard extends HTMLElement {
         this._recordLifeSignal();
         this.handleNativeSignal(msg);
       };
-      this.nativeWS.onclose = (ev) => {
+      ws.onclose = (ev) => {
+        // El cierre de un socket relevado es normal (lo cerramos nosotros): ni avisa de
+        // emparejamiento ni pinta "Error" encima de la sesion que SI esta conectando.
+        if (this._relevado(gen)) return;
         // 4401 es el codigo con el que el relay cierra una conexion de cliente cuya credencial de
         // pair_app no es valida o esta revocada, ANTES de unirse a ninguna sesion (§3.2). Es la
         // señal mas precisa que existe de "vuelve a emparejar": el resto de cierres son de red.
@@ -3422,6 +3854,12 @@ class IslautopiaIntercomCard extends HTMLElement {
       // (2026-07-10, ver COORDINATION.md Q19).
       this._recordLifeSignal();
       this._reconnectAttempt = 0;
+      // Hay VIDEO: el segundo sitio donde nace la cuenta atras de inactividad (el otro es
+      // startWebRTC). Y es el que importa de verdad, porque lo que mantiene la pantalla encendida
+      // en el panel de pared no es ningun wake lock nuestro -- es este <video> reproduciendose,
+      // que se lleva el bloqueo de ventana el solo. El plazo es absoluto, asi que rearmar aqui en
+      // cada reconexion NO regala tiempo (v1.5.1).
+      this._armIdleWakeLockTimer();
       // Hay video: sea cual sea el camino, este portero SI acepta esta credencial. Si habia un
       // aviso de emparejamiento rechazado colgado, deja de ser cierto y se retira.
       this._clearPairingRejected();
