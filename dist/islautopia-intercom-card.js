@@ -584,6 +584,12 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._rot = this._recallRotation();
     this._rotConfirmed = false;
 
+    // ---- Carril lateral: histeresis (Iñaki, 2026-09-08) -------------------------------------
+    // Estado de verdad de si el carril esta activo AHORA MISMO - hace falta guardarlo porque la
+    // regla de entrada y la de salida usan umbrales DISTINTOS (ver _layoutRotation): sin saber en
+    // que lado se esta, no se puede saber cual de los dos toca aplicar.
+    this._railActive = false;
+
     this.render();
   }
 
@@ -2430,7 +2436,20 @@ class IslautopiaIntercomCard extends HTMLElement {
   // carril lateral (ver _layoutRotation).
   _applyFeedAspect() {
     if (!this.feedWrap) return;
-    const vertical = (this._rot === 90 || this._rot === 270);
+    // MISMO fallo que el del carril (ver _layoutRotation, 2026-09-08) y la misma correccion: la
+    // forma del marco tiene que decidirla el CONTENIDO ya orientado, no si hay rotacion de
+    // software. Con el sensor entregando la imagen ya vertical (_rot=0, el portero real de
+    // Iñaki), la version vieja `_rot===90||270` daba "horizontal" y el marco se quedaba 16:9 -
+    // una caja panoramica corta para un video que en realidad es vertical, que ademas fabrica un
+    // margen lateral artificial y confunde tambien al carril (medido: en movil vertical+video
+    // vertical sin rotacion, ese marco mal formado hacia saltar el carril en el caso que
+    // EXPLICITAMENTE no debe saltar). Con metadatos ya cargados se usa el contenido de verdad;
+    // sin ellos (arranque, antes de 'loadedmetadata') se usa `_rot` como mejor suposicion y esta
+    // funcion se vuelve a llamar en cuanto lleguen (ver render()).
+    const content = this._contentSize();
+    const vertical = (content.w > 0 && content.h > 0)
+      ? (content.h > content.w)
+      : (this._rot === 90 || this._rot === 270);
     if (this.config.height && this.config.height !== 'auto') {
       this.feedWrap.style.height = this.config.height;
       this.feedWrap.style.aspectRatio = 'unset';
@@ -2446,46 +2465,149 @@ class IslautopiaIntercomCard extends HTMLElement {
   // ancho que se lleva el carril es alto que pierde el video.
   static get RAIL_WIDTH() { return 104; }
 
+  // ============================================================================================
+  // HISTERESIS DE ENTRADA AL CARRIL (Iñaki, 2026-09-08, tras revisar el fix de arriba)
+  //
+  // Con un solo umbral (RAIL_WIDTH), el caso "tablet vertical + video vertical" pasaba raspando:
+  // 116px de sobrante medido contra un umbral de 104px - solo 12px de margen. Eso NO es un
+  // problema de exactitud (la cuenta esta bien hecha), es un problema de ESTABILIDAD: un aparato
+  // real puede dar 116 en un redibujado y 102 en el siguiente por un redondeo de sub-pixel
+  // distinto (el 72vh de _applyFeedAspect y el aspect-ratio del marco ya producen valores
+  // fraccionarios - se ha medido feedWrap.height en 866, 1070.75, 614, 1154... nunca enteros
+  // limpios). Cruzar un umbral unico por 12px es exactamente el rango donde ese ruido decide, y
+  // el sintoma seria botones saltando de banda a carril y de vuelta según el frame que tocara
+  // redibujar - peor que estar mal fijo en un sitio.
+  //
+  // La solucion no es correr el umbral (eso solo desplaza el problema a otro numero), es tener
+  // DOS: entrar exige mas hueco que quedarse. Con RAIL_ENTER_MARGIN = RAIL_WIDTH + 32:
+  //  - El colchon (32px) deja 20px de separacion clara sobre el caso limite medido (116px), muy
+  //    por encima de las fracciones de pixel que causan el ruido real.
+  //  - La tablet vertical (116px) queda por debajo de 136 -> pasa a BANDA. Es la decision, no una
+  //    regresion: con solo 12px de sobrante sobre el ancho del carril, ese sitio es justo, y con
+  //    histeresis "justo" no basta para ENTRAR (si bastaria para no salir, si ya se estuviera
+  //    dentro - pero aqui nunca se llega a entrar).
+  //  - El wallpanel real (~707px de sobrante) y el caso con rotacion (~707px) siguen sobrando de
+  //    largo por cualquiera de los dos umbrales: no cambian.
+  //
+  // _railActive (por-instancia, inicializado en el constructor) es la memoria que hace falta:
+  // sin saber en que lado se esta ahora, no se sabe cual de los dos umbrales toca comparar.
+  static get RAIL_ENTER_MARGIN() { return IslautopiaIntercomCard.RAIL_WIDTH + 32; }
+
+  // Contenido YA ORIENTADO como se veria en pantalla, aplicando la rotacion de software si la
+  // hay: `videoWidth`/`videoHeight` son SIEMPRE la imagen cruda del sensor, tal cual llega, antes
+  // de cualquier `rotate()` en CSS - hay que deshacer/aplicar el intercambio de ejes nosotros
+  // mismos para saber que forma tiene lo que el usuario realmente ve. 0x0 hasta que el <video>
+  // tiene metadatos (ver el listener 'loadedmetadata' en render()).
+  _contentSize() {
+    const v = this.videoEl;
+    const rawW = v ? v.videoWidth : 0;
+    const rawH = v ? v.videoHeight : 0;
+    const rotSwap = (this._rot === 90 || this._rot === 270);
+    return rotSwap ? { w: rawH, h: rawW } : { w: rawW, h: rawH };
+  }
+
   _layoutRotation() {
     if (!this.videoEl || !this.feedWrap) return;
     const v = this.videoEl;
     const w = this.feedWrap.clientWidth;
     const h = this.feedWrap.clientHeight;
-    const vertical = (this._rot === 90 || this._rot === 270);
+    const rotSwap = (this._rot === 90 || this._rot === 270);
 
-    // Carril lateral (§1.9 + §1.7 + §1.9-bis): video vertical dentro de un marco APAISADO. El caso
-    // real es una tablet de pared, que vive en apaisado permanentemente. Hasta 2026-09-07 esto
-    // solo se activaba en pantalla completa, porque solo alli los botones flotaban sobre la
-    // imagen - en modo normal vivian debajo del video, y moverlos encima habria sido rehacer el
-    // diseño en dos sitios a la vez. Iñaki, 2026-09-07: "necesitamos un diseño VERSATIL para
-    // todos los formatos posibles: movil y tablet / vertical y horizontal" - ahora que
-    // .actions-row/.status-line flotan SIEMPRE sobre el video (ver CSS), la condicion que los
-    // limitaba a pantalla completa ya no tiene motivo y se retira: el carril se decide SOLO por
-    // la geometria real del marco, en cualquier modo.
+    // ==========================================================================================
+    // CARRIL LATERAL (§1.9 + §1.7 + §1.9-bis + §1.9-ter): la pregunta correcta NO es "¿estoy
+    // rotando con CSS?" sino "¿me sobra ancho a los lados?". Hasta 2026-09-08 la condicion era
+    // `this._rot === 90 || 270` - o sea que EXIGIA una rotacion de software para activarse. En el
+    // portero real de Iñaki el stream ya llega vertical DESDE EL SENSOR (`_rot` se queda en 0,
+    // nada que rotar) y esa condicion ni se evaluaba: carril nunca saltaba, ni en modo normal ni
+    // en pantalla completa - que es justo donde peor se ve, porque ahi el marco SI es apaisado de
+    // borde a borde y las bandas negras vacias son enormes. Medido en el WebView de Android real
+    // (Galaxy Tab, 2026-09-08): banda inferior tapando imagen en los dos modos.
     //
-    // El caso limite que hay que respetar es el opuesto: movil VERTICAL con video VERTICAL. Ahi
-    // no hay banda negra lateral que aprovechar - el marco entero es vertical, sin ancho de sobra
-    // - y un carril se comeria el poco ancho que hay. `w > h * 1.05` ya lo excluye solo con la
-    // medida: un marco mas alto que ancho nunca cumple esa desigualdad, entre en pantalla completa
-    // o no.
-    const carril = vertical && w > h * 1.05;
-    if (this.content) this.content.classList.toggle('ig-rail', carril);
+    // La imagen ya orientada (aplicando la rotacion si la hay, ver _contentSize()) es la que hay
+    // que comparar contra el marco: si es mas estrecha que el marco a la altura disponible (con
+    // object-fit:contain, que es lo que ya usa el <video>), sobra ancho a los dos lados, y ESE
+    // sobrante es el que puede alojar el carril - haya rotacion de por medio o no.
+    let carril = false;
+    let huecoTrasImagen = 0; // ver "ANCLAJE AL BORDE DE LA IMAGEN" mas abajo
+    const content = this._contentSize();
+    if (content.w > 0 && content.h > 0 && content.h > content.w && w > 0 && h > 0) {
+      // Escalado por ALTURA: con contenido mas estrecho que el marco (el caso que nos ocupa,
+      // vertical dentro de apaisado), object-fit:contain llena el alto entero y el ancho se queda
+      // corto - exactamente el mismo calculo que hace el navegador, hecho aqui para saber CUANTO
+      // sobra antes de reservar nada.
+      const anchoMostrado = content.w * (h / content.h);
+      const sobranteCadaLado = (w - anchoMostrado) / 2;
+      // Histeresis (ver RAIL_ENTER_MARGIN mas arriba): el umbral que toca depende de donde se
+      // esta AHORA. Ya dentro del carril, basta con seguir cabiendo (RAIL_WIDTH, lo que de verdad
+      // ocupa). Fuera del carril, hace falta el colchon extra para entrar - eso es lo que impide
+      // que un sobrante que pasa raspando (medido: 116px, el caso de la tablet vertical) oscile
+      // entre banda y carril de un redibujado a otro.
+      const umbral = this._railActive ? IslautopiaIntercomCard.RAIL_WIDTH : IslautopiaIntercomCard.RAIL_ENTER_MARGIN;
+      carril = sobranteCadaLado >= umbral;
+      // ---- ANCLAJE AL BORDE DE LA IMAGEN, no al del marco (Iñaki, 2026-09-08, tras ver la
+      // captura del wallpanel real) --------------------------------------------------------
+      // El fallo de origen: estas reglas se trajeron de pantalla completa, donde el MARCO ES LA
+      // PANTALLA - alli "pegado al borde derecho del marco" y "pegado a la imagen" son casi lo
+      // mismo. En la card embebida el marco es el ancho del dashboard, ese supuesto desaparece,
+      // y "pegado al marco" deja el carril a ~700px de la imagen en el wallpanel real (medido).
+      //
+      // El video YA NO se encoge para dejarle sitio al carril (ver mas abajo: v.style.width se
+      // deja en '' siempre, y anchoUtil ya no resta RAIL_WIDTH) - siempre ocupa el marco entero y
+      // se centra solo via object-fit:contain, exactamente igual que sin carril. El carril vive
+      // DENTRO del margen que esa centrada natural ya deja vacio a la derecha (el mismo
+      // `sobranteCadaLado` de arriba), pegado al borde real de la imagen, no al del marco.
+      //
+      // `--ig-rail-gap` (variable CSS en .intercom-container, consumida por .actions-row,
+      // .feed-wrap::after y el desplazamiento de .hud-bottom/.status-line en la hoja de estilos)
+      // es el hueco que queda ENTRE el borde derecho del carril y el borde derecho del marco -
+      // "lo que sobra del sobrante" tras reservarle RAIL_WIDTH al propio carril. Con el carril
+      // pegado a right:var(--ig-rail-gap) y ancho RAIL_WIDTH, su borde IZQUIERDO cae exactamente
+      // en `w - sobranteCadaLado`, que es el borde derecho real de la imagen centrada - sin
+      // huecos muertos entre medias, sea cual sea sobranteCadaLado.
+      //
+      // DECISION (Iñaki, 2026-09-08): el bloque imagen+carril NO queda centrado como conjunto en
+      // el marco - la imagen se queda exactamente donde object-fit:contain la centraria SIN
+      // carril (sobranteCadaLado a cada lado), y el carril se añade a continuacion consumiendo
+      // solo del margen derecho. Eso deja ~RAIL_WIDTH de mas vacio a la izquierda que a la
+      // derecha del conjunto (medido en el wallpanel real: ~707px vs ~603px). NO SE COMPENSA A
+      // PROPOSITO: la unica forma de centrar el conjunto seria desplazar la imagen del centro del
+      // marco, y en un videoportero la imagen centrada vale mas que el conjunto centrado - los
+      // ~104px de diferencia apenas se notan, pero mover la imagen de su centro SI se notaria,
+      // siempre, en cada arranque. Si esta asimetria "se ve mal" en una revision futura, la
+      // respuesta no es recentrar aqui: es la que ya se dio una vez.
+      if (carril) huecoTrasImagen = Math.max(0, sobranteCadaLado - IslautopiaIntercomCard.RAIL_WIDTH);
+    }
+    this._railActive = carril;
+    if (this.content) {
+      this.content.classList.toggle('ig-rail', carril);
+      this.content.style.setProperty('--ig-rail-gap', `${huecoTrasImagen}px`);
+      // Se expone tambien el ancho del carril como variable (no solo el hueco tras el): la hoja
+      // de estilos necesita `gap + RAIL_WIDTH` para llegar al borde IZQUIERDO de la imagen (ver
+      // .status-line mas abajo) y calcularlo con un "104" suelto en la hoja de estilos seria
+      // duplicar la constante - justo el tipo de numero que se desincroniza si alguien cambia
+      // RAIL_WIDTH aqui y no se acuerda de tocar el otro sitio.
+      this.content.style.setProperty('--ig-rail-width', `${IslautopiaIntercomCard.RAIL_WIDTH}px`);
+    }
 
-    if (!vertical) {
+    if (!rotSwap) {
+      // Sin rotacion de software: el <video> no necesita medida en JS, con carril o sin el - lo
+      // resuelve `width/height:100%; object-fit:contain` de la hoja de estilos siempre igual. El
+      // carril no le quita sitio al video (ver el bloque de arriba): vive en el margen que
+      // object-fit ya deja vacio de forma natural.
+      v.style.position = '';
+      v.style.left = ''; v.style.top = '';
+      v.style.transform = this._rot === 180 ? 'rotate(180deg)' : '';
       v.style.width = '';
       v.style.height = '';
-      v.style.position = '';
-      v.style.left = '';
-      v.style.top = '';
-      v.style.transform = this._rot === 180 ? 'rotate(180deg)' : '';
       return;
     }
     if (!w || !h) return; // aun sin layout (card oculta, pestaña en segundo plano): ya volvera el RO
 
     // La caja se declara con el ancho y el alto INTERCAMBIADOS y se gira sobre su centro: tras el
-    // giro ocupa exactamente el hueco disponible, y `object-fit: contain` centra dentro la imagen
-    // vertical sin recortar nada.
-    const anchoUtil = Math.max(80, w - (carril ? IslautopiaIntercomCard.RAIL_WIDTH : 0));
+    // giro ocupa exactamente el marco COMPLETO (anchoUtil ya no resta RAIL_WIDTH: el carril no le
+    // quita sitio al video, ver el bloque de arriba), y `object-fit: contain` centra dentro la
+    // imagen vertical sin recortar nada - el carril vive en el margen que esa centrada ya deja.
+    const anchoUtil = Math.max(80, w);
     v.style.position = 'absolute';
     v.style.width = `${h}px`;
     v.style.height = `${anchoUtil}px`;
@@ -2663,6 +2785,16 @@ class IslautopiaIntercomCard extends HTMLElement {
       // una comparacion de cadenas: _confirmLiveFromMedia() sale en la primera linea salvo que el
       // chip este realmente equivocado.
       this.videoEl.addEventListener('timeupdate', () => this._confirmLiveFromMedia());
+
+      // El carril lateral (ver _layoutRotation) Y la forma del marco (ver _applyFeedAspect)
+      // deciden mirando videoWidth/videoHeight, que valen 0x0 hasta que el <video> tiene
+      // metadatos - sin este par de listeners, un arranque real (donde las dos funciones se
+      // llaman ANTES de que lleguen) se quedaria con la suposicion de arranque para siempre,
+      // exactamente el sintoma que motivo esta reescritura (medido en el Galaxy Tab real,
+      // 2026-09-08). 'resize' cubre ademas un cambio de resolucion EN CALIENTE (p.ej. el selector
+      // de calidad, §1.4-ter #3) despues de que ya hubiera metadatos.
+      this.videoEl.addEventListener('loadedmetadata', () => { this._applyFeedAspect(); this._layoutRotation(); });
+      this.videoEl.addEventListener('resize', () => { this._applyFeedAspect(); this._layoutRotation(); });
 
       this._registerFullscreenListeners();
       this._applyDoorAvailability();
@@ -4444,22 +4576,51 @@ class IslautopiaIntercomCard extends HTMLElement {
          flotan SIEMPRE (ver .actions-row/.status-line mas arriba), el carril tiene que poder
          aparecer tambien en modo normal - es literalmente el mismo wallpanel en apaisado, la
          card nunca sale de ese modo. La decision de CUANDO sigue siendo solo de _layoutRotation()
-         (geometria real), no de esta hoja. */
+         (geometria real), no de esta hoja.
+
+         --ig-rail-gap (Iñaki, 2026-09-08, tras ver el wallpanel real: "Debería tener la imagen
+         en toda la altura, tomando el lateral para los botones" - el carril quedaba pegado al
+         BORDE DEL MARCO, a ~700px de la imagen, porque esta seccion se trajo de pantalla completa
+         sin el supuesto que alli la hacia correcta: que el marco ES la pantalla, asi que "pegado
+         al marco" y "pegado a la imagen" eran casi lo mismo. En la card embebida no lo son.
+         _layoutRotation() calcula cuanto sobra a la derecha de la imagen YA CENTRADA una vez
+         reservado el ancho del propio carril, y lo escribe aqui como variable - con right:
+         var(--ig-rail-gap) en vez de right:0, el carril (y su velo, y el hueco que le deja el
+         HUD) se pegan al borde REAL de la imagen sea cual sea el ancho del marco, en vez de al
+         borde del marco. El valor por defecto (0px) es el caso pantalla-completa: alli el margen
+         es minimo por construccion, asi que el comportamiento no cambia (o cambia poco). */
       .intercom-container.ig-rail .actions-row {
-        left: auto; right: 0; bottom: auto; top: 50%;
+        left: auto; right: var(--ig-rail-gap, 0px); bottom: auto; top: 50%;
         transform: translateY(-50%);
         width: 104px; flex-direction: column; align-items: center; gap: 22px;
       }
       /* El velo de legibilidad pasa de la banda inferior al lateral, que es donde estan ahora los
-         controles. */
+         controles - y viaja CON el carril (mismo right: var(--ig-rail-gap)), para no quedar
+         iluminando un trozo de negro vacio mientras los botones se leen sobre nada. */
       .intercom-container.ig-rail .feed-wrap::after {
-        left: auto; right: 0; top: 0; bottom: 0; width: 168px; height: auto;
+        left: auto; right: var(--ig-rail-gap, 0px); top: 0; bottom: 0; width: 168px; height: auto;
         background: linear-gradient(90deg, transparent, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.72));
       }
-      /* La linea de estado vuelve abajo del todo: encima de los botones ya no hay botones. */
-      .intercom-container.ig-rail .status-line { bottom: 14px; right: 112px; left: 0; }
-      /* Y el cluster del HUD se aparta del carril para no solaparse con el. */
-      .intercom-container.ig-rail .hud-bottom { right: 118px; bottom: 12px; }
+      /* La linea de estado vuelve abajo del todo: encima de los botones ya no hay botones.
+         Iñaki, 2026-09-08, tras ver "System idle" flotando a la izquierda del video en la
+         captura del wallpanel: el left:0 de esta regla es EL MISMO fallo que el del carril,
+         sobreviviendo en otro elemento - anclado al borde del MARCO en vez de al de la IMAGEN. Y
+         no es cosmetico: es la linea que dice "Puerta abierta" o "canal ocupado", justo lo que
+         hay que leer con alguien esperando en la puerta.
+         gap + RAIL_WIDTH es exactamente sobranteCadaLado (el margen que la imagen centrada ya
+         deja a cada lado, ver _layoutRotation) - con left Y right a esa misma distancia de
+         cada borde del marco, la caja de la linea de estado mide EXACTO el ancho de la imagen, no
+         el del marco. El right ya sumaba el hueco (112px de despeje respecto al borde del
+         carril, que es un desplazamiento relativo al CARRIL y sigue siendo valido tal cual). */
+      .intercom-container.ig-rail .status-line {
+        bottom: 14px;
+        left: calc(var(--ig-rail-gap, 0px) + var(--ig-rail-width, 104px));
+        right: calc(112px + var(--ig-rail-gap, 0px));
+      }
+      /* Y el cluster del HUD se aparta del carril para no solaparse con el - mismo razonamiento
+         que la linea de estado: el desplazamiento fijo (118px) era para el carril pegado al
+         marco, y ahora hay que sumarle el hueco que el carril deja hasta el marco. */
+      .intercom-container.ig-rail .hud-bottom { right: calc(118px + var(--ig-rail-gap, 0px)); bottom: 12px; }
 
       /* Nivel 2: respaldo propio. El tamano lo dan 'inset: 0' y 'width/height: auto', NO unidades
          de viewport, y eso es deliberado: '100vw' INCLUYE la barra de desplazamiento y el bloque
