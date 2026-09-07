@@ -2430,7 +2430,20 @@ class IslautopiaIntercomCard extends HTMLElement {
   // carril lateral (ver _layoutRotation).
   _applyFeedAspect() {
     if (!this.feedWrap) return;
-    const vertical = (this._rot === 90 || this._rot === 270);
+    // MISMO fallo que el del carril (ver _layoutRotation, 2026-09-08) y la misma correccion: la
+    // forma del marco tiene que decidirla el CONTENIDO ya orientado, no si hay rotacion de
+    // software. Con el sensor entregando la imagen ya vertical (_rot=0, el portero real de
+    // Iñaki), la version vieja `_rot===90||270` daba "horizontal" y el marco se quedaba 16:9 -
+    // una caja panoramica corta para un video que en realidad es vertical, que ademas fabrica un
+    // margen lateral artificial y confunde tambien al carril (medido: en movil vertical+video
+    // vertical sin rotacion, ese marco mal formado hacia saltar el carril en el caso que
+    // EXPLICITAMENTE no debe saltar). Con metadatos ya cargados se usa el contenido de verdad;
+    // sin ellos (arranque, antes de 'loadedmetadata') se usa `_rot` como mejor suposicion y esta
+    // funcion se vuelve a llamar en cuanto lleguen (ver render()).
+    const content = this._contentSize();
+    const vertical = (content.w > 0 && content.h > 0)
+      ? (content.h > content.w)
+      : (this._rot === 90 || this._rot === 270);
     if (this.config.height && this.config.height !== 'auto') {
       this.feedWrap.style.height = this.config.height;
       this.feedWrap.style.aspectRatio = 'unset';
@@ -2446,38 +2459,68 @@ class IslautopiaIntercomCard extends HTMLElement {
   // ancho que se lleva el carril es alto que pierde el video.
   static get RAIL_WIDTH() { return 104; }
 
+  // Contenido YA ORIENTADO como se veria en pantalla, aplicando la rotacion de software si la
+  // hay: `videoWidth`/`videoHeight` son SIEMPRE la imagen cruda del sensor, tal cual llega, antes
+  // de cualquier `rotate()` en CSS - hay que deshacer/aplicar el intercambio de ejes nosotros
+  // mismos para saber que forma tiene lo que el usuario realmente ve. 0x0 hasta que el <video>
+  // tiene metadatos (ver el listener 'loadedmetadata' en render()).
+  _contentSize() {
+    const v = this.videoEl;
+    const rawW = v ? v.videoWidth : 0;
+    const rawH = v ? v.videoHeight : 0;
+    const rotSwap = (this._rot === 90 || this._rot === 270);
+    return rotSwap ? { w: rawH, h: rawW } : { w: rawW, h: rawH };
+  }
+
   _layoutRotation() {
     if (!this.videoEl || !this.feedWrap) return;
     const v = this.videoEl;
     const w = this.feedWrap.clientWidth;
     const h = this.feedWrap.clientHeight;
-    const vertical = (this._rot === 90 || this._rot === 270);
+    const rotSwap = (this._rot === 90 || this._rot === 270);
 
-    // Carril lateral (§1.9 + §1.7 + §1.9-bis): video vertical dentro de un marco APAISADO. El caso
-    // real es una tablet de pared, que vive en apaisado permanentemente. Hasta 2026-09-07 esto
-    // solo se activaba en pantalla completa, porque solo alli los botones flotaban sobre la
-    // imagen - en modo normal vivian debajo del video, y moverlos encima habria sido rehacer el
-    // diseño en dos sitios a la vez. Iñaki, 2026-09-07: "necesitamos un diseño VERSATIL para
-    // todos los formatos posibles: movil y tablet / vertical y horizontal" - ahora que
-    // .actions-row/.status-line flotan SIEMPRE sobre el video (ver CSS), la condicion que los
-    // limitaba a pantalla completa ya no tiene motivo y se retira: el carril se decide SOLO por
-    // la geometria real del marco, en cualquier modo.
+    // ==========================================================================================
+    // CARRIL LATERAL (§1.9 + §1.7 + §1.9-bis + §1.9-ter): la pregunta correcta NO es "¿estoy
+    // rotando con CSS?" sino "¿me sobra ancho a los lados?". Hasta 2026-09-08 la condicion era
+    // `this._rot === 90 || 270` - o sea que EXIGIA una rotacion de software para activarse. En el
+    // portero real de Iñaki el stream ya llega vertical DESDE EL SENSOR (`_rot` se queda en 0,
+    // nada que rotar) y esa condicion ni se evaluaba: carril nunca saltaba, ni en modo normal ni
+    // en pantalla completa - que es justo donde peor se ve, porque ahi el marco SI es apaisado de
+    // borde a borde y las bandas negras vacias son enormes. Medido en el WebView de Android real
+    // (Galaxy Tab, 2026-09-08): banda inferior tapando imagen en los dos modos.
     //
-    // El caso limite que hay que respetar es el opuesto: movil VERTICAL con video VERTICAL. Ahi
-    // no hay banda negra lateral que aprovechar - el marco entero es vertical, sin ancho de sobra
-    // - y un carril se comeria el poco ancho que hay. `w > h * 1.05` ya lo excluye solo con la
-    // medida: un marco mas alto que ancho nunca cumple esa desigualdad, entre en pantalla completa
-    // o no.
-    const carril = vertical && w > h * 1.05;
+    // La imagen ya orientada (aplicando la rotacion si la hay, ver _contentSize()) es la que hay
+    // que comparar contra el marco: si es mas estrecha que el marco a la altura disponible (con
+    // object-fit:contain, que es lo que ya usa el <video>), sobra ancho a los dos lados, y ESE
+    // sobrante es el que puede alojar el carril - haya rotacion de por medio o no.
+    let carril = false;
+    const content = this._contentSize();
+    if (content.w > 0 && content.h > 0 && content.h > content.w && w > 0 && h > 0) {
+      // Escalado por ALTURA: con contenido mas estrecho que el marco (el caso que nos ocupa,
+      // vertical dentro de apaisado), object-fit:contain llena el alto entero y el ancho se queda
+      // corto - exactamente el mismo calculo que hace el navegador, hecho aqui para saber CUANTO
+      // sobra antes de reservar nada.
+      const anchoMostrado = content.w * (h / content.h);
+      const sobranteCadaLado = (w - anchoMostrado) / 2;
+      // El carril tiene que CABER de verdad: si el sobrante es mas estrecho que el objetivo
+      // tactil (RAIL_WIDTH), no hay carril aunque la proporcion invite - esto es lo que excluye
+      // el movil vertical+video vertical SIN necesitar un caso especial para el, con el mismo
+      // numero (RAIL_WIDTH) que ya define cuanto ocupa el carril cuando si aparece.
+      carril = sobranteCadaLado >= IslautopiaIntercomCard.RAIL_WIDTH;
+    }
     if (this.content) this.content.classList.toggle('ig-rail', carril);
 
-    if (!vertical) {
-      v.style.width = '';
-      v.style.height = '';
+    if (!rotSwap) {
+      // Sin rotacion de software: el <video> no necesita medida en JS para su caso normal (lo
+      // resuelve `width/height:100%; object-fit:contain` de la hoja de estilos). Lo unico que
+      // hace falta aqui es dejarle MENOS ancho cuando hay carril, para que dexe libre a la
+      // derecha exactamente RAIL_WIDTH - el resto (centrar el contenido dentro de ese ancho,
+      // letterboxing si hiciera falta) lo sigue haciendo object-fit solo.
       v.style.position = '';
-      v.style.left = '';
-      v.style.top = '';
+      v.style.left = ''; v.style.top = '';
       v.style.transform = this._rot === 180 ? 'rotate(180deg)' : '';
+      v.style.height = '';
+      v.style.width = carril ? `${Math.max(80, w - IslautopiaIntercomCard.RAIL_WIDTH)}px` : '';
       return;
     }
     if (!w || !h) return; // aun sin layout (card oculta, pestaña en segundo plano): ya volvera el RO
@@ -2663,6 +2706,16 @@ class IslautopiaIntercomCard extends HTMLElement {
       // una comparacion de cadenas: _confirmLiveFromMedia() sale en la primera linea salvo que el
       // chip este realmente equivocado.
       this.videoEl.addEventListener('timeupdate', () => this._confirmLiveFromMedia());
+
+      // El carril lateral (ver _layoutRotation) Y la forma del marco (ver _applyFeedAspect)
+      // deciden mirando videoWidth/videoHeight, que valen 0x0 hasta que el <video> tiene
+      // metadatos - sin este par de listeners, un arranque real (donde las dos funciones se
+      // llaman ANTES de que lleguen) se quedaria con la suposicion de arranque para siempre,
+      // exactamente el sintoma que motivo esta reescritura (medido en el Galaxy Tab real,
+      // 2026-09-08). 'resize' cubre ademas un cambio de resolucion EN CALIENTE (p.ej. el selector
+      // de calidad, §1.4-ter #3) despues de que ya hubiera metadatos.
+      this.videoEl.addEventListener('loadedmetadata', () => { this._applyFeedAspect(); this._layoutRotation(); });
+      this.videoEl.addEventListener('resize', () => { this._applyFeedAspect(); this._layoutRotation(); });
 
       this._registerFullscreenListeners();
       this._applyDoorAvailability();
