@@ -349,7 +349,14 @@ async function ejecutar(src, mostrar) {
       await esperar(100);
       c._onIdleActivity();
     }
-    comp('tras 1,2s de toques con plazo de 0,25s, la sesion SIGUE viva', !!c.pc && !c.pc.cerrado);
+    // ⚠️ SE CUENTAN LAS SESIONES ABIERTAS, NO SE MIRA EL ESTADO FINAL, y la diferencia es todo el
+    // caso. La primera version comprobaba `!!c.pc` al terminar, y eso lo pasaba tambien una card
+    // que suelta el video a mitad y lo repone en el toque siguiente: `pc` vuelve a existir, la
+    // comprobacion sale verde, y el usuario ha visto un recuadro negro igual. Contando cuantas
+    // sesiones se han llegado a construir, "se solto y volvio" ya no se puede disfrazar de "nunca
+    // se solto". (Encontrado precisamente porque el mutante de mas abajo pasaba este caso.)
+    comp(`tras 1,2s de toques con plazo de 0,25s NO se solto ni una vez (sesiones construidas: ${e.censo.pc.length})`, e.censo.pc.length === 1 && e.censo.ws.length === 1);
+    comp('  -> la sesion sigue viva', !!c.pc && !c.pc.cerrado);
     comp('  -> y no se marco como soltada', !c._streamPausedByHide);
     c._teardownConnectionObjects();
     if (c._idleWakeLockTimer) clearTimeout(c._idleWakeLockTimer);
@@ -363,6 +370,13 @@ async function ejecutar(src, mostrar) {
 //  Sin esto, un mutante cuyo ancla no casa saldria identico al original -- y entonces el control
 //  positivo diria "el mutante falla igual que el bueno... o sea que pasa", en silencio.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
+// El dist se guarda con finales de linea de Windows y `git show` los entrega con finales Unix. Sin
+// esto, cualquier ancla que abarque mas de una linea no casa JAMAS contra el fichero de disco -- y
+// lo unico que impidio que eso pasara inadvertido fue la guarda de `mutar()`: sin ella, un mutante
+// cuyo ancla no casa sale IDENTICO al original, o sea un control positivo que no controla nada y
+// que ademas dice OK.
+const normalizarFinales = (t) => t.split('\r\n').join('\n');
+
 function mutar(src, ancla, reemplazo, nombre) {
   const n = src.split(ancla).length - 1;
   if (n !== 1) throw new Error(`mutante "${nombre}": el ancla aparece ${n} veces, no 1 - ABORTADO`);
@@ -379,7 +393,12 @@ function mutar(src, ancla, reemplazo, nombre) {
     process.exit(r.fallos.length === 0 ? 0 : 1);
   }
 
-  const src = fs.readFileSync(rutaDist, 'utf8');
+  // ⚠️ CRLF -> LF AL LEER. El dist se guarda con finales de linea de Windows y `git show` los
+  // entrega con finales Unix. Sin normalizar, las anclas de los mutantes que abarcan mas de una
+  // linea no casan JAMAS -- y `mutar()` aborta a gritos, que es lo que paso la primera vez. Sin la
+  // guarda de `mutar()` habrian pasado como mutantes... identicos al original, o sea controles
+  // positivos que no controlan nada.
+  const src = normalizarFinales(fs.readFileSync(rutaDist, 'utf8'));
   let mal = 0;
 
   console.log('\n############ EL FICHERO DE VERDAD ############');
