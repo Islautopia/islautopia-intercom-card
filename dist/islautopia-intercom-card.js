@@ -16,7 +16,7 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_BUILD_ID = '2026-09-07-generacion-de-conexion-y-el-reloj-de-inactividad-existe';
+const CARD_BUILD_ID = '2026-09-07-al-vencer-se-suelta-tambien-el-elemento-video';
 
 // ⚠️ ESTA MARCA VIVE EN EL MODULO Y NO EN EL ELEMENTO, Y ESA ES TODA LA GRACIA (2026-09-07).
 //
@@ -2113,6 +2113,25 @@ class IslautopiaIntercomCard extends HTMLElement {
       if (!this.pc && !this._reconnecting) return;
       console.info('[islautopia-intercom-card] sin interacción: se suelta el vídeo para que la pantalla pueda apagarse');
       this._streamPausedByHide = true;      // mismo camino de vuelta que al ocultarse
+      // ⚠️ CERRAR EL PEER NO BASTA: HAY QUE SOLTAR EL <video> (2026-09-07).
+      //
+      // Medido en la tablet con `dumpsys power`, y con una prueba que no deja lugar a dudas: al
+      // vencer la inactividad el `AudioMix` DESAPARECE —el peer se cierra bien— y aun asi el
+      // `SCREEN_BRIGHT_WAKE_LOCK 'WindowManager/displayId:0'` sigue retenido y la pantalla Awake
+      // pasados 100 s. Con el peer YA cerrado, navegar a otra vista lo tira **al instante**.
+      //
+      // O sea que ese bloqueo lo mantiene **el elemento `<video>`**, no la card ni la app. Cerrar la
+      // `RTCPeerConnection` termina las pistas, pero un `<video>` con su `srcObject` puesto **sigue
+      // contando como "reproduciendo"** para el navegador hasta que se desmonta o se le quita la
+      // fuente. Y este es justo el aparato donde no se puede desmontar: la vista sigue delante.
+      //
+      // Solo se hace AQUI, en el camino de inactividad. En `_teardownConnectionObjects()` seria un
+      // negro visible en cada reconexion -- hoy una reconexion conserva el ultimo fotograma, y
+      // perder eso para arreglar un panel de pared seria cambiar un fallo por otro.
+      if (this.videoEl) {
+        try { this.videoEl.pause(); } catch (err) { /* best effort */ }
+        this.videoEl.srcObject = null;
+      }
       this._clearReconnectTimer();
       this._reconnecting = false;
       this._clearOffscreenTimer();
