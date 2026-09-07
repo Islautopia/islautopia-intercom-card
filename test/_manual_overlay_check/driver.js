@@ -196,10 +196,87 @@ async function positiveControl(browser) {
   return { overlapBefore, overlapAfter, veredicto };
 }
 
+// ================================================================================================
+// PRUEBA DE HISTERESIS (Iñaki, 2026-09-08): mide lo que la histeresis existe para impedir, no solo
+// que el codigo la implemente. Fija contenido (720x1280) y ALTO de marco (866px, el mismo que el
+// wallpanel real) por estilo en linea directamente sobre feedWrap -- asi el ANCHO es la unica
+// variable, y el "sobrante a cada lado" (lo que decide el carril) es una funcion lineal exacta de
+// ese ancho: sobrante = (w - 720*(866/1280)) / 2 = (w - 487.03) / 2.
+//
+// Umbrales: RAIL_WIDTH=104 (salir/quedarse), RAIL_ENTER_MARGIN=136 (entrar). Anchos elegidos para
+// que el sobrante caiga limpiamente en cada zona:
+//   w=650 -> sobrante= 81.5  (< 104, banda segura)
+//   w=720 -> sobrante=116.5  (entre 104 y 136, ZONA MUERTA -- aqui es donde un umbral unico oscila)
+//   w=800 -> sobrante=156.5  (> 136, carril seguro)
+async function hysteresisTest(browser) {
+  console.log('\n========== PRUEBA DE HISTERESIS: cruzar el umbral arriba y abajo, y jitter en la zona muerta ==========');
+  const page = await newPage(browser, { width: 1920, height: 1200 });
+  const id = 'hyst';
+  await page.evaluate((id) => { window.tCreateCard(id, {}); window.tAttach(id); }, id);
+  await sleep(150);
+  await page.evaluate((id) => { window.__cards[id]._applyRotation(0); }, id);
+  await feedRealVideo(page, id, { rawW: 720, rawH: 1280, label: 'HYST', color: '#455A64' });
+  await sleep(150);
+
+  async function setWidthAndRead(w) {
+    return page.evaluate(({ id, w }) => {
+      const card = window.__cards[id];
+      card.feedWrap.style.height = '866px';
+      card.feedWrap.style.width = `${w}px`;
+      card._layoutRotation();
+      return { w, isRail: card.content.classList.contains('ig-rail'), railActive: card._railActive };
+    }, { id, w });
+  }
+
+  const secuencia = [650, 720, 800, 720, 650];
+  const esperado = [false, false, true, true, false];
+  const nombres = ['banda segura', 'zona muerta (1a vez, viniendo de banda)', 'carril seguro', 'zona muerta (2a vez, viniendo de carril)', 'banda segura'];
+  let secuenciaOk = true;
+  for (let i = 0; i < secuencia.length; i++) {
+    const r = await setWidthAndRead(secuencia[i]);
+    const ok = r.isRail === esperado[i];
+    if (!ok) secuenciaOk = false;
+    console.log(`  w=${secuencia[i]}px (${nombres[i]}): isRail=${r.isRail}  esperado=${esperado[i]}  ${ok ? 'OK' : 'FALLO'}`);
+  }
+  console.log(`=> Secuencia direccional (el mismo ancho 720 da resultados distintos segun por donde se llega): ${secuenciaOk ? 'OK -- histeresis confirmada' : 'FALLO'}`);
+
+  // Jitter DENTRO de la zona muerta (sobrante entre 104 y 136, w entre ~695 y ~759), arrancando
+  // desde CARRIL (tras el w=800 de arriba) - si hubiera flicker, algun toggle apareceria aqui.
+  console.log('  -- jitter en la zona muerta partiendo de CARRIL (10 anchos aleatorios, w entre 700-755) --');
+  let cambiosCarril = 0;
+  let estadoPrevio = (await setWidthAndRead(800)).isRail; // asegura partir de carril
+  for (let i = 0; i < 10; i++) {
+    const w = 700 + Math.floor(Math.random() * 55); // 700..754 -> sobrante ~106.5..133.5, dentro de (104,136)
+    const r = await setWidthAndRead(w);
+    if (r.isRail !== estadoPrevio) cambiosCarril++;
+    estadoPrevio = r.isRail;
+  }
+  console.log(`  cambios de estado durante el jitter partiendo de carril: ${cambiosCarril} (debe ser 0)`);
+
+  console.log('  -- jitter en la zona muerta partiendo de BANDA (10 anchos aleatorios, w entre 700-755) --');
+  let cambiosBanda = 0;
+  estadoPrevio = (await setWidthAndRead(650)).isRail; // asegura partir de banda
+  for (let i = 0; i < 10; i++) {
+    const w = 700 + Math.floor(Math.random() * 55);
+    const r = await setWidthAndRead(w);
+    if (r.isRail !== estadoPrevio) cambiosBanda++;
+    estadoPrevio = r.isRail;
+  }
+  console.log(`  cambios de estado durante el jitter partiendo de banda: ${cambiosBanda} (debe ser 0)`);
+
+  const veredicto = (secuenciaOk && cambiosCarril === 0 && cambiosBanda === 0)
+    ? 'HISTERESIS OK: sin parpadeo en la zona muerta, y el mismo ancho da resultados distintos segun el historial'
+    : 'HISTERESIS FALLO: hay parpadeo o la secuencia direccional no salio como se esperaba';
+  console.log('=>', veredicto);
+  await page.close();
+  return { secuenciaOk, cambiosCarril, cambiosBanda, veredicto };
+}
+
 async function main() {
   const browser = await chromium.launch({ executablePath: EXE, headless: true });
 
   const ctrl = await positiveControl(browser);
+  const hyst = await hysteresisTest(browser);
   const results = [];
 
   // ============ MATRIZ 2x2, TODA CON _rot=0 (SIN rotacion de software) ============
@@ -248,6 +325,7 @@ async function main() {
 
   console.log('\n\n================ RESUMEN ================');
   console.log('control positivo:', ctrl.veredicto);
+  console.log('histeresis:', hyst.veredicto);
   for (const r of results) {
     console.log(`${r.name}: isRail=${r.m.isRail} contained_actions=${r.containedActions} contained_status=${r.containedStatus} no_overlap_real=${!r.overlapReal} no_vscroll=${r.noVScroll}`);
   }
