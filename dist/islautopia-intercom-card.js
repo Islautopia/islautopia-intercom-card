@@ -16,7 +16,25 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_BUILD_ID = '2026-09-06-la-cuenta-atras-solo-la-reinicia-un-dedo';
+const CARD_BUILD_ID = '2026-09-07-el-plazo-de-inactividad-es-absoluto';
+
+// ⚠️ ESTA MARCA VIVE EN EL MODULO Y NO EN EL ELEMENTO, Y ESA ES TODA LA GRACIA (2026-09-07).
+//
+// La cuenta atras de inactividad ya no se rearmaba con cada reconexion del stream (v1.5.1), y aun
+// asi seguia sin dispararse en el panel de pared. La sesion de HASS lo midio: con
+// `idle_release_seconds: 60`, a los 80 s los wake locks seguian retenidos.
+//
+// Su hipotesis, y era la buena: **si Home Assistant destruye y recrea el elemento de la card en la
+// reconexion, la instancia nueva arranca su propia cuenta desde cero.** Todo el estado vivia en
+// `this`, asi que el arreglo anterior cubria "rearmar el mismo temporizador" y NO cubria "instancia
+// nueva con temporizador nuevo". Con reconexiones cada 30-45 s, un plazo de 60 no llega nunca.
+//
+// La solucion no es guardar el temporizador, es **cambiar lo que significa el plazo**: pasa de ser
+// relativo ("60 s desde que lo armo") a absoluto ("60 s desde el ultimo dedo"). Con un instante de
+// referencia que sobrevive al elemento, rearmar y recrear dejan de importar los dos a la vez --
+// y una instancia nueva que nace cuando ya han pasado 60 s suelta INMEDIATAMENTE, en vez de
+// regalar otro minuto.
+let ULTIMA_INTERACCION_MS = Date.now();
 console.log(`[islautopia-intercom-card] modulo cargado - build=${CARD_BUILD_ID} (compara este valor contra CARD_BUILD_ID en el repo si tienes dudas de si el navegador esta sirviendo una copia cacheada vieja)`);
 
 // Diccionario global de traducciones para Tarjeta y Editor (Top 9 Idiomas + HA Community)
@@ -1840,10 +1858,13 @@ class IslautopiaIntercomCard extends HTMLElement {
   // Solo la interaccion reinicia. El ciclo de vida del stream arma la cuenta si no habia ninguna,
   // pero no la toca si ya esta corriendo.
   _armIdleWakeLockTimer(reiniciar = false) {
-    if (!reiniciar && this._idleWakeLockTimer) return;
+    if (reiniciar) ULTIMA_INTERACCION_MS = Date.now();
     this._clearIdleWakeLockTimer();
     if (!this._idleReleaseMs) return;                 // 0 = desactivado (telefonos)
     this._registerIdleActivityListeners();
+    // El plazo es ABSOLUTO desde la ultima interaccion real, no desde esta llamada. Rearmarlo no
+    // regala tiempo, y una instancia recien creada hereda lo que de verdad queda.
+    const restante = this._idleReleaseMs - (Date.now() - ULTIMA_INTERACCION_MS);
     this._idleWakeLockTimer = setTimeout(() => {
       this._idleWakeLockTimer = null;
       // ⚠️ SOLTAR EL WAKE LOCK NO BASTA, Y LA v1.4.0 SE QUEDO EN ESO (2026-09-06).
@@ -1869,7 +1890,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       this._releaseWakeLock();
       if (this.intercomButton) this._setLiveState('connecting');
       if (this.loader) this.loader.style.opacity = '1';
-    }, this._idleReleaseMs);
+    }, Math.max(0, restante));
   }
 
   _clearIdleWakeLockTimer() {
@@ -1890,6 +1911,7 @@ class IslautopiaIntercomCard extends HTMLElement {
         this.startWebRTC();
         return;
       }
+      ULTIMA_INTERACCION_MS = Date.now();
       if (!this._wakeLock) this._acquireWakeLock(); else this._armIdleWakeLockTimer(true);
     };
     this.addEventListener('pointerdown', this._onIdleActivity, { passive: true });
