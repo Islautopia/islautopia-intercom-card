@@ -2157,6 +2157,18 @@ class IslautopiaIntercomCard extends HTMLElement {
       // ser visible. Sin esto, quien tocara la pantalla se encontraria la card en negro.
       if (this._streamPausedByHide && this.isConnected && this.content && !this.pc) {
         this._streamPausedByHide = false;
+        // ⚠️ SIN ESTA LINEA, EL PROPIO TOQUE SE AUTODESTRUYE (medido en Chromium, 2026-09-07).
+        // startWebRTC() rearma el reloj de inactividad de forma incondicional (linea de mas abajo,
+        // ver ese comentario), pero calcula "restante" contra ULTIMA_INTERACCION_MS -- y esta rama
+        // nunca la actualizaba, exactamente el mismo fallo que el comentario de abajo ya describe
+        // para la otra rama ("un disparo calculado con la marca vieja"). Con la marca vieja, el
+        // reloj recien armado calcula "restante <= 0" y dispara casi al instante (0ms): si para
+        // entonces this.pc YA esta puesto (reconexion rapida), esa comprobacion vuelve a soltar el
+        // video que este mismo toque acaba de reponer -- en cuestion de milisegundos, invisible
+        // para quien mira. Es una carrera (gana o pierde segun cuanto tarde la red), no un fallo
+        // que salte siempre -- de ahi que un mismo hardware la reproduzca de forma consistente y
+        // un navegador con otra latencia de red no. Este toque ES una interaccion real: cuenta.
+        ULTIMA_INTERACCION_MS = Date.now();
         this.startWebRTC('interaccion tras soltar por inactividad');
         return;
       }
