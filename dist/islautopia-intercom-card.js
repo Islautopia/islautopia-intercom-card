@@ -16,7 +16,7 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_BUILD_ID = '2026-09-07-botones-dentro-del-video-carril-o-banda';
+const CARD_BUILD_ID = '2026-09-07-carril-por-contenido-pegado-a-la-imagen';
 
 // ⚠️ ESTA MARCA VIVE EN EL MODULO Y NO EN EL ELEMENTO, Y ESA ES TODA LA GRACIA (2026-09-07).
 //
