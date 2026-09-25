@@ -16,8 +16,8 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_VERSION = '1.9.3';
-const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-25-entidades-solas-zoom`;
+const CARD_VERSION = '1.9.4';
+const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-25-rec-rol-del-portero`;
 
 // ⚠️ ESTA MARCA VIVE EN EL MODULO Y NO EN EL ELEMENTO, Y ESA ES TODA LA GRACIA (2026-09-07).
 //
@@ -1317,10 +1317,20 @@ class IslautopiaIntercomCard extends HTMLElement {
   // (1.9.3) Lo de arriba sobre `rec_entity` es historia: el switch existe desde la integracion
   // 0.7.2 y la card lo encuentra sola por dispositivo + translation_key 'rec' (_autoEntity);
   // `rec_entity` queda como anulacion manual.
+  //
+  // (1.9.4, Iñaki 2026-09-25) YA NO es `hass.user.is_admin`. Esa era la cuenta de quien mira ESTE
+  // panel de Home Assistant - en la tablet del salon, "Kiosko", que no es administrador de HA y
+  // por eso REC no salia nunca ahi, aunque la integracion este emparejada como administradora del
+  // portero. Lo que gobierna es el papel que el PORTERO dio a la credencial de la integracion al
+  // emparejarla (API_CONTRACT.md §3.3-ter, `session_info.role`/`/api/whoami`), que llega en
+  // `get_connection_info` (`this._connInfo.role`, websocket_api.py de la integracion) - el mismo
+  // canal por el que ya llegan `live_timeout_entity`/`events_entity`, nunca la credencial. El
+  // portero sigue siendo quien de verdad hace cumplir esto (rec_start rechaza con
+  // `admin_required` a quien no sea admin, pase lo que pase aqui): esto es solo lo que se enseña.
   _updateRecButton() {
     if (!this.recAction || !this.recButton) return;
     const entityId = this._entityFor('rec');
-    const isAdmin = !!(this._hass && this._hass.user && this._hass.user.is_admin);
+    const isAdmin = !!(this._connInfo && this._connInfo.role === 'admin');
     const stateObj = entityId && this._hass ? this._hass.states[entityId] : null;
     const visible = isAdmin && !!stateObj;
     this.recAction.style.display = visible ? '' : 'none';
@@ -3266,9 +3276,10 @@ class IslautopiaIntercomCard extends HTMLElement {
                      (decision del 2026-08-31) - este boton nunca habla el protocolo rec_start/
                      rec_stop directo con el portero (a diferencia de las apps): llama al servicio
                      de la entidad rec_entity que configura el usuario, que debe apuntar al
-                     switch.* que publique islautopia_doorbell (en camino, v0.7.2 - ver
-                     _toggleRec()/_updateRecButton()). Oculto sin esa entidad y para quien no sea
-                     administrador de Home Assistant. -->
+                     switch.* que publique islautopia_doorbell (desde v0.7.2 - ver
+                     _toggleRec()/_updateRecButton()). Oculto sin esa entidad y para una
+                     integracion que el PORTERO no emparejo como administradora (1.9.4: no depende
+                     de si quien mira este panel es administrador de Home Assistant). -->
                 <div class="action" id="rec-action" style="display:none;">
                   <button type="button" id="rec-button" class="btn rec">
                     <div class="pulsering rec"></div>
@@ -3383,8 +3394,9 @@ class IslautopiaIntercomCard extends HTMLElement {
         this._setAudioOn(!this._audioOn, 'usuario');
       });
 
-      // REC (recordings v2, §1.4-quater): boton opcional, solo con `rec_entity` configurada y
-      // usuario administrador de Home Assistant - ver _updateRecButton()/toggleRec().
+      // REC (recordings v2, §1.4-quater): boton opcional, solo con `rec_entity` configurada y la
+      // integracion emparejada como administradora del portero (1.9.4) - ver
+      // _updateRecButton()/toggleRec().
       this.recButton.addEventListener('click', () => this.toggleRec());
 
       this.injectStyles();
@@ -3609,6 +3621,10 @@ class IslautopiaIntercomCard extends HTMLElement {
       this._mark('get_connection_info: respuesta recibida');
       this._connInfo = info;
       this._slot = null;
+      // REC depende de `_connInfo.role` (1.9.4, ver _updateRecButton()) - se repinta aqui en vez
+      // de esperar al proximo tick de `set hass()`, que podria tardar si el estado de HA esta
+      // tranquilo justo despues de conectar.
+      this._updateRecButton();
 
       // Espera nº2 (credenciales TURN: HTTPS a Alemania). ESTA es la larga, y la que abria la
       // ventana del fallo medido. A partir de aqui SI hay objetos que cerrar, asi que un relevo

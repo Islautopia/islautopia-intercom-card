@@ -46,7 +46,16 @@ window.__isAdmin = true;
 window.tSetHassState = function (entityId, state, attributes) {
   window.__states[entityId] = { entity_id: entityId, state, attributes: attributes || {} };
 };
+// (1.9.4, Iñaki 2026-09-25) REC ya NO depende de `hass.user.is_admin` -- ese es el usuario de ESTE
+// panel de Home Assistant, y el cambio real fue precisamente dejar de mirarlo (tablet "Kiosko",
+// no admin de HA, pero la integracion emparejada como administradora del portero). `__isAdmin`
+// se conserva solo para demostrar esa independencia (test 3 de driver.js la deja en `false` y
+// comprueba que REC sigue visible si el ROL del portero es admin). Lo que de verdad gobierna es
+// `__role` -- el mismo valor que la integracion expondria en `get_connection_info.role`
+// (websocket_api.py, resuelto de `/api/whoami?token=`, API_CONTRACT.md §3.3-ter).
 window.tSetAdmin = function (v) { window.__isAdmin = !!v; };
+window.__role = 'admin';
+window.tSetRole = function (v) { window.__role = v; };
 window.__calledServices = [];
 
 function makeHass() {
@@ -65,7 +74,10 @@ function makeHass() {
       sendMessagePromise: async (msg) => {
         log(`sendMessagePromise(${msg.type})`);
         if (msg.type === 'islautopia_doorbell/get_connection_info') {
-          throw { code: 'not_found' }; // sin conexion real: no hace falta para estas pruebas de UI
+          // Resuelve de verdad (en vez de `not_found`) porque REC depende de `.role` en la
+          // respuesta -- ver _updateRecButton() en dist/. El resto de campos no hace falta que
+          // sean reales para estas pruebas de UI (no se completa la señalización).
+          return { device_id: 'test-device', role: window.__role, live_timeout_entity: null, events_entity: null };
         }
         throw new Error('mensaje no soportado por el doble de hass: ' + msg.type);
       },

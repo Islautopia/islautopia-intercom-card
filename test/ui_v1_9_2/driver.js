@@ -44,9 +44,13 @@ async function main() {
   let recDisplay = await page.evaluate(() => document.getElementById('host').querySelector('islautopia-intercom-card').recAction.style.display);
   check('rec-action display:none sin rec_entity configurada', recDisplay === 'none');
 
-  console.log('\n########## 2. Con rec_entity + admin: aparece y hace toggle contra la entidad ##########');
+  console.log('\n########## 2. Con rec_entity + integracion admin del portero: aparece y hace toggle ##########');
   await page.evaluate(() => {
-    window.tSetAdmin(true);
+    // El usuario de ESTE panel de HA no es administrador -- justo el caso real de la tablet
+    // "Kiosko" (Iñaki, 2026-09-25) -- y REC debe verse igual, porque lo que manda es el rol que
+    // el PORTERO dio a la integracion (`get_connection_info.role`), no `hass.user.is_admin`.
+    window.tSetAdmin(false);
+    window.tSetRole('admin');
     window.tSetHassState('switch.rec_test', 'off', {});
     window.tCreateCard('b', { rec_entity: 'switch.rec_test' });
     window.tAttach('b');
@@ -54,10 +58,10 @@ async function main() {
   });
   await sleep(150);
   let st = await page.evaluate(() => {
-    const c = document.getElementById('host').querySelectorAll('islautopia-intercom-card')[1];
+    const c = window.__cards['b'];
     return { display: c.recAction.style.display, recording: c.recButton.classList.contains('recording') };
   });
-  check('rec-action visible (admin + entidad presente)', st.display !== 'none');
+  check('rec-action visible (rol admin del portero + entidad presente, aunque el usuario de HA no sea admin)', st.display !== 'none');
   check('boton NO marcado como grabando (estado off)', st.recording === false);
 
   await page.evaluate(() => window.tClick('b', '#rec-button'));
@@ -68,7 +72,7 @@ async function main() {
   await page.evaluate(() => { window.tSetHassState('switch.rec_test', 'on', {}); window.tRefreshHass('b'); });
   await sleep(50);
   let st2 = await page.evaluate(() => {
-    const c = document.getElementById('host').querySelectorAll('islautopia-intercom-card')[1];
+    const c = window.__cards['b'];
     return c.recButton.classList.contains('recording');
   });
   check('boton pasa a "grabando" en cuanto la ENTIDAD (no el ultimo tap) dice on', st2 === true);
@@ -78,17 +82,29 @@ async function main() {
   calls = await page.evaluate(() => window.__calledServices.slice());
   check('con la entidad en "on", el toque pide turn_off (nunca el ultimo tap)', calls.some((c) => c.service === 'turn_off'));
 
-  console.log('\n########## 3. Sin ser administrador: oculto aunque la entidad exista ##########');
+  console.log('\n########## 3. Integracion NO admin del portero: oculto aunque la entidad exista y el usuario de HA sea admin ##########');
   await page.evaluate(() => {
-    window.tSetAdmin(false);
+    window.tSetAdmin(true);   // usuario de HA SI es admin -- y no debe bastar
+    window.tSetRole('user'); // pero la integracion no es administradora del portero
     window.tCreateCard('c', { rec_entity: 'switch.rec_test' });
     window.tAttach('c');
     window.tRefreshHass('c');
   });
   await sleep(100);
-  let recNonAdmin = await page.evaluate(() => document.getElementById('host').querySelectorAll('islautopia-intercom-card')[2].recAction.style.display);
-  check('oculto para un usuario no-administrador', recNonAdmin === 'none');
-  await page.evaluate(() => window.tSetAdmin(true));
+  let recNonAdmin = await page.evaluate(() => window.__cards['c'].recAction.style.display);
+  check('oculto cuando la integracion no es administradora del portero, aunque el usuario de HA si lo sea', recNonAdmin === 'none');
+
+  console.log('\n########## 3-bis. Rol "unknown" (emparejamiento sin etiqueta, §3.3-ter): tambien oculto ##########');
+  await page.evaluate(() => {
+    window.tSetRole('unknown');
+    window.tCreateCard('c2', { rec_entity: 'switch.rec_test' });
+    window.tAttach('c2');
+    window.tRefreshHass('c2');
+  });
+  await sleep(100);
+  let recUnknown = await page.evaluate(() => window.__cards['c2'].recAction.style.display);
+  check('oculto con rol "unknown"', recUnknown === 'none');
+  await page.evaluate(() => window.tSetRole('admin'));
 
   console.log('\n########## 4. El chip de modo sigue llamando a select.select_option ##########');
   await page.evaluate(() => {
@@ -106,23 +122,23 @@ async function main() {
   console.log('\n########## 5. Altavoz reubicado: sin deslizador de volumen, el boton alterna mute ##########');
   await page.evaluate(() => { window.tCreateCard('e', {}); window.tAttach('e'); });
   await sleep(100);
-  const noSlider = await page.evaluate(() => !document.getElementById('host').querySelectorAll('islautopia-intercom-card')[4].querySelector('#vol-slider'));
+  const noSlider = await page.evaluate(() => !window.__cards['e'].querySelector('#vol-slider'));
   check('no existe ya #vol-slider en el DOM', noSlider);
   const sndInActionsRow = await page.evaluate(() => {
-    const c = document.getElementById('host').querySelectorAll('islautopia-intercom-card')[4];
+    const c = window.__cards['e'];
     const btn = c.querySelector('#snd-btn');
     return !!btn && !!btn.closest('.actions-row') && btn.classList.contains('btn') && btn.classList.contains('snd');
   });
   check('el boton de sonido vive en la fila de acciones (btn.snd)', sndInActionsRow);
-  const audioBefore = await page.evaluate(() => document.getElementById('host').querySelectorAll('islautopia-intercom-card')[4]._audioOn);
+  const audioBefore = await page.evaluate(() => window.__cards['e']._audioOn);
   await page.evaluate(() => window.tClick('e', '#snd-btn'));
   await sleep(30);
-  const audioAfter = await page.evaluate(() => document.getElementById('host').querySelectorAll('islautopia-intercom-card')[4]._audioOn);
+  const audioAfter = await page.evaluate(() => window.__cards['e']._audioOn);
   check('un toque en el altavoz invierte _audioOn (arranca mudo)', audioBefore === false && audioAfter === true);
 
   console.log('\n########## 6. Selector de calidad y reloj superpuesto: retirados del DOM ##########');
   const goneEls = await page.evaluate(() => {
-    const c = document.getElementById('host').querySelectorAll('islautopia-intercom-card')[4];
+    const c = window.__cards['e'];
     return {
       quality: !!c.querySelector('#hud-quality'),
       clock: !!c.querySelector('#hud-time'),
@@ -151,11 +167,11 @@ async function main() {
   // como un input real y cuenta como gesto del usuario, igual que un toque de verdad.
   await page.evaluate(() => { window.tCreateCard('f', {}); window.tAttach('f'); });
   await sleep(100);
-  const fsBtnHandle = await page.evaluateHandle(() => document.getElementById('host').querySelectorAll('islautopia-intercom-card')[5].querySelector('#fs-btn'));
+  const fsBtnHandle = await page.evaluateHandle(() => window.__cards['f'].querySelector('#fs-btn'));
   await fsBtnHandle.asElement().click();
   await sleep(300);
   const fsState = await page.evaluate(() => {
-    const c = document.getElementById('host').querySelectorAll('islautopia-intercom-card')[5];
+    const c = window.__cards['f'];
     return {
       hasDataFs: c.hasAttribute('data-fs'),
       fsActive: !!c._fsActive,
@@ -176,7 +192,7 @@ async function main() {
   await fsBtnHandle.asElement().click();
   await sleep(200);
   const fsAfterExit = await page.evaluate(() => {
-    const c = document.getElementById('host').querySelectorAll('islautopia-intercom-card')[5];
+    const c = window.__cards['f'];
     return { hasDataFs: c.hasAttribute('data-fs'), nativeLayoutClass: c.classList.contains('ig-fs-native-layout') };
   });
   check('sale de pantalla completa: sin data-fs', fsAfterExit.hasDataFs === false);

@@ -16,6 +16,26 @@ Fuente de verdad de la interfaz del propio doorbell (WebRTC, señalización, `pa
 `app_turn_credentials`, etc.): `C:\Proyectos_espressif\IG_Doorbell\API_CONTRACT.md`. No la
 dupliques aquí.
 
+**v1.9.4 (2026-09-25) — REC ya no depende del usuario de Home Assistant, sino del rol que el
+PORTERO dio a la integración al emparejarla.**
+
+- Decisión de Iñaki: *"¿Por qué usamos el usuario de HASS? Cuando se empareja la integración, pide
+  un usuario, y ese es el que debería gobernar, no el usuario del panel."* `_updateRecButton()`
+  dejó de mirar `hass.user.is_admin` (el usuario de ESTE panel de Home Assistant) y mira
+  `this._connInfo.role === 'admin'` — el mismo valor que el portero resuelve para
+  `session_info.role` (API_CONTRACT.md §3.3-ter), que ahora viaja en `get_connection_info`
+  (`islautopia-doorbell-integration` >= 0.7.3, `GET /api/whoami?token=` sin sesión). Encontrado en
+  la tablet del salón: el usuario "Kiosko" no es administrador de HA y REC nunca aparecía ahí,
+  aunque la integración esté emparejada como administradora del portero real. El portero sigue
+  siendo quien de verdad hace cumplir esto (`rec_start` rechaza con `admin_required` a quien no sea
+  admin) — esto es solo lo que la card enseña. `_connInfo.role` llega una vez por sesión
+  (`get_connection_info`, WebSocket de HA) y `_updateRecButton()` se repinta en cuanto llega, sin
+  esperar al siguiente tick de `set hass()`. Repasado con Chromium real
+  (`test/ui_v1_9_2/driver.js`, harness ampliado con `tSetRole()`): visible con rol admin del
+  portero aunque el usuario de HA NO sea admin, oculto con rol `user` aunque el usuario de HA SÍ lo
+  sea, y oculto también con rol `unknown` (emparejamiento sin etiqueta, §3.3-ter) — las tres
+  condiciones con control positivo y negativo real, no solo razonadas.
+
 **v1.9.2 (2026-09-25) — REC, altavoz reubicado, reloj/calidad retirados, pantalla completa
 reparada. Viendo la card en real (Iñaki), no un traspaso razonado.**
 
