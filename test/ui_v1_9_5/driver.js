@@ -114,8 +114,12 @@ async function main() {
     window.tRefreshHass('c');
   });
   await sleep(150);
-  let recNoAdmin = await page.evaluate(() => window.__cards['c'].recordingsAction.style.display);
-  check('oculto para un emparejamiento no-admin del portero', recNoAdmin === 'none');
+  // v1.9.8: la fila (`recordingsAction`/#bottom-row) YA NO se oculta entera para un usuario -- ahora
+  // comparte sitio con "Respuestas rapidas", que SI se ve con cualquier rol (ver
+  // _updateQuickReplyButton() en dist/). Lo que sigue gating por rol es el BOTON de Grabaciones en
+  // concreto (`recordingsButton`), no la fila que lo contiene.
+  let recNoAdmin = await page.evaluate(() => window.__cards['c'].recordingsButton.style.display);
+  check('el boton de Grabaciones se oculta para un emparejamiento no-admin del portero', recNoAdmin === 'none');
   let noSettingsButton = await page.evaluate(() => !window.__cards['c'].querySelector('#settings-button, .quick-btn[data-target="settings"]'));
   check('no existe ningun boton de Ajustes en la card (vive en la integracion)', noSettingsButton === true);
 
