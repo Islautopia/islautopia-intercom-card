@@ -153,6 +153,7 @@ function cargarClase(src, entorno, oyentesDoc) {
   sandbox.window.customCards = [];
   vm.createContext(sandbox);
   vm.runInContext(src, sandbox);
+  if (CardClass) CardClass.__doc = sandbox.document;   // los casos de visibilidad cambian visibilityState
   return CardClass;
 }
 
@@ -195,7 +196,7 @@ function nuevaCard(CardClass, opciones) {
     _lastLifeSignalAt: null, _prevPacketsReceived: null,
     _idleReleaseMs: o.idleMs === undefined ? 0 : o.idleMs,
     _idleWakeLockTimer: null, _wakeLock: null, _fsActive: false,
-    _pausaInactividad: null, _pausaGraciaTimer: null, _idleGraceMs: o.graciaMs === undefined ? 15000 : o.graciaMs,
+    _pausa: null, _pausaGraciaTimer: null, _idleGraceMs: o.graciaMs === undefined ? 15000 : o.graciaMs,
     _livePauseWanted: false, _livePauseAck: null, _rescateTimers: [],
     _talkHeld: false, _talkPending: false,
     intercomActive: false, localAudioStream: null, dummyAudioTrack: null,
@@ -225,6 +226,7 @@ function nuevaCard(CardClass, opciones) {
   // real de interaccion, que es el camino por donde entraba el fallo. Solo se le da un doble al
   // addEventListener del propio elemento.
   c.addEventListener = () => {};
+  c.removeEventListener = () => {};
   c._registerUnloadHandler = () => {};
   c._sueltas = [];
   return c;
@@ -236,7 +238,7 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 // ejecutan tambien el codigo de antes, y ahi un metodo que falta debe verse como un caso en rojo,
 // no tumbar el banco.
 function limpiar(c) {
-  for (const f of ['_cancelarPausaInactividad', '_teardownConnectionObjects', '_clearIdleWakeLockTimer']) {
+  for (const f of ['_cancelarPausa', '_teardownConnectionObjects', '_clearIdleWakeLockTimer']) {
     if (typeof c[f] === 'function') { try { c[f](); } catch (err) { /* recogida */ } }
   }
 }
@@ -245,7 +247,7 @@ function limpiar(c) {
 // y rechaza promesas que nadie espera. Eso es parte del fallo que el control debe VER por su efecto
 // (conexiones acumuladas), no un motivo para que el banco entero se caiga sin informar.
 let rechazosSinAtender = 0;
-process.on('unhandledRejection', () => { rechazosSinAtender += 1; });
+process.on('unhandledRejection', (e) => { rechazosSinAtender += 1; if (process.env.SIM_DEBUG) console.error('RECHAZO', e); });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 //  Los casos
@@ -372,7 +374,7 @@ async function ejecutar(src, mostrar) {
     await esperar(600);
     comp('la sesion se ha soltado sola', c.pc === null);
     comp('  -> el EventSource esta cerrado', e.censo.es.every((w) => w.cerrado));
-    comp('  -> y queda marcado para reponerse al volver', c._streamPausedByHide === true);
+    comp('  -> y queda en pausa colgada, esperando a alguien', !!c._pausa && c._pausa.fase === 'colgada');
   }
 
   // ── 7. CONTROL DE NO DISPARAR: tocando, NO puede soltar nunca ─────────────────────────────
@@ -404,7 +406,7 @@ async function ejecutar(src, mostrar) {
     // se solto". (Encontrado precisamente porque el mutante de mas abajo pasaba este caso.)
     comp(`tras 1,2s de toques con plazo de 0,25s NO se solto ni una vez (sesiones construidas: ${e.censo.pc.length})`, e.censo.pc.length === 1 && e.censo.es.length === 1);
     comp('  -> la sesion sigue viva', !!c.pc && !c.pc.cerrado);
-    comp('  -> y no se marco como soltada', !c._streamPausedByHide);
+    comp('  -> y no se marco como soltada', !c._pausa);
     // Fase 0: vencer ya no cuelga en el acto (live_pause + gracia), asi que "se pauso y el toque
     // siguiente la reanudo" no deja rastro en pc/sesiones. Lo deja en lo que se mando al portero.
     comp('  -> y no se mando ni un live_pause', !(c._enviados || []).some((m) => m.type === 'live_pause'));
@@ -421,12 +423,12 @@ async function ejecutar(src, mostrar) {
     const c = nuevaCard(C, { turnMs: 10, idleMs: 999000, plazoEntidad: 0.25, graciaMs: 20000 });
     await c.startWebRTC('unico');
     await esperar(500);
-    comp('con la entidad a 0,25 s vence aunque el respaldo sea 999 s', c._pausaInactividad === 'gracia');
+    comp('con la entidad a 0,25 s vence aunque el respaldo sea 999 s', !!c._pausa && c._pausa.fase === 'gracia');
     limpiar(c);
     const c2 = nuevaCard(C, { turnMs: 10, idleMs: 250, plazoEntidad: 0 });
     await c2.startWebRTC('unico');
     await esperar(500);
-    comp('  -> y con la entidad a 0 no vence nunca', c2._pausaInactividad === null && !!c2.pc);
+    comp('  -> y con la entidad a 0 no vence nunca', !c2._pausa && !!c2.pc);
     limpiar(c2);
   }
 
@@ -439,7 +441,7 @@ async function ejecutar(src, mostrar) {
     await c.startWebRTC('unico');
     c.intercomActive = true;
     await esperar(800);
-    comp('con el micro abierto 0,8 s y plazo de 0,25 s: ni pausa ni bye', c._pausaInactividad === null && !!c.pc && !c.pc.cerrado);
+    comp('con el micro abierto 0,8 s y plazo de 0,25 s: ni pausa ni bye', !c._pausa && !!c.pc && !c.pc.cerrado);
     comp('  -> y no se mando live_pause', !c._enviados.some((m) => m.type === 'live_pause'));
     c.intercomActive = false;
     limpiar(c);
@@ -459,7 +461,7 @@ async function ejecutar(src, mostrar) {
     await esperar(400);
     comp('pasada la gracia: bye enviado (la ranura se libera ya, no a los 20 s)', c._enviados.some((m) => m.type === 'bye' && m.slot === 0));
     comp('  -> sesion cerrada y EventSource cerrado', c.pc === null && e.censo.es.every((x) => x.cerrado));
-    comp('  -> y la card queda en pausa, esperando un toque', c._pausaInactividad === 'colgada');
+    comp('  -> y la card queda en pausa, esperando un toque', !!c._pausa && c._pausa.fase === 'colgada');
   }
 
   // ── 11. Un toque dentro de la gracia reanuda la MISMA sesion ──────────────────────────────
@@ -470,7 +472,7 @@ async function ejecutar(src, mostrar) {
     const c = nuevaCard(C, { turnMs: 10, idleMs: 200, graciaMs: 2000 });
     await c.startWebRTC('unico');
     await esperar(350);
-    comp('esta en gracia', c._pausaInactividad === 'gracia');
+    comp('esta en gracia', !!c._pausa && c._pausa.fase === 'gracia');
     if (c._onIdleActivity) c._onIdleActivity();
     await esperar(50);
     comp('tras el toque: live_resume enviado', c._enviados.some((m) => m.type === 'live_resume'));
@@ -490,15 +492,15 @@ async function ejecutar(src, mostrar) {
     await c.startWebRTC('unico');
     c._updateRingState();                       // primera lectura: no dispara
     await esperar(500);
-    comp('colgada por inactividad', c._pausaInactividad === 'colgada' && c.pc === null);
+    comp('colgada por inactividad', !!c._pausa && c._pausa.fase === 'colgada' && c.pc === null);
     c._hass.states['event.x_events'] = { state: 't1', attributes: { event_type: 'package' } };
     c._updateRingState();
     await esperar(100);
-    comp('un paquete NO la despierta', c._pausaInactividad === 'colgada' && e.censo.pc.length === 1);
+    comp('un paquete NO la despierta', !!c._pausa && c._pausa.fase === 'colgada' && e.censo.pc.length === 1);
     c._hass.states['event.x_events'] = { state: 't2', attributes: { event_type: 'ring' } };
     c._updateRingState();
     await esperar(60);
-    comp('un timbrazo SI: sesion nueva', c._pausaInactividad === null && e.censo.pc.length === 2 && !!c.pc);
+    comp('un timbrazo SI: sesion nueva', !c._pausa && e.censo.pc.length === 2 && !!c.pc);
     limpiar(c);
   }
 
@@ -514,6 +516,125 @@ async function ejecutar(src, mostrar) {
     comp('  -> ningun WebSocket', e.censo.ws.length === 0);
     comp('  -> ningun fetch directo', e.censo.fetch.length === 0);
     comp('  -> y la SSE es la del proxy de HA', e.censo.es.every((x) => x.url.startsWith('/api/islautopia_doorbell/')));
+    limpiar(c);
+  }
+
+  // ══ REGLA DE IÑAKI 2026-09-25: FUERA DE LA VISTA, PAUSA; AL VOLVER, EN EL MISMO ESTADO ══════
+  const ocultar = (C, c, v) => { C.__doc.visibilityState = v; c._onVisibilityForStream && c._onVisibilityForStream(); };
+
+  // ── 14. Ocultarse: live_pause YA, sesion viva; volver: live_resume, la misma sesion ─────────
+  seccion('14. Oculta -> live_pause inmediato; visible -> live_resume en la misma sesion');
+  {
+    const e = construirEntorno({});
+    const C = cargarClase(src, e, {});
+    const c = nuevaCard(C, { turnMs: 10, idleMs: 999000, graciaMs: 5000 });
+    c._registerVisibilityStreamHandler && c._registerVisibilityStreamHandler();
+    await c.startWebRTC('unico');
+    await esperar(80);
+    const pc = c.pc;
+    ocultar(C, c, 'hidden');
+    await esperar(30);
+    comp('al ocultarse: live_pause enviado en el acto y la sesion sigue', c._enviados.some((m) => m.type === 'live_pause') && c.pc === pc && !pc.cerrado);
+    comp('  -> sin bye todavia', !c._enviados.some((m) => m.type === 'bye'));
+    ocultar(C, c, 'visible');
+    await esperar(30);
+    comp('al volver: live_resume, misma sesion, ninguna nueva', c._enviados.some((m) => m.type === 'live_resume') && c.pc === pc && e.censo.pc.length === 1);
+    limpiar(c); C.__doc.visibilityState = 'visible';
+  }
+
+  // ── 15. Oculta CON llamada: pausa, pero nunca cuelga; al volver se pide otra vez el turno ───
+  seccion('15. Oculta con el micro abierto: live_pause, sin bye; al volver, talk_request');
+  {
+    const e = construirEntorno({});
+    const C = cargarClase(src, e, {});
+    const c = nuevaCard(C, { turnMs: 10, idleMs: 999000, graciaMs: 100 });
+    c._registerVisibilityStreamHandler && c._registerVisibilityStreamHandler();
+    c._stopIntercom = function () { this.intercomActive = false; this._talkHeld = false; };
+    c._requestTalkTurn = function () { this.sendNativeSignal({ type: 'talk_request' }); };
+    await c.startWebRTC('unico');
+    await esperar(80);
+    c.intercomActive = true; c._talkHeld = true;
+    ocultar(C, c, 'hidden');
+    await esperar(400);
+    comp('con llamada: live_pause y SIN bye pasada la gracia', c._enviados.some((m) => m.type === 'live_pause') && !c._enviados.some((m) => m.type === 'bye') && !!c.pc);
+    ocultar(C, c, 'visible');
+    await esperar(30);
+    comp('  -> al volver: live_resume y se vuelve a pedir el turno (mismo estado)', c._enviados.some((m) => m.type === 'live_resume') && c._enviados.some((m) => m.type === 'talk_request'));
+    limpiar(c); C.__doc.visibilityState = 'visible';
+  }
+
+  // ── 16. Oculta sin llamada: tras la gracia, bye (la ranura se libera) ───────────────────────
+  seccion('16. Oculta sin llamada: bye tras la gracia');
+  {
+    const e = construirEntorno({});
+    const C = cargarClase(src, e, {});
+    const c = nuevaCard(C, { turnMs: 10, idleMs: 999000, graciaMs: 100 });
+    c._registerVisibilityStreamHandler && c._registerVisibilityStreamHandler();
+    await c.startWebRTC('unico');
+    await esperar(80);
+    ocultar(C, c, 'hidden');
+    await esperar(300);
+    comp('sin llamada: bye pasada la gracia', c._enviados.some((m) => m.type === 'bye') && c.pc === null);
+    ocultar(C, c, 'visible');
+    await esperar(80);
+    comp('  -> y al volver, sesion nueva', e.censo.pc.length === 2 && !!c.pc && !c._pausa);
+    limpiar(c); C.__doc.visibilityState = 'visible';
+  }
+
+  // ── 17. El bucle medido en la tablet: reinsertar la card en pausa NO abre sesion ───────────
+  seccion('17. connectedCallback de un portero en pausa por inactividad: no arranca');
+  {
+    const e = construirEntorno({});
+    const C = cargarClase(src, e, {});
+    const c = nuevaCard(C, { turnMs: 10, idleMs: 150, graciaMs: 50 });
+    await c.startWebRTC('unico');
+    await esperar(400);
+    comp('colgada por inactividad', !!c._pausa && c._pausa.fase === 'colgada');
+    const antes = e.censo.pc.length;
+    const c2 = nuevaCard(C, { turnMs: 10, idleMs: 150, graciaMs: 50 });   // Home Assistant recrea el elemento
+    c2._registerFullscreenListeners = () => {}; c2._registerVisibilityStreamHandler = () => {}; c2._registerOffscreenStreamHandler = () => {};
+    c2.connectedCallback();
+    c.connectedCallback && (c._registerFullscreenListeners = () => {}, c._registerVisibilityStreamHandler = () => {}, c._registerOffscreenStreamHandler = () => {}, c.connectedCallback());
+    await esperar(200);
+    comp('ni la card reinsertada ni una recreada abren sesion', e.censo.pc.length === antes && !!c2._pausa);
+    limpiar(c); limpiar(c2);
+  }
+
+  // ── 18. Un timbrazo reciente despierta a una card recien creada (su "primera lectura") ─────
+  seccion('18. Timbrazo de hace 5 s en la primera lectura de una card en pausa: la despierta');
+  {
+    const e = construirEntorno({});
+    const C = cargarClase(src, e, {});
+    const c = nuevaCard(C, { turnMs: 10, idleMs: 150, graciaMs: 50 });
+    await c.startWebRTC('unico');
+    await esperar(400);
+    const c2 = nuevaCard(C, { turnMs: 10, idleMs: 150, graciaMs: 50 });
+    c2._connInfo = { events_entity: 'event.x_events' };
+    c2._hass.states['event.x_events'] = { state: new Date(Date.now() - 5000).toISOString(), attributes: { event_type: 'ring' } };
+    c2._restaurarPausaGuardada && c2._restaurarPausaGuardada();
+    const antes = e.censo.pc.length;
+    c2._updateRingState();
+    await esperar(60);
+    comp('card nueva en pausa + timbrazo reciente: sesion nueva', e.censo.pc.length === antes + 1 && !c2._pausa);
+    limpiar(c); limpiar(c2);
+  }
+
+  // ── 19. Cambiar de vista de Lovelace saca la card del DOM: pausa, y al volver el MISMO elemento
+  seccion('19. disconnectedCallback -> live_pause (no bye); connectedCallback -> live_resume, misma sesion');
+  {
+    const e = construirEntorno({});
+    const C = cargarClase(src, e, {});
+    const c = nuevaCard(C, { turnMs: 10, idleMs: 999000, graciaMs: 5000 });
+    c._registerFullscreenListeners = () => {};
+    await c.startWebRTC('unico');
+    await esperar(80);
+    const pc = c.pc;
+    c.disconnectedCallback();
+    await esperar(30);
+    comp('sacada del DOM: live_pause y la sesion sigue (sin bye)', c._enviados.some((m) => m.type === 'live_pause') && !c._enviados.some((m) => m.type === 'bye') && c.pc === pc);
+    c.connectedCallback();
+    await esperar(30);
+    comp('  -> reinsertada: live_resume en la misma sesion', c._enviados.some((m) => m.type === 'live_resume') && c.pc === pc && e.censo.pc.length === 1);
     limpiar(c);
   }
 
@@ -600,8 +721,8 @@ function mutar(src, ancla, reemplazo, nombre) {
     {
       nombre: 'el guardia nunca deja pasar (card en negro para siempre)',
       src: () => mutar(src,
-        "  async startWebRTC(motivo = 'sin motivo') {\n    const enVuelo",
-        "  async startWebRTC(motivo = 'sin motivo') {\n    return;\n    const enVuelo",
+        "    const enVuelo = this._arranqueEnVueloGen;",
+        "    return; const enVuelo = this._arranqueEnVueloGen;",
         'guardia total'),
       debeFallar: 'hay sesion viva',
     },
@@ -647,7 +768,7 @@ function mutar(src, ancla, reemplazo, nombre) {
     },
     {
       nombre: 'fase 0: al vencer se cuelga sin live_pause ni gracia',
-      src: () => mutar(src, "    this._pausaGraciaTimer = setTimeout(() => this._colgarPorInactividad(), this._idleGraceMs);", "    this._pausaGraciaTimer = null; this._colgarPorInactividad();", 'sin gracia'),
+      src: () => mutar(src, "    if (!llamada) this._pausaGraciaTimer = setTimeout(() => this._colgarPausa(), this._idleGraceMs);", "    if (!llamada) { this._colgarPausa(); return; }", 'sin gracia'),
       debeFallar: 'dentro de la gracia',
     },
     {
@@ -657,13 +778,45 @@ function mutar(src, ancla, reemplazo, nombre) {
     },
     {
       nombre: 'fase 0: el timbrazo no despierta',
-      src: () => mutar(src, "    if (this._pausaInactividad && document.visibilityState === 'visible') this._reanudarTrasInactividad('timbre');", "", 'sin timbre'),
+      src: () => mutar(src, "    if (this._pausa && document.visibilityState === 'visible') this._reanudar('timbre');", "", 'sin timbre'),
       debeFallar: 'un timbrazo SI',
     },
     {
       nombre: 'fase 0: vuelve el STUN del VPS',
       src: () => mutar(src, "    const iceServers = [];", "    const iceServers = [{ urls: 'stun:46.225.57.138:3478' }];", 'con stun'),
       debeFallar: 'RTCPeerConnection sin iceServers',
+    },
+    {
+      nombre: 'regla de Iñaki: ocultarse vuelve a desmontar en el acto (1.9.0)',
+      src: () => mutar(src, "      if (document.visibilityState === 'hidden') {", "      if (document.visibilityState === 'hidden') { this._teardownConnectionObjects(); return;", 'desmonta al ocultar'),
+      debeFallar: 'al ocultarse: live_pause enviado',
+    },
+    {
+      nombre: 'regla de Iñaki: con llamada tambien se cuelga',
+      src: () => mutar(src, "    if (!llamada) this._pausaGraciaTimer = setTimeout(", "    if (true) this._pausaGraciaTimer = setTimeout(", 'cuelga con llamada'),
+      debeFallar: 'con llamada: live_pause y SIN bye',
+    },
+    {
+      nombre: 'regla de Iñaki: al volver no se recupera el turno',
+      src: () => mutar(src, "      if (p.micAbierto) this._requestTalkTurn();", "", 'sin turno'),
+      debeFallar: '  -> al volver: live_resume y se vuelve a pedir el turno',
+    },
+    {
+      nombre: 'bucle de la tablet: la pausa vuelve a vivir solo en `this`',
+      src: () => mutar(src, "    if (!this.config || !PAUSA_POR_PORTERO[this.config.device_id]) return false;", "    if (!this.config || !this._pausa) return false;", 'pausa por instancia'),
+      debeFallar: 'ni la card reinsertada ni una recreada',
+    },
+    {
+      nombre: 'cambiar de vista vuelve a desmontar (1.9.0)',
+      // Ancla de UNA linea y sin barras invertidas (CLAUDE.md): la primera version llevaba un salto
+      // escapado que una capa de shell convirtio en uno real y rompio este fichero.
+      src: () => mutar(src, "    this._pausar('oculta');                     // salir del DOM = pausar, no desmontar", "    this._teardownConnectionObjects();", 'desmonta al salir del DOM'),
+      debeFallar: 'sacada del DOM: live_pause',
+    },
+    {
+      nombre: 'timbrazo reciente ignorado en la primera lectura',
+      src: () => mutar(src, "        && Date.now() - Date.parse(marca) < TIMBRE_RECIENTE_MS", "        && false", 'sin timbre reciente'),
+      debeFallar: 'card nueva en pausa + timbrazo reciente',
     },
   ];
 
@@ -684,4 +837,4 @@ function mutar(src, ancla, reemplazo, nombre) {
 
   console.log(mal === 0 ? '\nBANCO VERDE Y VALIDADO POR SUS DOS LADOS\n' : `\n${mal} PROBLEMAS (revisa: un control fallido invalida el banco entero)\n`);
   process.exit(mal === 0 ? 0 : 1);
-})();
+})().catch((e) => { console.error("EXCEPCION en el banco (no es un verde):", e); process.exit(2); });

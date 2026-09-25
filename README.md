@@ -96,6 +96,10 @@ device_id: a1b2c3d4e5f60718
 # the background: `live_pause` at once, and after 15 s it hangs up and FREES THE DOORBELL'S SLOT.
 # It never expires with the microphone open, a tap resumes, and a new ring wakes it by itself.
 #
+# LEAVING THE VIEW (1.9.1): switching dashboard view or tab, or the screen turning off, pauses the
+# live view at once (`live_pause`) and coming back resumes it in the same state (sound, microphone
+# and talk turn), call or no call. Without a call the doorbell's slot is freed after 15 s away.
+#
 # `idle_release_seconds` below is only the fallback for an integration older than 0.7.0.
 #
 # OPTIONAL: seconds without any interaction (touch, pointer or keyboard) before the card releases

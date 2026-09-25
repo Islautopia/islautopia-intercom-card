@@ -16,8 +16,8 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_VERSION = '1.9.0';
-const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-25-fase0-solo-lan-y-tiempo-de-espera`;
+const CARD_VERSION = '1.9.1';
+const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-25-pausa-al-salir-de-la-vista`;
 
 // ⚠️ ESTA MARCA VIVE EN EL MODULO Y NO EN EL ELEMENTO, Y ESA ES TODA LA GRACIA (2026-09-07).
 //
@@ -36,6 +36,15 @@ const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-25-fase0-solo-lan-y-tiempo-de-esp
 // y una instancia nueva que nace cuando ya han pasado 60 s suelta INMEDIATAMENTE, en vez de
 // regalar otro minuto.
 let ULTIMA_INTERACCION_MS = Date.now();
+
+// ⚠️ LA PAUSA POR INACTIVIDAD VIVE EN EL MODULO, POR PORTERO (1.9.1, medido en la tablet del salon
+// el 2026-09-25). Home Assistant vuelve a insertar -- o recrea -- el elemento de la card sin que
+// nadie la toque; con la pausa guardada en `this`, cada reinsercion abria una sesion nueva que se
+// volvia a pausar a los pocos segundos: la ranura del portero entraba y salia en bucle (visto en
+// /api/debug/cores de Ermita 10: sesiones 0 -> 1 -> 2 -> 1 cada ~20 s con la tablet quieta).
+// Una pausa por inactividad solo la levanta una persona (toque) o un timbrazo; nunca un
+// connectedCallback. Se pierde con una recarga completa, que es lo correcto: recargar es empezar.
+const PAUSA_POR_PORTERO = {};
 
 // ⚠️ FUSIBLE DEL GUARDIA DE REENTRADA DE startWebRTC() -- ver esa funcion para el argumento entero.
 //
@@ -61,6 +70,12 @@ const ARRANQUE_EN_VUELO_MAX_MS = 12000;
 // con el rescate acotado del contrato (regla 3): `live_resume` otra vez a 6 s y 12 s, sesion nueva
 // a 24 s, y nada mas. Volver despues es una sesion nueva.
 const IDLE_GRACE_MS = 15000;
+// Fuera de la vista CON llamada no se cuelga en la gracia (la sesion es la llamada), pero tampoco
+// para siempre: 300 s es la red de seguridad del propio portero para una llamada sin turno
+// (§1.4-quater regla 2), y pasado eso ya no queda llamada que conservar.
+const CALL_OCULTA_MAX_MS = 300000;
+const OFFSCREEN_PAUSA_MS = 1500;
+const TIMBRE_RECIENTE_MS = 60000;
 const LIVE_ACK_MS = 3000;          // regla 1: sin live_state en 3 s, se reenvia...
 const LIVE_ACK_REINTENTOS = 3;     // ...hasta 3 veces
 const RESCATE_RESUME_MS = [6000, 12000];
@@ -453,8 +468,9 @@ class IslautopiaIntercomCard extends HTMLElement {
     // ver _plazoInactividadMs(). Esto vale solo si la integracion es anterior y no la ofrece.
     // 120 s, el mismo valor por defecto que la entidad (su porque, en number.py de la integracion).
     this._idleReleaseMs = Number.isFinite(idleCrudo) && idleCrudo >= 0 ? idleCrudo * 1000 : 120000;
-    // Pausa por inactividad: null | 'gracia' (live_pause enviado, sesion viva) | 'colgada' (bye).
-    this._pausaInactividad = null;
+    // La pausa (1.9.1): null | { motivo: 'oculta'|'inactividad', fase: 'gracia'|'colgada', micAbierto }.
+    // 'gracia' = live_pause enviado, sesion viva; 'colgada' = bye, ranura liberada.
+    this._pausa = null;
     this._pausaGraciaTimer = null;
     this._idleGraceMs = IDLE_GRACE_MS;
     this._livePauseWanted = false;
@@ -620,10 +636,20 @@ class IslautopiaIntercomCard extends HTMLElement {
   getCardSize() { return 4; }
 
   connectedCallback() {
+    // Vuelve a la vista el MISMO elemento que se saco (Home Assistant reutiliza sus vistas): se
+    // reanuda la pausa de "fuera de la vista". La de inactividad NO: esa es de una persona.
+    if (this._pausa && this._pausa.motivo === 'oculta') {
+      this._registerVisibilityStreamHandler();
+      this._registerOffscreenStreamHandler();
+      this._registerUnloadHandler();
+      this._reanudar('la card vuelve al DOM');
+      if (this.content) this._registerFullscreenListeners();
+      return;
+    }
     if (this.content) this._registerFullscreenListeners();
     this._registerVisibilityStreamHandler();
     this._registerOffscreenStreamHandler();
-    if (this.content && !this.pc) this.startWebRTC('connectedCallback');
+    if (this.content && !this.pc && !this._restaurarPausaGuardada()) this.startWebRTC('connectedCallback');
   }
 
   // ══════════════════════════════════════════════════════════════════════════════════════════
@@ -662,25 +688,17 @@ class IslautopiaIntercomCard extends HTMLElement {
   // ══════════════════════════════════════════════════════════════════════════════════════════
   _registerVisibilityStreamHandler() {
     if (this._onVisibilityForStream) return;
+    // ⚠️ REGLA DE IÑAKI (2026-09-25), PARA TODOS LOS CLIENTES: «Da igual si hay llamada o no. Cuando
+    // se abandona la vista en vivo, el stream se para y se reanuda cuando se regresa, en el mismo
+    // estado que tenia al salir.» Hasta la 1.9.0 ocultarse DESMONTABA la sesion (y con ella el
+    // micro y el turno). Ahora es `live_pause` (el portero deja de mandar medio al instante) y al
+    // volver `live_resume` con el micro/turno como estaban. Sin llamada, tras la gracia se cuelga
+    // y la ranura se libera; con llamada no se cuelga (la sesion es la llamada).
     this._onVisibilityForStream = () => {
       if (document.visibilityState === 'hidden') {
-        this._cancelarPausaInactividad();              // ocultarse ya suelta todo: manda este camino
-        if (!this.pc && !this._reconnecting) return;   // no habia nada que soltar
-        // Se recuerda que habia stream para poder reponerlo: sin esto, volver a mirar la tablet
-        // dejaria la card muda y con el video negro, que es peor que el problema que arregla.
-        this._streamPausedByHide = true;
-        this._clearReconnectTimer();
-        this._reconnecting = false;
-        this._clearIdleWakeLockTimer();   // la sesion termina aqui: _releaseWakeLock() ya no la para
-        this._teardownConnectionObjects();
-        this._releaseWakeLock();
-        if (this.intercomButton) this._setLiveState('connecting');
-        if (this.loader) this.loader.style.opacity = '1';
-      } else if (document.visibilityState === 'visible' && this._streamPausedByHide) {
-        this._streamPausedByHide = false;
-        // `isConnected` y no un booleano propio: si la card ya no esta en el DOM, reconectar
-        // crearia exactamente el cliente zombi que esto viene a evitar.
-        if (this.isConnected && this.content && !this.pc) this.startWebRTC('visibilitychange: vuelve a ser visible');
+        this._pausar('oculta');
+      } else if (document.visibilityState === 'visible' && this._pausa && this._pausa.motivo === 'oculta') {
+        this._reanudar('vuelve a ser visible');
       }
     };
     document.addEventListener('visibilitychange', this._onVisibilityForStream);
@@ -690,7 +708,6 @@ class IslautopiaIntercomCard extends HTMLElement {
     if (!this._onVisibilityForStream) return;
     document.removeEventListener('visibilitychange', this._onVisibilityForStream);
     this._onVisibilityForStream = null;
-    this._streamPausedByHide = false;
   }
 
   // ══════════════════════════════════════════════════════════════════════════════════════════
@@ -711,10 +728,10 @@ class IslautopiaIntercomCard extends HTMLElement {
   //  ⚠️ DOS CONTROLES DE NO DISPARAR, Y SON LO IMPORTANTE DE ESTA FUNCION. Soltar el video de quien
   //  esta mirando es peor que cualquier plaza malgastada:
   //
-  //   1. **Plazo de gracia.** Salir de pantalla no desmonta nada: hay que seguir fuera 30 s. Bajar
-  //      la vista para leer otra card y volver es un gesto de dos segundos, y sin plazo de gracia
-  //      costaria una reconexion entera con su recuadro negro. 30 s es ademas mas que el plazo de
-  //      abandono del propio portero (20 s), asi que la plaza se libera de verdad y no "casi".
+  //   1. **Margen minimo (1.9.1: 1,5 s; hasta la 1.9.0 eran 30 s).** Salir de la vista ya no
+  //      desmonta: es `live_pause`, y volver es `live_resume` en < 1 s, asi que esperar 30 s solo
+  //      servia para mandar video a nadie (regla de Iñaki del 2026-09-25: fuera de la vista, pausa
+  //      inmediata). El margen evita pausar por un parpadeo de maquetacion.
   //   2. **Nunca en pantalla completa.** _portalABody() traslada el CONTENEDOR a <body> cuando un
   //      ancestro atrapa el `position:fixed`, y entonces el elemento propio de la card se queda sin
   //      area -- o sea que el observador diria "no se ve" con el video ocupando la pantalla entera.
@@ -731,30 +748,22 @@ class IslautopiaIntercomCard extends HTMLElement {
       const visible = entries.some((e) => e.isIntersecting);
       if (visible) {
         this._clearOffscreenTimer();
-        if (this._streamPausedByHide && this.isConnected && this.content && !this.pc) {
-          this._streamPausedByHide = false;
-          this.startWebRTC('la card vuelve a estar en pantalla');
-        }
+        // Solo levanta la pausa de "fuera de la vista". La de inactividad es de una persona o de
+        // un timbrazo: un parpadeo de maquetacion (el <video> sin fuente cambia de tamaño) NO es
+        // alguien volviendo, y tratarlo asi fue el bucle medido en la tablet (1.9.0).
+        if (this._pausa && this._pausa.motivo === 'oculta' && document.visibilityState === 'visible') this._reanudar('la card vuelve a estar en pantalla');
         return;
       }
       if (this._offscreenTimer) return;               // ya hay una cuenta en marcha
+      // 1,5 s y no 30 como hasta la 1.9.0: pausar ya no desmonta nada (live_pause) y volver es
+      // < 1 s, asi que esperar solo servia para seguir mandando video a nadie. Queda un margen
+      // minimo para que un parpadeo de maquetacion no pause y reanude sin motivo.
       this._offscreenTimer = setTimeout(() => {
         this._offscreenTimer = null;
-        if (this._fsActive) return;                   // control 2: ver la cabecera
-        if (!this.pc && !this._reconnecting) return;  // no habia nada que soltar
-        console.info('[islautopia-intercom-card] la card lleva 30s fuera de pantalla (otra vista de Lovelace?) - se suelta el video y la plaza del portero');
-        // MISMO camino de vuelta que ocultarse o agotar la espera de inactividad: un solo estado
-        // (`_streamPausedByHide`) y un solo sitio que repone. Tres banderas distintas para tres
-        // formas de esconderse acabarian divergiendo.
-        this._streamPausedByHide = true;
-        this._clearReconnectTimer();
-        this._reconnecting = false;
-        this._clearIdleWakeLockTimer();
-        this._teardownConnectionObjects();
-        this._releaseWakeLock();
-        if (this.intercomButton) this._setLiveState('connecting');
-        if (this.loader) this.loader.style.opacity = '1';
-      }, 30000);
+        if (this._fsActive) return;                   // en pantalla completa el observador miente
+        console.info('[islautopia-intercom-card] la card ha salido de la vista: live_pause');
+        this._pausar('oculta');
+      }, OFFSCREEN_PAUSA_MS);
     });
     this._offscreenObserver.observe(this);
   }
@@ -771,15 +780,18 @@ class IslautopiaIntercomCard extends HTMLElement {
   }
 
   disconnectedCallback() {
-    this._cancelarPausaInactividad();
+    // ⚠️ SALIR DE LA VISTA ES PAUSAR, NO DESMONTAR (1.9.1, regla de Iñaki del 2026-09-25). Medido en
+    // Home Assistant 2026.9.3: cambiar de vista de Lovelace SACA la card del DOM. Hasta la 1.9.0 eso
+    // desmontaba la sesion (y el micro, y el turno). Ahora es la misma pausa que ocultarse:
+    // `live_pause` ya, `bye` tras la gracia si no hay llamada; y si Home Assistant vuelve a meter
+    // este mismo elemento, connectedCallback() la reanuda en el mismo estado. Si no lo vuelve a
+    // meter nunca, la gracia cuelga igual (y con llamada, el tope de CALL_OCULTA_MAX_MS).
+    this._pausar('oculta');                     // salir del DOM = pausar, no desmontar
     this._unregisterUnloadHandler();
     this._unregisterVisibilityStreamHandler();
     this._unregisterOffscreenStreamHandler();
     this._unregisterIdleActivityListeners();
     this._clearIdleWakeLockTimer();
-    this._clearReconnectTimer();
-    this._reconnecting = false;
-    this._teardownConnectionObjects();
     if (this.intercomButton) {
       this._setLiveState('connecting');
     }
@@ -1025,6 +1037,8 @@ class IslautopiaIntercomCard extends HTMLElement {
   // el `pc` moribundo de un arranque adelantado tumbaria la sesion del arranque bueno al cerrarse.
   _scheduleReconnect(reason, gen) {
     if (gen !== undefined && this._relevado(gen)) return;
+    // En pausa no se reconecta: si la sesion en gracia se cae, se da por colgada.
+    if (this._pausa) { if (this._pausa.fase === 'gracia') this._colgarPausa(); return; }
     if (this._reconnecting) return;
     this._reconnecting = true;
 
@@ -1307,7 +1321,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       this.statusLine.classList.add('warn');
       return;
     }
-    if (this._pausaInactividad) {
+    if (this._pausa) {
       this.statusLine.classList.remove('open');
       this.statusLine.classList.add('warn');
       this.statusLine.textContent = getLocalText(this._hass, 'paused_tap');
@@ -2165,7 +2179,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       // entero. Y ademas es lo que Inaki pidio de verdad -- «apagar la pantalla Y dejar de consumir
       // el stream», no solo lo primero.
       if (!this.pc && !this._reconnecting) return;
-      this._pausarPorInactividad();
+      this._pausar('inactividad');
     }, Math.max(0, restante));
   }
 
@@ -2186,31 +2200,53 @@ class IslautopiaIntercomCard extends HTMLElement {
   // Si una automatizacion cambia el plazo con la card abierta, se aplica ya (rearmar es barato y
   // el plazo es absoluto, asi que no regala tiempo).
   _vigilarPlazoInactividad() {
-    if (!this.pc || this._pausaInactividad) return;
+    if (!this.pc || this._pausa) return;
     const plazo = this._plazoInactividadMs();
     if (plazo !== this._plazoAplicadoMs) this._armIdleWakeLockTimer();
   }
 
-  // Vence el plazo: `live_pause` YA y `bye` tras la gracia. Ver IDLE_GRACE_MS.
-  _pausarPorInactividad() {
-    if (this._pausaInactividad) return;
-    console.info('[islautopia-intercom-card] sin interacción: live_pause y, si nadie vuelve, se libera la ranura');
-    this._pausaInactividad = 'gracia';
+  // UNA sola pausa para las dos reglas (1.9.1). `live_pause` YA; `bye` tras la gracia salvo con una
+  // llamada en curso. Ver IDLE_GRACE_MS y la regla de Iñaki en _registerVisibilityStreamHandler.
+  _pausar(motivo) {
+    if (this._pausa) {
+      // Una pausa por inactividad no se degrada a "oculta": seguiria siendo de una persona.
+      return;
+    }
+    const llamada = this._llamadaActiva();
+    const micAbierto = !!(this.intercomActive || this._talkHeld || this._talkPending);
+    this._clearIdleWakeLockTimer();
+    this._clearOffscreenTimer();
+    if (!this.pc) {
+      // Nada vivo (o un arranque en vuelo): se corta todo y se queda en pausa colgada.
+      this._clearReconnectTimer();
+      this._reconnecting = false;
+      this._teardownConnectionObjects();
+      this._pausa = { motivo, fase: 'colgada', micAbierto: false };
+      if (motivo === 'inactividad') PAUSA_POR_PORTERO[this.config.device_id] = true;
+      this._pintarPausa();
+      return;
+    }
+    console.info(`[islautopia-intercom-card] pausa (${motivo})${llamada ? ' con llamada: sin colgar' : ''}`);
+    this._pausa = { motivo, fase: 'gracia', micAbierto };
+    if (motivo === 'inactividad') PAUSA_POR_PORTERO[this.config.device_id] = true;
+    // El micro no se queda abierto con la vista cerrada (y el portero suelta el turno con
+    // live_pause de todas formas, §1.4-bis). Se recuerda para reabrirlo al volver.
+    if (micAbierto) this._stopIntercom();
     this._enviarLivePause(true);
-    // Parar el <video> es lo que suelta el keep-awake implicito del navegador (medido en la tablet,
-    // 2026-09-07): la pantalla puede apagarse ya, sin esperar al `bye`.
+    // Parar el <video> suelta el keep-awake implicito del navegador: la pantalla puede apagarse ya.
     if (this.videoEl) { try { this.videoEl.pause(); } catch (err) { /* best effort */ } }
     this._releaseWakeLock();
     this._pintarPausa();
     if (this._pausaGraciaTimer) clearTimeout(this._pausaGraciaTimer);
-    this._pausaGraciaTimer = setTimeout(() => this._colgarPorInactividad(), this._idleGraceMs);
+    this._pausaGraciaTimer = null;
+    if (!llamada) this._pausaGraciaTimer = setTimeout(() => this._colgarPausa(), this._idleGraceMs);
+    else this._pausaGraciaTimer = setTimeout(() => this._colgarPausa(), CALL_OCULTA_MAX_MS);
   }
 
-  _colgarPorInactividad() {
+  _colgarPausa() {
     this._pausaGraciaTimer = null;
-    if (this._pausaInactividad !== 'gracia') return;
-    this._pausaInactividad = 'colgada';
-    this._streamPausedByHide = true;      // mismo camino de vuelta que al ocultarse
+    if (!this._pausa || this._pausa.fase !== 'gracia') return;
+    this._pausa.fase = 'colgada';
     // ⚠️ CERRAR EL PEER NO BASTA: HAY QUE SOLTAR EL <video> (medido 2026-09-07, dumpsys power).
     if (this.videoEl) {
       try { this.videoEl.pause(); } catch (err) { /* best effort */ }
@@ -2218,36 +2254,46 @@ class IslautopiaIntercomCard extends HTMLElement {
     }
     this._clearReconnectTimer();
     this._reconnecting = false;
-    this._clearOffscreenTimer();
     this._teardownConnectionObjects();    // manda `bye`: la ranura se libera AHORA, no a los 20 s
     this._pintarPausa();
   }
 
-  // Volver: un toque o un timbrazo. Dentro de la gracia, `live_resume` con rescate acotado; despues,
-  // una sesion nueva.
-  _reanudarTrasInactividad(motivo) {
-    const estado = this._pausaInactividad;
-    if (!estado) return;
-    this._pausaInactividad = null;
+  // Volver: un toque, un timbrazo, o (solo para la de "oculta") volver a la vista. Dentro de la
+  // gracia, `live_resume` con el rescate acotado y el micro/turno como estaban; despues, sesion nueva.
+  _reanudar(motivo) {
+    const p = this._pausa;
+    if (!p) return;
+    this._pausa = null;
+    delete PAUSA_POR_PORTERO[this.config.device_id];
     if (this._pausaGraciaTimer) { clearTimeout(this._pausaGraciaTimer); this._pausaGraciaTimer = null; }
     ULTIMA_INTERACCION_MS = Date.now();
     this._resetStatusLine();
-    if (estado === 'gracia' && this.pc) {
+    if (p.fase === 'gracia' && this.pc) {
       this._enviarLivePause(false);
-      if (this.videoEl) { try { const p = this.videoEl.play(); if (p && p.catch) p.catch(() => {}); } catch (err) { /* best effort */ } }
-      this._setLiveState(this.intercomActive ? 'open' : 'live');
+      if (this.videoEl) { try { const pr = this.videoEl.play(); if (pr && pr.catch) pr.catch(() => {}); } catch (err) { /* best effort */ } }
+      this._setLiveState('live');
+      if (this.loader) this.loader.style.opacity = '0';
       this._rescateTrasReanudar();
       this._armIdleWakeLockTimer();
+      if (p.micAbierto) this._requestTalkTurn();       // "en el mismo estado": el turno se vuelve a pedir
       return;
     }
-    this._streamPausedByHide = false;
-    if (this.isConnected && this.content) this.startWebRTC(`reanudar tras inactividad (${motivo})`);
+    if (this.isConnected && this.content) this.startWebRTC(`reanudar (${motivo})`);
   }
 
-  _cancelarPausaInactividad() {
+  _cancelarPausa() {
     if (this._pausaGraciaTimer) { clearTimeout(this._pausaGraciaTimer); this._pausaGraciaTimer = null; }
-    this._pausaInactividad = null;
+    this._pausa = null;
     this._pararRescate();
+  }
+
+  // Un elemento nuevo (o reinsertado) de un portero en pausa por inactividad NO arranca solo.
+  _restaurarPausaGuardada() {
+    if (!this.config || !PAUSA_POR_PORTERO[this.config.device_id]) return false;
+    if (!this._pausa) this._pausa = { motivo: 'inactividad', fase: 'colgada', micAbierto: false };
+    this._registerIdleActivityListeners();
+    this._pintarPausa();
+    return true;
   }
 
   _pintarPausa() {
@@ -2312,26 +2358,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       // puesto solo se reinicia la cuenta. Nunca se pide con la pagina oculta -- ahi el navegador
       // lo rechazaria, y ademas seria pedir pantalla para nadie.
       if (document.visibilityState !== 'visible') return;
-      if (this._pausaInactividad) { this._reanudarTrasInactividad('toque'); return; }
-      // Si la espera ya se habia agotado y solto el video, tocar lo repone -- igual que volver a
-      // ser visible. Sin esto, quien tocara la pantalla se encontraria la card en negro.
-      if (this._streamPausedByHide && this.isConnected && this.content && !this.pc) {
-        this._streamPausedByHide = false;
-        // ⚠️ SIN ESTA LINEA, EL PROPIO TOQUE SE AUTODESTRUYE (medido en Chromium, 2026-09-07).
-        // startWebRTC() rearma el reloj de inactividad de forma incondicional (linea de mas abajo,
-        // ver ese comentario), pero calcula "restante" contra ULTIMA_INTERACCION_MS -- y esta rama
-        // nunca la actualizaba, exactamente el mismo fallo que el comentario de abajo ya describe
-        // para la otra rama ("un disparo calculado con la marca vieja"). Con la marca vieja, el
-        // reloj recien armado calcula "restante <= 0" y dispara casi al instante (0ms): si para
-        // entonces this.pc YA esta puesto (reconexion rapida), esa comprobacion vuelve a soltar el
-        // video que este mismo toque acaba de reponer -- en cuestion de milisegundos, invisible
-        // para quien mira. Es una carrera (gana o pierde segun cuanto tarde la red), no un fallo
-        // que salte siempre -- de ahi que un mismo hardware la reproduzca de forma consistente y
-        // un navegador con otra latencia de red no. Este toque ES una interaccion real: cuenta.
-        ULTIMA_INTERACCION_MS = Date.now();
-        this.startWebRTC('interaccion tras soltar por inactividad');
-        return;
-      }
+      if (this._pausa) { this._reanudar('toque'); return; }
       // ⚠️ SE REARMA SIEMPRE, Y ANTES ERA UN `else` (2026-09-07). La version anterior decia
       // `if (!this._wakeLock) this._acquireWakeLock(); else this._armIdleWakeLockTimer(true)`: o
       // sea que en un aparato sin wake lock -- el panel de pared-- un toque actualizaba
@@ -2525,7 +2552,14 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._ringMarker = marca;
     // Primera lectura: NO dispara. Al abrir el dashboard, un binary_sensor que lleva rato en 'on'
     // (o un event con una marca vieja) no es una llamada de ahora.
-    if (previa === null || previa === undefined) return;
+    // ⚠️ SALVO para despertar una pausa: el timbrazo que trae el panel al frente (automatizacion
+    // tipica) puede CREAR esta card, y para ella ese timbrazo es su "primera lectura". Si es de
+    // hace menos de TIMBRE_RECIENTE_MS, cuenta.
+    if (previa === null || previa === undefined) {
+      if (this._pausa && esEvento && stateObj.attributes && stateObj.attributes.event_type === 'ring'
+        && Date.now() - Date.parse(marca) < TIMBRE_RECIENTE_MS && document.visibilityState === 'visible') this._reanudar('timbre reciente');
+      return;
+    }
     // ⚠️ En la entidad de eventos solo cuenta `ring`: la misma entidad lleva paquetes, visitantes,
     // modos... (§1.16), y tratarlos como timbrazo encenderia el sonido por un paquete.
     const hasonado = esEvento
@@ -2534,7 +2568,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       : (marca === 'on' && previa !== 'on');
     if (!hasonado) return;
     // Un timbrazo nuevo despierta una card en pausa por inactividad, sola.
-    if (this._pausaInactividad && document.visibilityState === 'visible') this._reanudarTrasInactividad('timbre');
+    if (this._pausa && document.visibilityState === 'visible') this._reanudar('timbre');
     if (this._audioOn) return; // ya se estaba oyendo: nada que anunciar
     this._setAudioOn(true, 'timbre');
     if (this._audioOn) this._flashStatusLine('snd_ring', 6000);
@@ -3038,7 +3072,7 @@ class IslautopiaIntercomCard extends HTMLElement {
 
       this.injectStyles();
       this._updateHassBoundUI();
-      this.startWebRTC('render: primera construccion del DOM de la card');
+      if (!this._restaurarPausaGuardada()) this.startWebRTC('render: primera construccion del DOM de la card');
     }
   }
 
@@ -3057,6 +3091,11 @@ class IslautopiaIntercomCard extends HTMLElement {
   //  los cinco caminos lo disparo, que es la mitad util del dato.
   // ══════════════════════════════════════════════════════════════════════════════════════════
   async startWebRTC(motivo = 'sin motivo') {
+    // En pausa no se arranca nada: la levantan _reanudar() (que la borra antes) o nadie.
+    if (this._pausa) {
+      console.info(`[islautopia-intercom-card] en pausa (${this._pausa.motivo}): no se arranca (${motivo})`);
+      return;
+    }
     const enVuelo = this._arranqueEnVueloGen;
     // Solo bloquea el que sigue siendo VIGENTE. Un arranque al que ya le han desmontado la sesion
     // por debajo (p.ej. _scheduleReconnect(), que desmonta y vuelve a arrancar 2 s despues) esta
@@ -3079,7 +3118,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     // Y ademas sube la generacion: a partir de esta linea, cualquier arranque anterior en vuelo
     // queda relevado y recogera lo suyo en vez de escribirlo encima de lo nuestro.
     this._teardownConnectionObjects();
-    this._cancelarPausaInactividad();
+    this._pararRescate();
     this._livePauseWanted = false;
     const gen = this._connGen;
     this._arranqueEnVueloGen = gen;
@@ -3174,9 +3213,23 @@ class IslautopiaIntercomCard extends HTMLElement {
       // aceptara una firma en un POST, lo unico que se pierde es la liberacion inmediata del slot,
       // que el portero recupera solo a los 20s. Nunca hay que hacerlo bloqueante: la pagina ya se
       // esta cerrando.
-      const destino = (this._localVia === 'proxy') ? this._localSignedUrl : null;
-      if (destino) {
-        try { navigator.sendBeacon(destino, blob); } catch (err) { /* best effort */ }
+      // ⚠️ `fetch(..., {keepalive:true})` CON la cabecera Authorization, y no sendBeacon a la URL
+      // firmada (1.9.1): una ruta firmada de Home Assistant solo vale para GET, asi que el beacon
+      // recibia 401 y el `bye` no llegaba nunca -- medido: al cerrar la pagina la sesion seguia
+      // viva en el portero hasta su propio plazo. keepalive sobrevive al cierre igual que un beacon.
+      const token = this._hass && this._hass.auth && this._hass.auth.data ? this._hass.auth.data.access_token : null;
+      let enviado = false;
+      if (token && typeof fetch === 'function') {
+        try {
+          fetch(`/api/islautopia_doorbell/signal/${this.config.device_id}`, {
+            method: 'POST', keepalive: true, body: JSON.stringify(payload),
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          }).catch(() => {});
+          enviado = true;
+        } catch (err) { /* best effort */ }
+      }
+      if (!enviado && this._localSignedUrl) {
+        try { navigator.sendBeacon(this._localSignedUrl, blob); } catch (err) { /* best effort */ }
       }
     }
 
