@@ -1,8 +1,13 @@
 // Repaso REAL en Chromium de los cambios de la v1.9.2 (Iñaki, 2026-09-25): REC contra la entidad
 // de la integración, altavoz de la calle reubicado a la fila de botones (sin deslizador de
-// volumen), chip de modo intacto, selector de calidad y reloj retirados, y la clase de seguridad
-// de pantalla completa nativa. Carga dist/islautopia-intercom-card.js real; harness.js dobla solo
-// la capa de red (igual criterio que test/idle_release_network).
+// volumen), selector de calidad y reloj retirados, y la clase de seguridad de pantalla completa
+// nativa. Carga dist/islautopia-intercom-card.js real; harness.js dobla solo la capa de red (igual
+// criterio que test/idle_release_network).
+//
+// ⚠️ Los tests 4 y 7 se actualizaron en la v1.9.5 (misma tarde): el chip de modo paso de fila de 4
+// chips a chip desplegable, y REC salio de `.actions-row` hacia la cabecera (`#top-row`) para
+// parecerse a las apps - ver test/ui_v1_9_5/driver.js para las comprobaciones dedicadas de ese
+// cambio.
 //
 // EJECUTAR:
 //   1. Desde la raiz del worktree: python -m http.server 8793
@@ -106,7 +111,12 @@ async function main() {
   check('oculto con rol "unknown"', recUnknown === 'none');
   await page.evaluate(() => window.tSetRole('admin'));
 
-  console.log('\n########## 4. El chip de modo sigue llamando a select.select_option ##########');
+  console.log('\n########## 4. El chip de modo (ahora desplegable, v1.9.5) sigue llamando a select.select_option ##########');
+  // (v1.9.5) La fila de 4 chips segmentados se sustituyo por UN chip desplegable ("los modos deben
+  // ser tambien un chip desplegable", Iñaki 2026-09-25) - hay que abrirlo primero, igual que en la
+  // app real (PopupMenuButton). Ver test/ui_v1_9_5/driver.js para las comprobaciones dedicadas del
+  // aspecto nuevo; esta sigue viviendo aqui porque es la misma llamada a select_option que ya
+  // cubria la 1.9.2.
   await page.evaluate(() => {
     window.tSetHassState('select.modo_test', 'normal', { options: ['normal', 'away', 'do_not_disturb', 'custom'] });
     window.tCreateCard('d', { mode_entity: 'select.modo_test' });
@@ -114,7 +124,9 @@ async function main() {
     window.tRefreshHass('d');
   });
   await sleep(150);
-  await page.evaluate(() => { window.__calledServices.length = 0; window.tClick('d', '.mode-row .chip[data-option="away"]'); });
+  await page.evaluate(() => { window.tClick('d', '#mode-pill'); }); // abre el desplegable
+  await sleep(50);
+  await page.evaluate(() => { window.__calledServices.length = 0; window.tClick('d', '.mode-opt[data-option="away"]'); });
   await sleep(50);
   calls = await page.evaluate(() => window.__calledServices.slice());
   check('el chip de modo llama a select.select_option con la opcion pulsada', calls.some((c) => c.domain === 'select' && c.service === 'select_option' && c.data.option === 'away'));
@@ -147,7 +159,7 @@ async function main() {
   check('#hud-quality ya no existe (chip de calidad retirado)', goneEls.quality === false);
   check('#hud-time ya no existe (reloj superpuesto retirado)', goneEls.clock === false);
 
-  console.log('\n########## 7. Orden de la fila de botones: sonido, micro, abrir, REC ##########');
+  console.log('\n########## 7. Orden de la fila de botones: sonido, micro, abrir (REC ya no vive aqui, v1.9.5) ##########');
   const order = await page.evaluate(() => {
     window.tSetHassState('switch.rec_order', 'off', {});
     const c = document.createElement('islautopia-intercom-card');
@@ -156,9 +168,10 @@ async function main() {
     document.getElementById('host').appendChild(c);
     c.hass = c._hass;
     const ids = Array.from(c.querySelectorAll('.actions-row .action button')).map((b) => b.id);
-    return ids;
+    return { ids, recInHeader: !!c.querySelector('#top-row #rec-button'), recInActionsRow: !!c.querySelector('.actions-row #rec-button') };
   });
-  check(`orden real: ${JSON.stringify(order)}`, JSON.stringify(order) === JSON.stringify(['snd-btn', 'intercom-button', 'unlock-button', 'rec-button']));
+  check(`orden real: ${JSON.stringify(order.ids)}`, JSON.stringify(order.ids) === JSON.stringify(['snd-btn', 'intercom-button', 'unlock-button']));
+  check('REC vive en la cabecera (#top-row), no en la fila de botones (v1.9.5)', order.recInHeader === true && order.recInActionsRow === false);
 
   console.log('\n########## 8. Pantalla completa: toggle no lanza excepcion y deja un estado consistente ##########');
   // ⚠️ page.evaluate()+dispatchEvent('click') NO sirve aqui: es un evento sintetico sin activacion

@@ -16,6 +16,46 @@ Fuente de verdad de la interfaz del propio doorbell (WebRTC, señalización, `pa
 `app_turn_credentials`, etc.): `C:\Proyectos_espressif\IG_Doorbell\API_CONTRACT.md`. No la
 dupliques aquí.
 
+**v1.9.5 (2026-09-25, misma tarde) — la card emula el aspecto de las apps: REC en capsula de
+cabecera, modo en chip desplegable, botón de Grabaciones. Comparada pieza a pieza con la app real
+en la tablet del salón, no razonada.**
+
+- Decisión de Iñaki: *"El botón REC se muestra, pero el aspecto es muy distinto al de las apps. REC
+  y la campanita deben tener el mismo aspecto. Los modos deben ser también un chip desplegable. En
+  la medida de lo posible, la card debe emular el aspecto de las apps."* Y en el mismo encargo:
+  *"No metemos un botón de configuración (para eso tenemos la integración), pero sí metemos el
+  botón de Grabaciones."*
+- **REC** se traslada de `.actions-row` (círculo de 60px compartido con sonido/puerta, decisión de
+  esa misma mañana) a una cápsula pequeña en la cabecera (`#top-row`/`.rec-pill`): punto rojo
+  hueco/relleno parpadeante + "REC" fijo SIN traducir (igual que `RecButton.dart` de las apps — es
+  la etiqueta universal de un grabador). El gating (`_connInfo.role === 'admin'`, nunca
+  `hass.user.is_admin`) y la fuente de verdad (la entidad, nunca el último tap) no cambian respecto
+  a la 1.9.4 — solo el aspecto y dónde vive.
+- **Sin campanita**: esta card no tiene una vista de "historial de avisos" a la que abrirla (la de
+  la app abre una pantalla propia, `/home/events`) — no se inventa una. Si algún día se añade un
+  visor de eventos a la card, aquí es donde iría, con el mismo aspecto (círculo pequeño + punto rojo
+  sin número, `BellButton.dart`).
+- **Modo**: la fila de 4 chips segmentados (`.chip`) se sustituye por UN chip desplegable
+  (`.mode-pill`/`.mode-menu`, mismo patrón que `_ModePill` de las apps) — icono + etiqueta del modo
+  VIGENTE + flecha, que al pulsarlo abre la lista de opciones. Sigue llamando a
+  `select.select_option` sobre la misma entidad auto-detectada (v1.9.3), traducido con
+  `formatEntityState`. Un click fuera lo cierra (`_onDocClickForModeMenu`, mismo criterio que el
+  resto de menús de esta card).
+- **Grabaciones** (`#bottom-row`/`.quick-btn`, debajo del marco de vídeo): mismo aspecto que
+  `_QuickButton` de las apps, mismo gating que REC (rol del portero, no admin de HA) y **sin
+  Ajustes** — la configuración vive en la integración y sus entidades. Abre el navegador de medios
+  NATIVO de Home Assistant (`/media-browser/browser/<tipo,media_content_id codificado>`, con
+  `browser` como marcador de "sin media_player asociado" — `BROWSER_PLAYER` en
+  `data/media-player.ts` del frontend) contra el `media_source` que ya publica la integración
+  (`media_source.py`/`DoorbellMediaSource`, `media-source://islautopia_doorbell/<device_id>`) — la
+  card **no reimplementa un reproductor**, solo navega (`history.pushState` + `location-changed`,
+  la misma convención SPA de todo el frontend de HA).
+- Repasado con Chromium real: `test/ui_v1_9_2/driver.js` se actualizó (tests 4 y 7, que asumían la
+  fila de chips y REC dentro de `.actions-row`) y `test/ui_v1_9_5/driver.js` es nuevo, con control
+  positivo y negativo de las tres piezas (REC/modo/Grabaciones). Pendiente: verificación visual en
+  la tablet del salón contra la app real (capturas antes/después) — ver HANDOFF.md si existe una
+  entrada más reciente.
+
 **v1.9.4 (2026-09-25) — REC ya no depende del usuario de Home Assistant, sino del rol que el
 PORTERO dio a la integración al emparejarla.**
 

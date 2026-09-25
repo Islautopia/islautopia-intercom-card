@@ -16,8 +16,8 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_VERSION = '1.9.4';
-const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-25-rec-rol-del-portero`;
+const CARD_VERSION = '1.9.5';
+const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-25-aspecto-de-las-apps`;
 
 // ⚠️ ESTA MARCA VIVE EN EL MODULO Y NO EN EL ELEMENTO, Y ESA ES TODA LA GRACIA (2026-09-07).
 //
@@ -105,7 +105,7 @@ const islautopiaLocales = {
     door_opening: "Abriendo la puerta...", lbl_door_opening: "Abriendo", door_no_answer: "El portero no respondió — la puerta NO se ha abierto",
     conn_lan: "Home Assistant no llega al portero por la red local", paused: "En pausa", paused_tap: "En pausa para liberar el portero · toca para reanudar", retry_prefix: "Sin conexión · reintentando en",
     snd_blocked: "Toca el altavoz para oír", cred_revoked: "El portero rechazó el emparejamiento — vuelve a emparejarlo en Ajustes › Dispositivos y servicios",
-    lbl_rec_off: "REC", lbl_rec_on: "Grabando", rec_start_tip: "Empezar a grabar", rec_stop_tip: "Parar la grabación", rec_no_answer: "Home Assistant no aceptó la orden de grabar",
+    lbl_rec_off: "REC", lbl_rec_on: "Grabando", rec_start_tip: "Empezar a grabar", rec_stop_tip: "Parar la grabación", rec_no_answer: "Home Assistant no aceptó la orden de grabar", recordings_title: "Grabaciones",
     ed_device_id: "Device ID nativo IG Doorbell (recomendado - ver Ajustes > Dispositivos y servicios)",
     ed_mode_entity: "Entidad de Modo (Opcional - select.* para mostrar los chips Normal/Ausente/Noche/Custom)",
     ed_motion_entity: "Entidad de Movimiento (Opcional - binary_sensor.* para el aviso de movimiento sobre el vídeo)",
@@ -130,7 +130,7 @@ const islautopiaLocales = {
     door_opening: "Opening the door...", lbl_door_opening: "Opening", door_no_answer: "No answer from the doorbell — the door did NOT open",
     conn_lan: "Home Assistant can't reach the doorbell on the local network", paused: "Paused", paused_tap: "Paused to free the doorbell · tap to resume", retry_prefix: "No connection · retrying in",
     snd_blocked: "Tap the speaker to listen", cred_revoked: "The doorbell rejected this pairing — re-pair it in Settings › Devices & services",
-    lbl_rec_off: "REC", lbl_rec_on: "Recording", rec_start_tip: "Start recording", rec_stop_tip: "Stop recording", rec_no_answer: "Home Assistant did not accept the recording request",
+    lbl_rec_off: "REC", lbl_rec_on: "Recording", rec_start_tip: "Start recording", rec_stop_tip: "Stop recording", rec_no_answer: "Home Assistant did not accept the recording request", recordings_title: "Recordings",
     ed_device_id: "Native IG Doorbell Device ID (recommended - see Settings > Devices & services)",
     ed_mode_entity: "Mode Entity (Optional - select.* to show the Normal/Away/Night/Custom chips)",
     ed_motion_entity: "Motion Entity (Optional - binary_sensor.* for the motion badge over the video)",
@@ -155,7 +155,7 @@ const islautopiaLocales = {
     door_opening: "A abrir a porta...", lbl_door_opening: "A abrir", door_no_answer: "O porteiro não respondeu — a porta NÃO foi aberta",
     conn_lan: "O Home Assistant não chega ao porteiro pela rede local", paused: "Em pausa", paused_tap: "Em pausa para libertar o porteiro · toque para retomar", retry_prefix: "Sem ligação · a tentar de novo em",
     snd_blocked: "Toque no altifalante para ouvir", cred_revoked: "O porteiro rejeitou este emparelhamento — volte a emparelhá-lo em Definições › Dispositivos e serviços",
-    lbl_rec_off: "REC", lbl_rec_on: "A gravar", rec_start_tip: "Começar a gravar", rec_stop_tip: "Parar a gravação", rec_no_answer: "O Home Assistant não aceitou o pedido de gravação",
+    lbl_rec_off: "REC", lbl_rec_on: "A gravar", rec_start_tip: "Começar a gravar", rec_stop_tip: "Parar a gravação", rec_no_answer: "O Home Assistant não aceitou o pedido de gravação", recordings_title: "Gravações",
     ed_device_id: "Device ID nativo do IG Doorbell (recomendado)",
     ed_mode_entity: "Entidade de Modo (Opcional - select.* para mostrar os chips Normal/Ausente/Noite/Custom)",
     ed_motion_entity: "Entidade de Movimento (Opcional - binary_sensor.* para o aviso de movimento sobre o vídeo)",
@@ -180,7 +180,7 @@ const islautopiaLocales = {
     door_opening: "Tür wird geöffnet...", lbl_door_opening: "Öffnet", door_no_answer: "Keine Antwort der Türsprechanlage — die Tür wurde NICHT geöffnet",
     conn_lan: "Home Assistant erreicht die Türsprechanlage im lokalen Netz nicht", paused: "Pausiert", paused_tap: "Pausiert, um die Türsprechanlage freizugeben · tippen zum Fortsetzen", retry_prefix: "Keine Verbindung · neuer Versuch in",
     snd_blocked: "Auf den Lautsprecher tippen, um zu hören", cred_revoked: "Die Türsprechanlage hat diese Kopplung abgelehnt — in Einstellungen › Geräte & Dienste neu koppeln",
-    lbl_rec_off: "REC", lbl_rec_on: "Aufnahme läuft", rec_start_tip: "Aufnahme starten", rec_stop_tip: "Aufnahme stoppen", rec_no_answer: "Home Assistant hat die Aufnahme-Anfrage nicht angenommen",
+    lbl_rec_off: "REC", lbl_rec_on: "Aufnahme läuft", rec_start_tip: "Aufnahme starten", rec_stop_tip: "Aufnahme stoppen", rec_no_answer: "Home Assistant hat die Aufnahme-Anfrage nicht angenommen", recordings_title: "Aufnahmen",
     ed_device_id: "Native IG Doorbell Device ID (empfohlen)",
     ed_mode_entity: "Modus-Entität (Optional - select.* für die Chips Normal/Abwesend/Nacht/Custom)",
     ed_motion_entity: "Bewegungs-Entität (Optional - binary_sensor.* für den Bewegungshinweis über dem Video)",
@@ -205,7 +205,7 @@ const islautopiaLocales = {
     door_opening: "Ouverture de la porte...", lbl_door_opening: "Ouverture", door_no_answer: "Pas de réponse du portier — la porte n'a PAS été ouverte",
     conn_lan: "Home Assistant n'atteint pas l'interphone sur le réseau local", paused: "En pause", paused_tap: "En pause pour libérer l'interphone · touchez pour reprendre", retry_prefix: "Pas de connexion · nouvel essai dans",
     snd_blocked: "Touchez le haut-parleur pour écouter", cred_revoked: "Le portier a refusé cet appairage — réappairez-le dans Paramètres › Appareils et services",
-    lbl_rec_off: "REC", lbl_rec_on: "Enregistrement", rec_start_tip: "Démarrer l'enregistrement", rec_stop_tip: "Arrêter l'enregistrement", rec_no_answer: "Home Assistant n'a pas accepté la demande d'enregistrement",
+    lbl_rec_off: "REC", lbl_rec_on: "Enregistrement", rec_start_tip: "Démarrer l'enregistrement", rec_stop_tip: "Arrêter l'enregistrement", rec_no_answer: "Home Assistant n'a pas accepté la demande d'enregistrement", recordings_title: "Enregistrements",
     ed_device_id: "Device ID natif IG Doorbell (recommandé)",
     ed_mode_entity: "Entité de Mode (Optionnel - select.* pour afficher les puces Normal/Absent/Nuit/Custom)",
     ed_motion_entity: "Entité de Mouvement (Optionnel - binary_sensor.* pour l'alerte de mouvement sur la vidéo)",
@@ -230,7 +230,7 @@ const islautopiaLocales = {
     door_opening: "Открывание двери...", lbl_door_opening: "Открывание", door_no_answer: "Домофон не ответил — дверь НЕ открыта",
     conn_lan: "Home Assistant не может связаться с домофоном в локальной сети", paused: "Пауза", paused_tap: "Пауза, чтобы освободить домофон · коснитесь, чтобы продолжить", retry_prefix: "Нет связи · повтор через",
     snd_blocked: "Коснитесь динамика, чтобы слышать", cred_revoked: "Домофон отклонил эту привязку — выполните привязку заново в Настройки › Устройства и службы",
-    lbl_rec_off: "REC", lbl_rec_on: "Запись", rec_start_tip: "Начать запись", rec_stop_tip: "Остановить запись", rec_no_answer: "Home Assistant не принял запрос на запись",
+    lbl_rec_off: "REC", lbl_rec_on: "Запись", rec_start_tip: "Начать запись", rec_stop_tip: "Остановить запись", rec_no_answer: "Home Assistant не принял запрос на запись", recordings_title: "Записи",
     ed_device_id: "Собственный Device ID IG Doorbell (рекомендуется)",
     ed_mode_entity: "Объект режима (Необязательно - select.* для чипов Обычный/Отсутствие/Ночь/Custom)",
     ed_motion_entity: "Объект движения (Необязательно - binary_sensor.* для значка движения поверх видео)",
@@ -255,7 +255,7 @@ const islautopiaLocales = {
     door_opening: "正在开门...", lbl_door_opening: "开门中", door_no_answer: "门口机没有响应 — 门并未打开",
     conn_lan: "Home Assistant 无法通过局域网连接门铃", paused: "已暂停", paused_tap: "已暂停以释放门铃 · 轻触继续", retry_prefix: "无连接 · 重试倒计时",
     snd_blocked: "点击扬声器以收听", cred_revoked: "门口机拒绝了此配对 — 请在 设置 › 设备与服务 中重新配对",
-    lbl_rec_off: "REC", lbl_rec_on: "录制中", rec_start_tip: "开始录制", rec_stop_tip: "停止录制", rec_no_answer: "Home Assistant 未接受录制请求",
+    lbl_rec_off: "REC", lbl_rec_on: "录制中", rec_start_tip: "开始录制", rec_stop_tip: "停止录制", rec_no_answer: "Home Assistant 未接受录制请求", recordings_title: "录像",
     ed_device_id: "原生 IG Doorbell 设备 ID (推荐)",
     ed_mode_entity: "模式实体 (可选 - select.* 用于显示 正常/离开/夜间/自定义 标签)",
     ed_motion_entity: "移动实体 (可选 - binary_sensor.* 用于视频上的移动提示)",
@@ -280,7 +280,7 @@ const islautopiaLocales = {
     door_opening: "दरवाज़ा खोला जा रहा है...", lbl_door_opening: "खुल रहा है", door_no_answer: "डोरबेल ने जवाब नहीं दिया — दरवाज़ा नहीं खुला",
     conn_lan: "Home Assistant लोकल नेटवर्क पर डोरबेल तक नहीं पहुँच पा रहा", paused: "रुका हुआ", paused_tap: "डोरबेल खाली करने के लिए रुका · फिर शुरू करने के लिए छुएँ", retry_prefix: "कनेक्शन नहीं · फिर कोशिश",
     snd_blocked: "सुनने के लिए स्पीकर पर टैप करें", cred_revoked: "डोरबेल ने यह पेयरिंग अस्वीकार कर दी — सेटिंग्स › डिवाइस और सेवाएँ में दोबारा पेयर करें",
-    lbl_rec_off: "REC", lbl_rec_on: "रिकॉर्डिंग हो रही है", rec_start_tip: "रिकॉर्डिंग शुरू करें", rec_stop_tip: "रिकॉर्डिंग रोकें", rec_no_answer: "Home Assistant ने रिकॉर्डिंग का अनुरोध स्वीकार नहीं किया",
+    lbl_rec_off: "REC", lbl_rec_on: "रिकॉर्डिंग हो रही है", rec_start_tip: "रिकॉर्डिंग शुरू करें", rec_stop_tip: "रिकॉर्डिंग रोकें", rec_no_answer: "Home Assistant ने रिकॉर्डिंग का अनुरोध स्वीकार नहीं किया", recordings_title: "रिकॉर्डिंग",
     ed_device_id: "नेटिव IG Doorbell डिवाइस ID (अनुशंसित)",
     ed_mode_entity: "मोड एंटिटी (वैकल्पिक - select.* सामान्य/अनुपस्थित/रात/कस्टम चिप्स दिखाने के लिए)",
     ed_motion_entity: "मोशन एंटिटी (वैकल्पिक - binary_sensor.* वीडियो पर मोशन बैज के लिए)",
@@ -305,7 +305,7 @@ const islautopiaLocales = {
     door_opening: "جارٍ فتح الباب...", lbl_door_opening: "جارٍ الفتح", door_no_answer: "لا رد من الجهاز — لم يُفتح الباب",
     conn_lan: "لا يصل Home Assistant إلى الجرس عبر الشبكة المحلية", paused: "متوقف مؤقتاً", paused_tap: "متوقف مؤقتاً لتحرير الجرس · المس للمتابعة", retry_prefix: "لا يوجد اتصال · إعادة المحاولة خلال",
     snd_blocked: "المس مكبر الصوت للاستماع", cred_revoked: "رفض الجهاز هذا الاقتران — أعد الاقتران من الإعدادات › الأجهزة والخدمات",
-    lbl_rec_off: "REC", lbl_rec_on: "جارٍ التسجيل", rec_start_tip: "بدء التسجيل", rec_stop_tip: "إيقاف التسجيل", rec_no_answer: "لم يقبل Home Assistant طلب التسجيل",
+    lbl_rec_off: "REC", lbl_rec_on: "جارٍ التسجيل", rec_start_tip: "بدء التسجيل", rec_stop_tip: "إيقاف التسجيل", rec_no_answer: "لم يقبل Home Assistant طلب التسجيل", recordings_title: "التسجيلات",
     ed_device_id: "معرّف الجهاز الأصلي IG Doorbell (موصى به)",
     ed_mode_entity: "كيان الوضع (اختياري - select.* لعرض رقائق عادي/غائب/ليلي/مخصص)",
     ed_motion_entity: "كيان الحركة (اختياري - binary_sensor.* لشارة الحركة فوق الفيديو)",
@@ -437,11 +437,15 @@ function qualityModeMeta(wire) {
 // opcion a un icono conocido). La entidad `select.*` configurada en `mode_entity` es la fuente
 // de verdad (opciones reales + estado actual) - una opcion que no matchee ningun patron se
 // pinta igualmente (chip generico sin tintar), nunca oculta la fila entera.
+// `colorVar` (v1.9.5) es el mismo color que ya usaban las reglas `.chip.active.mode-<key>` de mas
+// abajo, ahora tambien aplicado al chip desplegable (`.mode-pill`/`.mode-opt`) - un solo sitio del
+// que salen ambos, para que no se puedan separar con el tiempo (ver CLAUDE.md, "defensa repartida
+// en N sitios").
 const MODE_META = {
-  normal: { icon: 'mdi:home-outline' },
-  ausente: { icon: 'mdi:logout' },
-  noche: { icon: 'mdi:weather-night' },
-  custom: { icon: 'mdi:tune' }, // mdi:tune-variant no existe en el set real de Material Design Icons
+  normal: { icon: 'mdi:home-outline', colorVar: '--ig-lime' },
+  ausente: { icon: 'mdi:logout', colorVar: '--ig-amber' },
+  noche: { icon: 'mdi:weather-night', colorVar: '--ig-indigo' },
+  custom: { icon: 'mdi:tune', colorVar: '--ig-cyan' }, // mdi:tune-variant no existe en el set real de Material Design Icons
 };
 
 class IslautopiaIntercomCard extends HTMLElement {
@@ -852,6 +856,10 @@ class IslautopiaIntercomCard extends HTMLElement {
       document.removeEventListener('click', this._onDocClickForQuality);
       this._onDocClickForQuality = null;
     }
+    if (this._onDocClickForModeMenu) {
+      document.removeEventListener('click', this._onDocClickForModeMenu);
+      this._onDocClickForModeMenu = null;
+    }
     // Pantalla completa: salir SIEMPRE al desaparecer la card del DOM (cambio de vista de
     // Lovelace, edicion del dashboard...). Sin esto, el respaldo CSS dejaria el `scroll` del
     // documento bloqueado y el usuario se quedaria con un dashboard que no se mueve, sin ninguna
@@ -1122,6 +1130,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._updateMotionPill();
     this._updateRingState();
     this._updateRecButton();
+    this._updateRecordingsButton();
     this._vigilarPlazoInactividad();
     this._repaintTextsIfLanguageChanged();
   }
@@ -1240,6 +1249,11 @@ class IslautopiaIntercomCard extends HTMLElement {
     return null;
   }
 
+  // (v1.9.5) Chip desplegable, igual que `_ModePill` de las apps (icono + etiqueta del modo
+  // VIGENTE + flecha, en vez de la fila de 4 chips segmentados de siempre) - "los modos deben ser
+  // tambien un chip desplegable" (Iñaki, 2026-09-25). El desplegable en si (`.mode-menu`) es una
+  // lista de opciones, misma idea que el `PopupMenuButton` de la app: icono + etiqueta por opcion,
+  // resaltando la vigente.
   _updateModeRow() {
     if (!this.modeRow) return;
     const entityId = this._entityFor('mode');
@@ -1247,6 +1261,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     if (!stateObj) {
       this.modeRow.style.display = 'none';
       this._lastModeSig = null;
+      this._toggleModeMenu(false);
       return;
     }
     const options = (stateObj.attributes && Array.isArray(stateObj.attributes.options)) ? stateObj.attributes.options : [];
@@ -1258,27 +1273,56 @@ class IslautopiaIntercomCard extends HTMLElement {
     if (this._lastModeSig === sig) return; // sin cambios reales, evita repintar en cada tick de hass
     this._lastModeSig = sig;
 
-    this.modeRow.style.display = 'flex';
-    this.modeRow.innerHTML = options.map((opt) => {
-      const key = this._modeKeyFor(opt);
-      const meta = key ? MODE_META[key] : null;
-      const active = opt === stateObj.state;
-      const cls = ['chip', active ? 'active' : '', key ? `mode-${key}` : ''].filter(Boolean).join(' ');
-      const icon = meta ? meta.icon : 'mdi:circle-outline';
-      const safeOpt = String(opt).replace(/"/g, '&quot;');
-      // El estado es una CLAVE desde la integracion 0.7.0 ('do_not_disturb'): se enseña la
-      // traduccion de Home Assistant, en el idioma de quien mira.
+    // El estado es una CLAVE desde la integracion 0.7.0 ('do_not_disturb'): se enseña la
+    // traduccion de Home Assistant, en el idioma de quien mira - misma llamada que antes, una por
+    // opcion (incluida la vigente, para el propio chip).
+    const etiquetaDe = (opt) => {
       let etiqueta = opt;
       try { if (this._hass.formatEntityState) etiqueta = this._hass.formatEntityState(stateObj, opt) || opt; } catch (err) { /* frontend antiguo */ }
-      const safeLbl = String(etiqueta).replace(/</g, '&lt;');
-      return `<button type="button" class="${cls}" data-option="${safeOpt}"><ha-icon icon="${icon}"></ha-icon><span>${safeLbl}</span></button>`;
-    }).join('');
+      return String(etiqueta).replace(/</g, '&lt;');
+    };
+    const activeKey = this._modeKeyFor(stateObj.state);
+    const activeMeta = activeKey ? MODE_META[activeKey] : null;
+    const pillCls = ['mode-pill', activeKey ? `mode-${activeKey}` : ''].filter(Boolean).join(' ');
 
-    this.modeRow.querySelectorAll('.chip').forEach((btn) => {
-      btn.addEventListener('click', () => {
+    this.modeRow.style.display = 'flex';
+    this.modeRow.innerHTML = `
+      <button type="button" class="${pillCls}" id="mode-pill">
+        <ha-icon icon="${activeMeta ? activeMeta.icon : 'mdi:tune'}"></ha-icon>
+        <span class="mode-pill-label">${etiquetaDe(stateObj.state)}</span>
+        <ha-icon class="mode-pill-caret" icon="mdi:menu-down"></ha-icon>
+      </button>
+      <div class="mode-menu" id="mode-menu" style="display:none;">
+        ${options.map((opt) => {
+          const key = this._modeKeyFor(opt);
+          const meta = key ? MODE_META[key] : null;
+          const active = opt === stateObj.state;
+          const cls = ['mode-opt', active ? 'sel' : '', key ? `mode-${key}` : ''].filter(Boolean).join(' ');
+          const icon = meta ? meta.icon : 'mdi:circle-outline';
+          const safeOpt = String(opt).replace(/"/g, '&quot;');
+          return `<button type="button" class="${cls}" data-option="${safeOpt}"><ha-icon icon="${icon}"></ha-icon><span>${etiquetaDe(opt)}</span></button>`;
+        }).join('')}
+      </div>
+    `;
+
+    this.modeRow.querySelector('#mode-pill').addEventListener('click', (ev) => {
+      ev.stopPropagation(); // mismo motivo que pantalla completa/calidad: hay un listener global que cierra el menu
+      this._toggleModeMenu();
+    });
+    this.modeRow.querySelectorAll('.mode-opt').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        this._toggleModeMenu(false);
         this._hass.callService('select', 'select_option', { entity_id: entityId, option: btn.getAttribute('data-option') });
       });
     });
+  }
+
+  _toggleModeMenu(force) {
+    const menu = this.modeRow ? this.modeRow.querySelector('#mode-menu') : null;
+    if (!menu) return;
+    const open = (typeof force === 'boolean') ? force : menu.style.display === 'none';
+    menu.style.display = open ? 'flex' : 'none';
   }
 
   _updateMotionPill() {
@@ -1327,6 +1371,12 @@ class IslautopiaIntercomCard extends HTMLElement {
   // canal por el que ya llegan `live_timeout_entity`/`events_entity`, nunca la credencial. El
   // portero sigue siendo quien de verdad hace cumplir esto (rec_start rechaza con
   // `admin_required` a quien no sea admin, pase lo que pase aqui): esto es solo lo que se enseña.
+  // (v1.9.5) La capsula pequeña con punto rojo + "REC" reproduce RecButton.dart de las apps
+  // (Android/iOS) al detalle: "REC" NUNCA se traduce -- es la etiqueta universal de un grabador,
+  // igual que en las apps -- asi que aqui solo cambian la clase 'recording' (color/parpadeo del
+  // punto y del texto, ver CSS .rec-pill) y el titulo/aria-label, que SI van traducidos para quien
+  // usa lector de pantalla. El resto de la logica (gating por _connInfo.role, estado leido de la
+  // ENTIDAD y nunca del ultimo tap) no cambia respecto a la 1.9.4.
   _updateRecButton() {
     if (!this.recAction || !this.recButton) return;
     const entityId = this._entityFor('rec');
@@ -1337,10 +1387,42 @@ class IslautopiaIntercomCard extends HTMLElement {
     if (!visible) return;
     const recording = stateObj.state === 'on';
     this.recButton.classList.toggle('recording', recording);
-    if (this.recIcon) this.recIcon.setAttribute('icon', recording ? 'mdi:record-circle' : 'mdi:record-circle-outline');
-    if (this.recLabel) this.recLabel.textContent = getLocalText(this._hass, recording ? 'lbl_rec_on' : 'lbl_rec_off');
-    this.recButton.setAttribute('title', getLocalText(this._hass, recording ? 'rec_stop_tip' : 'rec_start_tip'));
+    const tip = getLocalText(this._hass, recording ? 'rec_stop_tip' : 'rec_start_tip');
+    this.recButton.setAttribute('title', tip);
+    this.recButton.setAttribute('aria-label', tip);
     this.recButton.setAttribute('aria-pressed', recording ? 'true' : 'false');
+  }
+
+  // Grabaciones (v1.9.5, Iñaki 2026-09-25): mismo criterio de visibilidad que REC -- solo
+  // administradores, segun el ROL QUE EL PORTERO dio a esta integracion al emparejarla
+  // (`_connInfo.role`, nunca `hass.user.is_admin`, mismo motivo que _updateRecButton()) -- porque
+  // las grabaciones son "solo para administradores en las apps, con la misma regla que REC". A
+  // diferencia de REC no depende de ninguna entidad: es solo un enlace, asi que basta con el rol
+  // para decidir si se enseña.
+  _updateRecordingsButton() {
+    if (!this.recordingsAction) return;
+    const isAdmin = !!(this._connInfo && this._connInfo.role === 'admin');
+    this.recordingsAction.style.display = isAdmin ? '' : 'none';
+  }
+
+  // Abre el navegador de medios NATIVO de Home Assistant contra el media_source que ya publica la
+  // integracion (media_source.py/DoorbellMediaSource: identifier `<device_id>` = la carpeta de
+  // ESTE portero, `media-source://islautopia_doorbell/<device_id>`) -- nunca un reproductor propio
+  // (decision de Iñaki 2026-09-25: "las grabaciones como tal son la fase 2; esto es solo el
+  // acceso"). La URL del panel es la que construye de verdad `ha-panel-media-browser.ts` del
+  // frontend (createMediaPanelUrl): `/media-browser/<entidad-o-"browser">/<tipo,id codificado>`,
+  // con `browser` como marcador de "sin reproductor asociado" (BROWSER_PLAYER en
+  // data/media-player.ts) para navegar el media_source sin necesitar una entidad media_player. Se
+  // navega con el mismo patron que usa TODO el frontend (`history.pushState` +
+  // `location-changed`), no un `<a href>`, para no recargar la pagina entera y perder la sesion
+  // WebRTC en marcha de esta misma card.
+  _openRecordings() {
+    const deviceId = this.config && this.config.device_id;
+    if (!deviceId) return;
+    const mediaContentId = `media-source://islautopia_doorbell/${deviceId}`;
+    const path = `/media-browser/browser/${encodeURIComponent(`video,${mediaContentId}`)}`;
+    history.pushState(null, '', path);
+    window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: false } }));
   }
 
   // Un toggle sobre lo que dice la ENTIDAD, nunca sobre el último tap (mismo principio que
@@ -3179,7 +3261,27 @@ class IslautopiaIntercomCard extends HTMLElement {
         <ha-card>
           <div class="intercom-container">
 
-            <div class="mode-row" id="mode-row" style="display:none;"></div>
+            <!-- Cabecera (v1.9.5, Iñaki 2026-09-25 tarde): "REC y la campanita deben tener el
+                 mismo aspecto [que en las apps]" y "los modos deben ser tambien un chip
+                 desplegable". Reemplaza la decision de esa misma mañana de meter REC en la fila
+                 de botones junto a sonido/micro/abrir (ver .actions-row mas abajo, que conserva
+                 esos tres) - vista la card al lado de la app real, REC ahi se veia "muy distinto".
+                 Aqui se reproduce la misma fila que usan las apps sobre el video (modo a la
+                 izquierda, REC a la derecha - ver BellWithRec en live_view_body.dart), aunque en
+                 esta card vive FUERA del video (encima), no superpuesta - la card ya reservaba
+                 este hueco desde 2026-07-10 y cambiar eso es mas riesgo del que pide un cambio de
+                 aspecto. SIN campanita: esta card no tiene una vista de "historial de avisos" a la
+                 que abrirla (la de la app abre una pantalla propia) - no se inventa una, ver
+                 CLAUDE.md/COORDINATION.md de este repo. -->
+            <div class="top-row" id="top-row">
+              <div class="mode-row" id="mode-row" style="display:none;"></div>
+              <div class="rec-action-wrap" id="rec-action" style="display:none;">
+                <button type="button" id="rec-button" class="rec-pill">
+                  <span class="rec-dot" id="rec-dot"></span>
+                  <span class="rec-pill-label" id="rec-lbl">REC</span>
+                </button>
+              </div>
+            </div>
 
             <div class="feed-wrap" data-state="connecting">
               <div class="islautopia-loader" id="ig-loader">
@@ -3272,22 +3374,29 @@ class IslautopiaIntercomCard extends HTMLElement {
                   </button>
                   <span class="lbl" id="unlock-lbl">${getLocalText(this._hass, 'lbl_door_idle')}</span>
                 </div>
-                <!-- REC (recordings v2, Iñaki 2026-09-25): la card ENSEÑA, la integración EXPONE
-                     (decision del 2026-08-31) - este boton nunca habla el protocolo rec_start/
-                     rec_stop directo con el portero (a diferencia de las apps): llama al servicio
-                     de la entidad rec_entity que configura el usuario, que debe apuntar al
-                     switch.* que publique islautopia_doorbell (desde v0.7.2 - ver
-                     _toggleRec()/_updateRecButton()). Oculto sin esa entidad y para una
-                     integracion que el PORTERO no emparejo como administradora (1.9.4: no depende
-                     de si quien mira este panel es administrador de Home Assistant). -->
-                <div class="action" id="rec-action" style="display:none;">
-                  <button type="button" id="rec-button" class="btn rec">
-                    <div class="pulsering rec"></div>
-                    <ha-icon icon="mdi:record-circle-outline" id="rec-icon"></ha-icon>
-                  </button>
-                  <span class="lbl" id="rec-lbl">${getLocalText(this._hass, 'lbl_rec_off')}</span>
-                </div>
+                <!-- REC (recordings v2, Iñaki 2026-09-25) YA NO VIVE AQUI (v1.9.5, la misma tarde):
+                     ver el bloque rec-action en la cabecera (top-row), mas arriba, con su
+                     razonamiento completo. El botón sigue llamando al servicio de la entidad
+                     rec_entity/auto-detectada (_toggleRec()/_updateRecButton()) exactamente igual
+                     que antes - lo unico que cambia es el aspecto y donde vive, no el
+                     comportamiento ("la card ENSEÑA, la integración EXPONE", decision 2026-08-31). -->
               </div>
+            </div>
+
+            <!-- Grabaciones (v1.9.5, Iñaki 2026-09-25): "no metemos un boton de configuracion
+                 (para eso tenemos la integracion), pero SI metemos el de Grabaciones", con el
+                 mismo aspecto que el _QuickButton de las apps (icono en caja redondeada +
+                 etiqueta). Mismo criterio de admin que REC (_connInfo.role, no hass.user.is_admin
+                 - vease _updateRecordingsButton()) y sin Ajustes: la configuracion vive en la
+                 integracion y sus entidades, no aqui. Abre el navegador de medios nativo de Home
+                 Assistant contra el media_source que ya expone la integracion
+                 (media_source.py/DoorbellMediaSource) - la card NO reimplementa un reproductor,
+                 ver _openRecordings(). -->
+            <div class="bottom-row" id="bottom-row" style="display:none;">
+              <button type="button" id="recordings-button" class="quick-btn">
+                <span class="quick-btn-icon"><ha-icon icon="mdi:play-box-multiple-outline"></ha-icon></span>
+                <span class="quick-btn-label">${getLocalText(this._hass, 'recordings_title')}</span>
+              </button>
             </div>
 
           </div>
@@ -3314,8 +3423,10 @@ class IslautopiaIntercomCard extends HTMLElement {
       this.sndLabel = this.querySelector('#snd-lbl');
       this.recAction = this.querySelector('#rec-action');
       this.recButton = this.querySelector('#rec-button');
-      this.recIcon = this.querySelector('#rec-icon');
+      this.recDot = this.querySelector('#rec-dot');
       this.recLabel = this.querySelector('#rec-lbl');
+      this.recordingsAction = this.querySelector('#bottom-row');
+      this.recordingsButton = this.querySelector('#recordings-button');
       this.loader = this.querySelector('#ig-loader');
       this.clientsPill = this.querySelector('#clients-pill');
       this.clientsCount = this.querySelector('#clients-count');
@@ -3333,6 +3444,19 @@ class IslautopiaIntercomCard extends HTMLElement {
         ev.stopPropagation();
         this._toggleFullscreen();
       });
+
+      // Chip de modo desplegable (v1.9.5): un click fuera lo cierra, igual criterio que el
+      // (retirado) menu de calidad de versiones anteriores. Se guarda ligado a la instancia para
+      // poder quitarlo en disconnectedCallback() y no acumular listeners si Home Assistant
+      // reinserta esta misma card (cambio de vista de Lovelace, ver disconnectedCallback()).
+      this._onDocClickForModeMenu = () => this._toggleModeMenu(false);
+      document.addEventListener('click', this._onDocClickForModeMenu);
+
+      // Grabaciones (v1.9.5): navega al navegador de medios NATIVO de Home Assistant (nunca un
+      // reproductor propio, ver el comentario junto al markup de #bottom-row) via la misma
+      // convencion de navegacion SPA que usa el frontend entero (history.pushState +
+      // 'location-changed') - _openRecordings() explica el formato exacto de la URL.
+      this.recordingsButton.addEventListener('click', () => this._openRecordings());
       // El vigilante de vida solo mira cada 5s, y el chip de estado no deberia pasarse 5s
       // mintiendo. 'timeupdate' del propio <video> avisa varias veces por segundo en cuanto la
       // imagen avanza de verdad, que es exactamente la señal que debe mandar aqui. El coste es
@@ -3621,10 +3745,11 @@ class IslautopiaIntercomCard extends HTMLElement {
       this._mark('get_connection_info: respuesta recibida');
       this._connInfo = info;
       this._slot = null;
-      // REC depende de `_connInfo.role` (1.9.4, ver _updateRecButton()) - se repinta aqui en vez
-      // de esperar al proximo tick de `set hass()`, que podria tardar si el estado de HA esta
-      // tranquilo justo despues de conectar.
+      // REC y Grabaciones dependen de `_connInfo.role` (1.9.4/1.9.5, ver _updateRecButton()/
+      // _updateRecordingsButton()) - se repintan aqui en vez de esperar al proximo tick de
+      // `set hass()`, que podria tardar si el estado de HA esta tranquilo justo despues de conectar.
       this._updateRecButton();
+      this._updateRecordingsButton();
 
       // Espera nº2 (credenciales TURN: HTTPS a Alemania). ESTA es la larga, y la que abria la
       // ventana del fallo medido. A partir de aqui SI hay objetos que cerrar, asi que un relevo
@@ -4510,20 +4635,87 @@ class IslautopiaIntercomCard extends HTMLElement {
 
       ha-card { display: block; width: 100%; box-sizing: border-box; overflow: hidden; border-radius: var(--ha-card-border-radius, 12px); box-shadow: var(--ha-card-box-shadow, 0px 2px 4px -1px rgba(0,0,0,0.2)); background: #070D1A; }
 
-      /* ---- chips de modo (opcional, requiere mode_entity) ---- */
-      .mode-row { display: flex; gap: 6px; }
-      .mode-row .chip {
-        flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
-        padding: 8px 4px; border-radius: 14px; background: var(--ig-surf1);
-        border: 1px solid rgba(255,255,255,0.05); font-size: 10.5px; color: var(--ig-dim);
-        font-weight: 600; cursor: pointer; font-family: inherit;
+      /* ---- cabecera: chip de modo desplegable + REC (v1.9.5, reemplaza la fila de 4 chips
+         segmentados) ---- */
+      .top-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      .mode-row { display: none; position: relative; }
+      /* Mismo aspecto que _ModePill de las apps: fondo oscuro translucido (nunca un velo, para
+         que se lea sobre cualquier escena si algun dia vuelve a vivir sobre el video), borde e
+         icono/etiqueta del color del modo VIGENTE, flecha de desplegable. Sin color conocido
+         (opcion que no matchea ningun patron de _modeKeyFor) cae a --ig-dim, igual que antes. */
+      .mode-pill {
+        display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px;
+        background: rgba(7,13,26,0.82); border: 1px solid rgba(255,255,255,0.14);
+        color: var(--ig-dim); font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
       }
-      .mode-row .chip ha-icon { --mdc-icon-size: 16px; }
-      .mode-row .chip.active { color: #fff; }
-      .mode-row .chip.active.mode-normal { background: rgba(120,200,0,0.14); border-color: rgba(120,200,0,0.4); color: var(--ig-lime); }
-      .mode-row .chip.active.mode-ausente { background: rgba(255,179,0,0.14); border-color: rgba(255,179,0,0.4); color: var(--ig-amber); }
-      .mode-row .chip.active.mode-noche { background: rgba(129,140,248,0.14); border-color: rgba(129,140,248,0.4); color: var(--ig-indigo); }
-      .mode-row .chip.active.mode-custom { background: rgba(0,196,212,0.14); border-color: rgba(0,196,212,0.4); color: var(--ig-cyan); }
+      .mode-pill ha-icon { --mdc-icon-size: 14px; }
+      .mode-pill .mode-pill-caret { --mdc-icon-size: 16px; margin-left: -2px; }
+      .mode-pill.mode-normal { color: var(--ig-lime); border-color: rgba(120,200,0,0.45); }
+      .mode-pill.mode-ausente { color: var(--ig-amber); border-color: rgba(255,179,0,0.45); }
+      .mode-pill.mode-noche { color: var(--ig-indigo); border-color: rgba(129,140,248,0.45); }
+      .mode-pill.mode-custom { color: var(--ig-cyan); border-color: rgba(0,196,212,0.45); }
+      /* El desplegable en si: mismo position:absolute; top:under que PopupMenuPosition.under
+         en la app - flota SOBRE lo que venga despues (el marco de video) en vez de empujarlo. */
+      .mode-menu {
+        position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; display: none;
+        flex-direction: column; min-width: 160px; background: var(--ig-surf1); border-radius: 12px;
+        padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.08);
+      }
+      .mode-menu .mode-opt {
+        display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px;
+        border: none; background: transparent; color: var(--ig-text); font-size: 13px;
+        font-weight: 500; cursor: pointer; font-family: inherit; text-align: left;
+      }
+      .mode-menu .mode-opt ha-icon { --mdc-icon-size: 16px; }
+      .mode-menu .mode-opt:hover { background: rgba(255,255,255,0.06); }
+      .mode-menu .mode-opt.sel { font-weight: 700; }
+      .mode-menu .mode-opt.sel.mode-normal { color: var(--ig-lime); }
+      .mode-menu .mode-opt.sel.mode-ausente { color: var(--ig-amber); }
+      .mode-menu .mode-opt.sel.mode-noche { color: var(--ig-indigo); }
+      .mode-menu .mode-opt.sel.mode-custom { color: var(--ig-cyan); }
+
+      /* REC (v1.9.5): capsula pequeña con punto rojo + "REC", igual aspecto que RecButton.dart de
+         las apps (StadiumBorder, fondo surf1, borde hairline en reposo / rojo grabando, punto
+         hueco/relleno) - ya NO el circulo grande de 60px que compartia con sonido/puerta. */
+      .rec-action-wrap { display: flex; align-items: center; }
+      .rec-pill {
+        display: flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px;
+        border-radius: 999px; background: var(--ig-surf1); border: 1px solid rgba(255,255,255,0.05);
+        cursor: pointer; font-family: inherit;
+      }
+      .rec-dot {
+        width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+        border: 1.5px solid var(--ig-red); background: transparent;
+      }
+      .rec-pill-label { font-size: 11px; font-weight: 700; color: var(--ig-muted); }
+      .rec-pill.recording { border-color: var(--ig-red); }
+      .rec-pill.recording .rec-dot {
+        background: var(--ig-red); border-color: var(--ig-red);
+        animation: ig-rec-blink 1.2s ease-in-out infinite;
+      }
+      .rec-pill.recording .rec-pill-label { color: var(--ig-red); }
+      @keyframes ig-rec-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.15; } }
+      /* Mismo criterio que _reduceMotion en RecButton.dart: sin parpadeo si el sistema pide
+         reducir el movimiento, el punto se queda solido en rojo (sigue siendo visible que graba). */
+      @media (prefers-reduced-motion: reduce) {
+        .rec-pill.recording .rec-dot { animation: none; }
+      }
+
+      /* Grabaciones (v1.9.5): mismo aspecto que _QuickButton de las apps (icono en caja
+         redondeada + etiqueta, fila ancha) - sin "Ajustes": esa vive en la integracion. */
+      .bottom-row { display: none; }
+      .quick-btn {
+        display: flex; align-items: center; gap: 9px; width: 100%; box-sizing: border-box;
+        padding: 10px 12px; border-radius: 16px; background: var(--ig-surf1);
+        border: 1px solid rgba(255,255,255,0.05); cursor: pointer; font-family: inherit; text-align: left;
+      }
+      .quick-btn:hover { background: var(--ig-surf2); }
+      .quick-btn-icon {
+        width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center; background: rgba(25,118,210,0.14);
+      }
+      .quick-btn-icon ha-icon { --mdc-icon-size: 15px; color: var(--ig-blue); }
+      .quick-btn-label { font-size: 12px; font-weight: 500; color: var(--ig-muted); }
 
       /* ---- marco de video redondeado + HUD superpuesto ---- */
       .feed-wrap {
@@ -4698,27 +4890,22 @@ class IslautopiaIntercomCard extends HTMLElement {
       }
       .action .btn:disabled { opacity: 0.5; cursor: not-allowed; }
       /* 80px/60px EXACTOS confirmados contra el codigo fuente real (2026-07-10, antes 76/56
-         aproximados de la reconstruccion visual) - ver COORDINATION.md Q22-bis. Sonido y REC
-         (2026-09-25) se unen a la fila con el mismo tamaño "secundario" que la puerta, en el orden
-         que piden las apps (sonido, micro, abrir, REC) - ver COORDINATION.md. */
+         aproximados de la reconstruccion visual) - ver COORDINATION.md Q22-bis. Sonido se unio a
+         la fila (2026-09-25 mañana) con el mismo tamaño "secundario" que la puerta; REC vivio aqui
+         unas horas ese mismo dia y se traslado a la cabecera esa misma tarde (ver .rec-pill mas
+         arriba) - "el aspecto es muy distinto al de las apps" comparado con la app real. */
       .action .btn.mic { width: 80px; height: 80px; }
       .action .btn.mic ha-icon { --mdc-icon-size: 30px; }
-      .action .btn.door, .action .btn.snd, .action .btn.rec { width: 60px; height: 60px; }
-      .action .btn.door ha-icon, .action .btn.snd ha-icon, .action .btn.rec ha-icon { --mdc-icon-size: 24px; }
+      .action .btn.door, .action .btn.snd { width: 60px; height: 60px; }
+      .action .btn.door ha-icon, .action .btn.snd ha-icon { --mdc-icon-size: 24px; }
       .action .btn.active-intercom { background: linear-gradient(135deg, var(--ig-cyan), var(--ig-blue)); border-color: transparent; box-shadow: 0 0 28px rgba(0,196,212,0.45), 0 8px 24px rgba(0,0,0,0.4); color: var(--ig-text); transform: scale(1.05); }
       .action .btn.active-unlock { background: linear-gradient(135deg, var(--ig-green), #388E3C); border-color: transparent; box-shadow: 0 0 22px rgba(76,175,80,0.5); color: var(--ig-text); transform: scale(1.05); }
       /* Altavoz de la calle (§1.10): mismo criterio visual que el resto - gris apagado en reposo
          (mudo), cian cuando de verdad se oye. Sustituye al antiguo boton pequeño sin fondo del
          HUD (.snd-btn), que vivia junto al deslizador de volumen ya retirado. */
       .action .btn.snd.on { color: var(--ig-cyan); border-color: rgba(0,196,212,0.5); box-shadow: 0 0 18px rgba(0,196,212,0.35), 0 6px 22px rgba(0,0,0,0.65); }
-      /* REC (recordings v2): rojo solo cuando el portero confirma que esta grabando - nunca al
-         pulsar, que seria adelantar un estado que no es nuestro (la integracion es la unica fuente
-         de verdad, §1.4-quater). */
-      .action .btn.rec.recording { color: var(--ig-red); border-color: rgba(239,83,80,0.5); background: linear-gradient(135deg, rgba(239,83,80,0.22), rgba(239,83,80,0.08)); box-shadow: 0 0 18px rgba(239,83,80,0.4), 0 6px 22px rgba(0,0,0,0.65); }
       .pulsering { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--ig-cyan); animation: ig-ring 1.2s infinite; pointer-events: none; display: none; }
-      .pulsering.rec { border-color: var(--ig-red); }
       .action .btn.active-intercom .pulsering { display: block; }
-      .action .btn.rec.recording .pulsering.rec { display: block; }
       @keyframes ig-ring { 0% { transform: scale(1); opacity: 0.55; } 100% { transform: scale(1.55); opacity: 0; } }
       /* Etiquetas claras + sombra, no el gris apagado de antes: tienen que leerse sobre CUALQUIER
          fondo de video, igual que ya resolvia pantalla completa. */
@@ -4738,17 +4925,17 @@ class IslautopiaIntercomCard extends HTMLElement {
         .hud-bottom { bottom: 148px; }
       }
 
-      /* Con sonido y REC sumados a la fila (2026-09-25) los cuatro botones no caben con su tamaño
-         normal en una card estrecha (movil en vertical, o una columna angosta de un dashboard de
-         escritorio) - se encogen un escalon en vez de desbordar o envolver la fila, que rompería
-         la disposicion fija que pide el contrato (sonido, micro, abrir, REC siempre en ese orden y
-         en una sola linea). */
+      /* Con sonido sumado a la fila (2026-09-25) los tres botones no caben con su tamaño normal en
+         una card estrecha (movil en vertical, o una columna angosta de un dashboard de escritorio)
+         - se encogen un escalon en vez de desbordar o envolver la fila, que rompería la
+         disposicion fija que pide el contrato (sonido, micro, abrir, en ese orden y en una sola
+         linea; REC ya no vive aqui, ver .rec-pill). */
       @container igfeed (max-width: 380px) {
         .actions-row { gap: 8px; }
         .action .btn.mic { width: 68px; height: 68px; }
         .action .btn.mic ha-icon { --mdc-icon-size: 26px; }
-        .action .btn.door, .action .btn.snd, .action .btn.rec { width: 52px; height: 52px; }
-        .action .btn.door ha-icon, .action .btn.snd ha-icon, .action .btn.rec ha-icon { --mdc-icon-size: 21px; }
+        .action .btn.door, .action .btn.snd { width: 52px; height: 52px; }
+        .action .btn.door ha-icon, .action .btn.snd ha-icon { --mdc-icon-size: 21px; }
       }
       @container igfeed (max-width: 300px) {
         .action .lbl { display: none; }
@@ -4822,10 +5009,10 @@ class IslautopiaIntercomCard extends HTMLElement {
       .intercom-container.ig-fs {
         height: 100%; padding: 0; gap: 0; background: #000;
       }
-      /* La fila de chips de modo se retira: el modo del sistema es configuracion, no algo que se
-         atienda con alguien esperando en la puerta. Los dos botones que el contrato pide (micro y
-         abrir) siguen ahi, flotando sobre la imagen. */
-      .intercom-container.ig-fs .mode-row { display: none !important; }
+      /* La cabecera (chip de modo + REC) y Grabaciones se retiran: ninguno de los dos es algo que
+         se atienda con alguien esperando en la puerta. Los dos botones que el contrato pide (micro
+         y abrir) siguen ahi, flotando sobre la imagen. */
+      .intercom-container.ig-fs .top-row, .intercom-container.ig-fs .bottom-row { display: none !important; }
       .intercom-container.ig-fs .feed-wrap {
         position: absolute; inset: 0; width: 100%;
         height: 100% !important; aspect-ratio: auto !important;
