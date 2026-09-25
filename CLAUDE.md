@@ -16,6 +16,31 @@ Fuente de verdad de la interfaz del propio doorbell (WebRTC, señalización, `pa
 `app_turn_credentials`, etc.): `C:\Proyectos_espressif\IG_Doorbell\API_CONTRACT.md`. No la
 dupliques aquí.
 
+**v1.9.7 (2026-09-25, noche) — la card cabe sola, Grabaciones se ve de verdad, campanita, modo
+optimista. Medido con Playwright contra el HA real (vista `panel`, 393x852 y 1280x800) y en la tablet.**
+
+- **Grabaciones NO se veia por una regla CSS, no por el alto**: `.bottom-row { display: none }` en la
+  hoja, y `_updateRecordingsButton()` "lo enseñaba" con `style.display = ''`, que cae de vuelta en
+  esa regla. El banco de la 1.9.5 comprobaba el `style.display` EN LINEA (`!== 'none'`) y salia
+  verde: un instrumento que mira el estilo en linea no ve la hoja. `test/ui_v1_9_7` mira el
+  display COMPUTADO; con la 1.9.6 servida (`CARD_FILE=`) sale rojo.
+- **El envoltorio de HA no recorta**: `hui-panel-view` mide el viewport menos la barra (796 de
+  852) con overflow visible. Lo que sobraba era la card: `height: 650px` del YAML se aplicaba A
+  PELO al marco, y con el video real (1080x1200) en 373 px de ancho la imagen ocupa 414 px y el
+  resto eran bandas negras (el "hueco encima del video" del iPhone).
+- `_fitToSpace()` mide el hueco (viewport visible menos lo que hay encima de la card), resta los
+  controles y da el resto al video con su proporcion; `height` pasa a ser un TOPE. Dos
+  disposiciones: PILA (movil vertical, copia de la app de iOS: video, chips, botones 48/96/60 fuera
+  de la imagen, Grabaciones) y ENCIMA (la de siempre, con carril). Observadores: el propio
+  elemento, la vista de HA, `resize` y `visualViewport`.
+- Campanita: historial del recorder de HA de la entidad `event` de la integracion via
+  `history/history_during_period` (el portero no tiene ruta de historial; las apps leen la cola
+  del VPS, que la card no puede usar). Filtros como las apps. Punto rojo por navegador (localStorage).
+- Modo optimista con pendiente y vuelta atras si el servicio falla (integracion 0.7.4 confirma
+  leyendo el portero y lanza error si no aplico). Sin «System idle». Candado en vez de llave.
+- `test/sim_multicliente.js` ya fallaba con la 1.9.6 (`this.content.style.setProperty` en el doble
+  de DOM): no es de esta version, sigue pendiente.
+
 **v1.9.6 (2026-09-25, misma tarde) — Grabaciones (1.9.5) era inalcanzable en la tablet real del
 salón: `ha-card` recorta lo que no cabe, y no cabía.**
 

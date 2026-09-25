@@ -16,8 +16,8 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_VERSION = '1.9.6';
-const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-25-grabaciones-alcanzable`;
+const CARD_VERSION = '1.9.7';
+const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-25-cabe-sola-y-campanita`;
 
 // ⚠️ ESTA MARCA VIVE EN EL MODULO Y NO EN EL ELEMENTO, Y ESA ES TODA LA GRACIA (2026-09-07).
 //
@@ -314,6 +314,205 @@ const islautopiaLocales = {
     ed_entity: "كيان الفتح/المُرحِّل (اختياري - إذا تُرك فارغاً مع Device ID يُستخدم الفتح الأصلي)", ed_duration: "ثواني الإغلاق التلقائي (1-20)", ed_height: "ارتفاع البطاقة (مثال: 400px، 600px، auto)"
   }
 };
+
+// ==============================================================================
+// CAMPANITA DE AVISOS (1.9.7, Iñaki 2026-09-25: «la campanita es un gran añadido ... con un
+// filtro por tipo y un filtro temporal igual al de los videos»). Textos, grupos e iconos copiados
+// de las apps (Android lib/domain/app_event.dart + event_texts.dart) para que un aviso se llame
+// igual en los tres clientes. El filtro temporal es el MISMO de Grabaciones en las apps
+// (RecordingTimeFilter: ultima hora / 6 horas / dia / semana, dia y semana navegables, dia por
+// defecto) - no uno inventado aqui.
+//
+// `aviso` = el `avisoDefault` del catalogo de las apps (§1.16): lo que por defecto entra en la
+// campanita. La card no puede leer las preferencias por usuario del VPS (y no debe: la card no
+// habla con el VPS), asi que usa el defecto del contrato. Sin esto, cada vez que alguien abre esta
+// misma card (viewer_joined) se encenderia el punto rojo: un aviso que se provoca uno mismo.
+// Un tipo desconocido se ENSEÑA igual (grupo "status"), como hacen las apps.
+// ==============================================================================
+const IG_EVENT_KINDS = {
+  ring:                { g: 'door',     aviso: true,  icon: 'mdi:doorbell',                  c: 'blue'  },
+  visitor:             { g: 'door',     aviso: true,  icon: 'mdi:account-outline',           c: 'blue'  },
+  package:             { g: 'door',     aviso: true,  icon: 'mdi:package-variant-closed',    c: 'blue'  },
+  person_with_package: { g: 'door',     aviso: false, icon: 'mdi:package-variant-closed',    c: 'blue'  },
+  package_gone:        { g: 'door',     aviso: true,  icon: 'mdi:alert-octagon-outline',     c: 'amber' },
+  call_answered:       { g: 'call',     aviso: true,  icon: 'mdi:phone-incoming',            c: 'green' },
+  call_declined:       { g: 'call',     aviso: false, icon: 'mdi:phone-hangup-outline',      c: 'muted' },
+  call_missed:         { g: 'call',     aviso: true,  icon: 'mdi:phone-missed-outline',      c: 'amber' },
+  visitor_message:     { g: 'call',     aviso: true,  icon: 'mdi:voicemail',                 c: 'blue'  },
+  door_opened:         { g: 'lock',     aviso: true,  icon: 'mdi:lock-open-variant-outline', c: 'green' },
+  device_offline:      { g: 'health',   aviso: true,  icon: 'mdi:cloud-off-outline',         c: 'red'   },
+  device_online:       { g: 'health',   aviso: true,  icon: 'mdi:cloud-check-outline',       c: 'green' },
+  storage_problem:     { g: 'health',   aviso: true,  icon: 'mdi:sd',                        c: 'red'   },
+  firmware_available:  { g: 'health',   aviso: true,  icon: 'mdi:update',                    c: 'blue'  },
+  unexpected_reboot:   { g: 'health',   aviso: true,  icon: 'mdi:restart-alert',             c: 'amber' },
+  client_paired:       { g: 'security', aviso: true,  icon: 'mdi:devices',                   c: 'amber' },
+  user_added:          { g: 'security', aviso: true,  icon: 'mdi:account-plus-outline',      c: 'blue'  },
+  user_revoked:        { g: 'security', aviso: true,  icon: 'mdi:account-remove-outline',    c: 'amber' },
+  login_failed:        { g: 'security', aviso: false, icon: 'mdi:shield-alert-outline',      c: 'red'   },
+  key_denied:          { g: 'security', aviso: true,  icon: 'mdi:key-remove',                c: 'amber' },
+  key_locked:          { g: 'security', aviso: true,  icon: 'mdi:lock-alert-outline',        c: 'red'   },
+  mode_changed:        { g: 'status',   aviso: true,  icon: 'mdi:tune-variant',              c: 'muted' },
+  ring_suppressed:     { g: 'status',   aviso: true,  icon: 'mdi:bell-off-outline',          c: 'amber' },
+  viewer_joined:       { g: 'status',   aviso: false, icon: 'mdi:eye-outline',               c: 'muted' },
+};
+const IG_EVENT_GROUPS = ['door', 'call', 'lock', 'health', 'security', 'status'];
+const IG_EV_RANGES = ['lastHour', 'last6Hours', 'day', 'week'];
+
+const IG_EV_TEXT = {
+  en: {
+    bell: 'Notices', bell_new: 'Notices — something new', all: 'All', back: 'Back',
+    g_door: 'At the door', g_call: 'The call', g_lock: 'The door', g_health: 'Device health', g_security: 'Accounts and security', g_status: 'Status',
+    r_lastHour: 'Last hour', r_last6Hours: '6 hours', r_day: 'Day', r_week: 'Week',
+    today: 'Today', yesterday: 'Yesterday', this_week: 'This week', last_week: 'Last week', prev: 'Earlier', next: 'Later',
+    empty: 'No notices in this period', empty_hint: 'What happens at your door shows up here: rings, packages, openings…',
+    loading: 'Loading…', load_err: 'Could not read the history from Home Assistant', no_entity: 'This doorbell has no events entity in Home Assistant',
+    m0: 'Normal', m1: 'Away', m2: 'Do not disturb', m3: 'Custom', mode_to: 'Mode: {m}', by: 'by {w}',
+    ring: 'Doorbell pressed', visitor: 'Visitor detected', package: 'Package at the door', person_with_package: 'Person with a package', package_gone: 'Package no longer visible',
+    call_answered: 'Call answered', call_declined: 'Call declined', call_missed: 'Nobody answered', visitor_message: 'Message left by the visitor',
+    door_opened: 'Door opened', device_offline: 'Doorbell offline', device_online: 'Doorbell back online', storage_problem: 'Problem with the card',
+    firmware_available: 'Firmware update available', unexpected_reboot: 'Unexpected restart', client_paired: 'New client paired', user_added: 'User added',
+    user_revoked: 'User revoked', login_failed: 'Failed sign-in attempts', key_denied: 'Key refused', key_locked: 'Key locked after failed attempts',
+    mode_changed: 'Mode changed', ring_suppressed: 'Doorbell silenced by Do not disturb', viewer_joined: 'Someone is watching the camera', unknown: 'Notice',
+    mode_failed: 'The doorbell did not change mode', mode_failed_why: 'The doorbell did not change mode: {w}',
+  },
+  es: {
+    bell: 'Avisos', bell_new: 'Avisos — hay novedades', all: 'Todo', back: 'Volver',
+    g_door: 'En la puerta', g_call: 'La llamada', g_lock: 'La puerta', g_health: 'Salud del aparato', g_security: 'Cuentas y seguridad', g_status: 'Estado',
+    r_lastHour: 'Última hora', r_last6Hours: '6 horas', r_day: 'Día', r_week: 'Semana',
+    today: 'Hoy', yesterday: 'Ayer', this_week: 'Esta semana', last_week: 'Semana pasada', prev: 'Anterior', next: 'Siguiente',
+    empty: 'No hay avisos en este periodo', empty_hint: 'Aquí aparece lo que pasa en la puerta: timbrazos, paquetes, aperturas…',
+    loading: 'Cargando…', load_err: 'No se pudo leer el historial de Home Assistant', no_entity: 'Este portero no tiene entidad de eventos en Home Assistant',
+    m0: 'Normal', m1: 'Ausente', m2: 'No molestar', m3: 'Personalizado', mode_to: 'Modo: {m}', by: 'por {w}',
+    ring: 'Timbre pulsado', visitor: 'Visitante detectado', package: 'Paquete en la puerta', person_with_package: 'Persona con paquete', package_gone: 'Paquete deja de verse',
+    call_answered: 'Llamada atendida', call_declined: 'Llamada rechazada', call_missed: 'Nadie contestó', visitor_message: 'Mensaje dejado por el visitante',
+    door_opened: 'Puerta abierta', device_offline: 'Videoportero sin conexión', device_online: 'Videoportero reconectado', storage_problem: 'Problema con la tarjeta',
+    firmware_available: 'Actualización de firmware disponible', unexpected_reboot: 'Reinicio inesperado', client_paired: 'Nuevo cliente emparejado', user_added: 'Usuario añadido',
+    user_revoked: 'Usuario revocado', login_failed: 'Intentos de acceso fallidos', key_denied: 'Llave rechazada', key_locked: 'Llave bloqueada tras intentos fallidos',
+    mode_changed: 'Modo cambiado', ring_suppressed: 'Timbre silenciado por No molestar', viewer_joined: 'Alguien está viendo la cámara', unknown: 'Aviso',
+    mode_failed: 'El portero no cambió de modo', mode_failed_why: 'El portero no cambió de modo: {w}',
+  },
+  pt: {
+    bell: 'Avisos', bell_new: 'Avisos — há novidades', all: 'Tudo', back: 'Voltar',
+    g_door: 'À porta', g_call: 'A chamada', g_lock: 'A porta', g_health: 'Saúde do aparelho', g_security: 'Contas e segurança', g_status: 'Estado',
+    r_lastHour: 'Última hora', r_last6Hours: '6 horas', r_day: 'Dia', r_week: 'Semana',
+    today: 'Hoje', yesterday: 'Ontem', this_week: 'Esta semana', last_week: 'Semana passada', prev: 'Anterior', next: 'Seguinte',
+    empty: 'Não há avisos neste período', empty_hint: 'Aqui aparece o que acontece à porta: toques, encomendas, aberturas…',
+    loading: 'A carregar…', load_err: 'Não foi possível ler o histórico do Home Assistant', no_entity: 'Este videoporteiro não tem entidade de eventos no Home Assistant',
+    m0: 'Normal', m1: 'Ausente', m2: 'Não incomodar', m3: 'Personalizado', mode_to: 'Modo: {m}', by: 'por {w}',
+    ring: 'Campainha tocada', visitor: 'Visitante detetado', package: 'Encomenda à porta', person_with_package: 'Pessoa com encomenda', package_gone: 'Encomenda deixa de se ver',
+    call_answered: 'Chamada atendida', call_declined: 'Chamada rejeitada', call_missed: 'Ninguém atendeu', visitor_message: 'Mensagem deixada pelo visitante',
+    door_opened: 'Porta aberta', device_offline: 'Videoporteiro sem ligação', device_online: 'Videoporteiro reconectado', storage_problem: 'Problema com o cartão',
+    firmware_available: 'Atualização de firmware disponível', unexpected_reboot: 'Reinício inesperado', client_paired: 'Novo cliente emparelhado', user_added: 'Utilizador adicionado',
+    user_revoked: 'Utilizador revogado', login_failed: 'Tentativas de acesso falhadas', key_denied: 'Chave recusada', key_locked: 'Chave bloqueada após tentativas falhadas',
+    mode_changed: 'Modo alterado', ring_suppressed: 'Campainha silenciada por Não incomodar', viewer_joined: 'Alguém está a ver a câmara', unknown: 'Aviso',
+    mode_failed: 'O videoporteiro não mudou de modo', mode_failed_why: 'O videoporteiro não mudou de modo: {w}',
+  },
+  de: {
+    bell: 'Meldungen', bell_new: 'Meldungen — es gibt Neues', all: 'Alles', back: 'Zurück',
+    g_door: 'An der Tür', g_call: 'Der Anruf', g_lock: 'Die Tür', g_health: 'Gerätezustand', g_security: 'Konten und Sicherheit', g_status: 'Status',
+    r_lastHour: 'Letzte Stunde', r_last6Hours: '6 Stunden', r_day: 'Tag', r_week: 'Woche',
+    today: 'Heute', yesterday: 'Gestern', this_week: 'Diese Woche', last_week: 'Letzte Woche', prev: 'Früher', next: 'Später',
+    empty: 'Keine Meldungen in diesem Zeitraum', empty_hint: 'Hier erscheint, was an deiner Tür passiert: Klingeln, Pakete, Öffnungen…',
+    loading: 'Wird geladen…', load_err: 'Der Verlauf von Home Assistant konnte nicht gelesen werden', no_entity: 'Diese Türsprechanlage hat keine Ereignis-Entität in Home Assistant',
+    m0: 'Normal', m1: 'Abwesend', m2: 'Nicht stören', m3: 'Benutzerdefiniert', mode_to: 'Modus: {m}', by: 'von {w}',
+    ring: 'Klingel gedrückt', visitor: 'Besucher erkannt', package: 'Paket an der Tür', person_with_package: 'Person mit Paket', package_gone: 'Paket nicht mehr zu sehen',
+    call_answered: 'Anruf angenommen', call_declined: 'Anruf abgelehnt', call_missed: 'Niemand hat abgenommen', visitor_message: 'Nachricht des Besuchers',
+    door_opened: 'Tür geöffnet', device_offline: 'Türsprechanlage offline', device_online: 'Türsprechanlage wieder online', storage_problem: 'Problem mit der Karte',
+    firmware_available: 'Firmware-Update verfügbar', unexpected_reboot: 'Unerwarteter Neustart', client_paired: 'Neuer Client gekoppelt', user_added: 'Benutzer hinzugefügt',
+    user_revoked: 'Benutzer entzogen', login_failed: 'Fehlgeschlagene Anmeldeversuche', key_denied: 'Schlüssel abgelehnt', key_locked: 'Schlüssel nach Fehlversuchen gesperrt',
+    mode_changed: 'Modus geändert', ring_suppressed: 'Klingel durch Nicht stören stummgeschaltet', viewer_joined: 'Jemand sieht die Kamera an', unknown: 'Meldung',
+    mode_failed: 'Die Türsprechanlage hat den Modus nicht geändert', mode_failed_why: 'Die Türsprechanlage hat den Modus nicht geändert: {w}',
+  },
+  fr: {
+    bell: 'Avis', bell_new: 'Avis — du nouveau', all: 'Tout', back: 'Retour',
+    g_door: 'À la porte', g_call: "L'appel", g_lock: 'La porte', g_health: "État de l'appareil", g_security: 'Comptes et sécurité', g_status: 'État',
+    r_lastHour: 'Dernière heure', r_last6Hours: '6 heures', r_day: 'Jour', r_week: 'Semaine',
+    today: "Aujourd'hui", yesterday: 'Hier', this_week: 'Cette semaine', last_week: 'Semaine dernière', prev: 'Avant', next: 'Après',
+    empty: 'Aucun avis sur cette période', empty_hint: 'Ce qui se passe à votre porte apparaît ici : sonneries, colis, ouvertures…',
+    loading: 'Chargement…', load_err: "Impossible de lire l'historique de Home Assistant", no_entity: "Cet interphone n'a pas d'entité d'événements dans Home Assistant",
+    m0: 'Normal', m1: 'Absent', m2: 'Ne pas déranger', m3: 'Personnalisé', mode_to: 'Mode : {m}', by: 'par {w}',
+    ring: 'Sonnette actionnée', visitor: 'Visiteur détecté', package: 'Colis à la porte', person_with_package: 'Personne avec un colis', package_gone: "Le colis n'est plus visible",
+    call_answered: 'Appel pris', call_declined: 'Appel refusé', call_missed: "Personne n'a répondu", visitor_message: 'Message laissé par le visiteur',
+    door_opened: 'Porte ouverte', device_offline: 'Interphone vidéo hors ligne', device_online: 'Interphone vidéo reconnecté', storage_problem: 'Problème avec la carte',
+    firmware_available: 'Mise à jour du firmware disponible', unexpected_reboot: 'Redémarrage inattendu', client_paired: 'Nouveau client associé', user_added: 'Utilisateur ajouté',
+    user_revoked: 'Utilisateur révoqué', login_failed: 'Tentatives de connexion échouées', key_denied: 'Clé refusée', key_locked: 'Clé bloquée après des échecs',
+    mode_changed: 'Mode changé', ring_suppressed: 'Sonnette coupée par Ne pas déranger', viewer_joined: "Quelqu'un regarde la caméra", unknown: 'Avis',
+    mode_failed: "L'interphone n'a pas changé de mode", mode_failed_why: "L'interphone n'a pas changé de mode : {w}",
+  },
+  ru: {
+    bell: 'Уведомления', bell_new: 'Уведомления — есть новые', all: 'Все', back: 'Назад',
+    g_door: 'У двери', g_call: 'Вызов', g_lock: 'Дверь', g_health: 'Состояние устройства', g_security: 'Учётные записи и безопасность', g_status: 'Статус',
+    r_lastHour: 'Последний час', r_last6Hours: '6 часов', r_day: 'День', r_week: 'Неделя',
+    today: 'Сегодня', yesterday: 'Вчера', this_week: 'Эта неделя', last_week: 'Прошлая неделя', prev: 'Раньше', next: 'Позже',
+    empty: 'За этот период уведомлений нет', empty_hint: 'Здесь появляется то, что происходит у двери: звонки, посылки, открытия…',
+    loading: 'Загрузка…', load_err: 'Не удалось прочитать историю Home Assistant', no_entity: 'У этого домофона нет сущности событий в Home Assistant',
+    m0: 'Обычный', m1: 'Нет дома', m2: 'Не беспокоить', m3: 'Свой', mode_to: 'Режим: {m}', by: '{w}',
+    ring: 'Нажат звонок', visitor: 'Обнаружен посетитель', package: 'Посылка у двери', person_with_package: 'Человек с посылкой', package_gone: 'Посылка больше не видна',
+    call_answered: 'Вызов принят', call_declined: 'Вызов отклонён', call_missed: 'Никто не ответил', visitor_message: 'Сообщение от посетителя',
+    door_opened: 'Дверь открыта', device_offline: 'Домофон не в сети', device_online: 'Домофон снова в сети', storage_problem: 'Проблема с картой памяти',
+    firmware_available: 'Доступно обновление прошивки', unexpected_reboot: 'Неожиданная перезагрузка', client_paired: 'Подключён новый клиент', user_added: 'Пользователь добавлен',
+    user_revoked: 'Доступ пользователя отозван', login_failed: 'Неудачные попытки входа', key_denied: 'Ключ отклонён', key_locked: 'Ключ заблокирован после неудачных попыток',
+    mode_changed: 'Режим изменён', ring_suppressed: 'Звонок заглушён режимом «Не беспокоить»', viewer_joined: 'Кто-то смотрит камеру', unknown: 'Уведомление',
+    mode_failed: 'Домофон не сменил режим', mode_failed_why: 'Домофон не сменил режим: {w}',
+  },
+  zh: {
+    bell: '通知', bell_new: '通知 — 有新消息', all: '全部', back: '返回',
+    g_door: '门口', g_call: '通话', g_lock: '门锁', g_health: '设备状态', g_security: '账户与安全', g_status: '状态',
+    r_lastHour: '最近一小时', r_last6Hours: '6 小时', r_day: '天', r_week: '周',
+    today: '今天', yesterday: '昨天', this_week: '本周', last_week: '上周', prev: '更早', next: '更晚',
+    empty: '此时段没有通知', empty_hint: '门口发生的事情会显示在这里：按铃、包裹、开门……',
+    loading: '加载中…', load_err: '无法读取 Home Assistant 历史记录', no_entity: '此门铃在 Home Assistant 中没有事件实体',
+    m0: '正常', m1: '外出', m2: '请勿打扰', m3: '自定义', mode_to: '模式：{m}', by: '{w}',
+    ring: '门铃被按下', visitor: '检测到访客', package: '门口有包裹', person_with_package: '有人拿着包裹', package_gone: '包裹不见了',
+    call_answered: '通话已接听', call_declined: '通话被拒绝', call_missed: '无人接听', visitor_message: '访客留言',
+    door_opened: '门已打开', device_offline: '门铃离线', device_online: '门铃已恢复在线', storage_problem: '存储卡有问题',
+    firmware_available: '有可用的固件更新', unexpected_reboot: '意外重启', client_paired: '新客户端已配对', user_added: '已添加用户',
+    user_revoked: '已撤销用户', login_failed: '登录失败尝试', key_denied: '钥匙被拒绝', key_locked: '多次失败后钥匙被锁定',
+    mode_changed: '模式已更改', ring_suppressed: '门铃被“请勿打扰”静音', viewer_joined: '有人正在查看摄像头', unknown: '通知',
+    mode_failed: '门铃未切换模式', mode_failed_why: '门铃未切换模式：{w}',
+  },
+  hi: {
+    bell: 'सूचनाएँ', bell_new: 'सूचनाएँ — कुछ नया है', all: 'सभी', back: 'वापस',
+    g_door: 'दरवाज़े पर', g_call: 'कॉल', g_lock: 'दरवाज़ा', g_health: 'उपकरण की स्थिति', g_security: 'खाते और सुरक्षा', g_status: 'स्थिति',
+    r_lastHour: 'पिछला घंटा', r_last6Hours: '6 घंटे', r_day: 'दिन', r_week: 'सप्ताह',
+    today: 'आज', yesterday: 'कल', this_week: 'इस सप्ताह', last_week: 'पिछले सप्ताह', prev: 'पहले', next: 'बाद में',
+    empty: 'इस अवधि में कोई सूचना नहीं', empty_hint: 'आपके दरवाज़े पर जो होता है वह यहाँ दिखता है: घंटी, पार्सल, दरवाज़ा खुलना…',
+    loading: 'लोड हो रहा है…', load_err: 'Home Assistant का इतिहास नहीं पढ़ा जा सका', no_entity: 'इस डोरबेल की Home Assistant में कोई इवेंट एंटिटी नहीं है',
+    m0: 'सामान्य', m1: 'बाहर', m2: 'परेशान न करें', m3: 'कस्टम', mode_to: 'मोड: {m}', by: '{w}',
+    ring: 'घंटी बजाई गई', visitor: 'आगंतुक का पता चला', package: 'दरवाज़े पर पार्सल', person_with_package: 'पार्सल के साथ व्यक्ति', package_gone: 'पार्सल अब नहीं दिख रहा',
+    call_answered: 'कॉल उठाई गई', call_declined: 'कॉल अस्वीकार', call_missed: 'किसी ने जवाब नहीं दिया', visitor_message: 'आगंतुक का संदेश',
+    door_opened: 'दरवाज़ा खोला गया', device_offline: 'डोरबेल ऑफ़लाइन', device_online: 'डोरबेल फिर ऑनलाइन', storage_problem: 'कार्ड में समस्या',
+    firmware_available: 'फ़र्मवेयर अपडेट उपलब्ध', unexpected_reboot: 'अप्रत्याशित रीस्टार्ट', client_paired: 'नया क्लाइंट जोड़ा गया', user_added: 'उपयोगकर्ता जोड़ा गया',
+    user_revoked: 'उपयोगकर्ता हटाया गया', login_failed: 'असफल साइन-इन प्रयास', key_denied: 'चाबी अस्वीकार', key_locked: 'असफल प्रयासों के बाद चाबी लॉक',
+    mode_changed: 'मोड बदला गया', ring_suppressed: 'परेशान न करें से घंटी मौन', viewer_joined: 'कोई कैमरा देख रहा है', unknown: 'सूचना',
+    mode_failed: 'डोरबेल ने मोड नहीं बदला', mode_failed_why: 'डोरबेल ने मोड नहीं बदला: {w}',
+  },
+  ar: {
+    bell: 'التنبيهات', bell_new: 'التنبيهات — يوجد جديد', all: 'الكل', back: 'رجوع',
+    g_door: 'عند الباب', g_call: 'المكالمة', g_lock: 'الباب', g_health: 'حالة الجهاز', g_security: 'الحسابات والأمان', g_status: 'الحالة',
+    r_lastHour: 'آخر ساعة', r_last6Hours: '6 ساعات', r_day: 'يوم', r_week: 'أسبوع',
+    today: 'اليوم', yesterday: 'أمس', this_week: 'هذا الأسبوع', last_week: 'الأسبوع الماضي', prev: 'أقدم', next: 'أحدث',
+    empty: 'لا توجد تنبيهات في هذه الفترة', empty_hint: 'يظهر هنا ما يحدث عند بابك: الرنين، الطرود، فتح الباب…',
+    loading: 'جارٍ التحميل…', load_err: 'تعذّرت قراءة سجل Home Assistant', no_entity: 'لا يملك جرس الباب هذا كيان أحداث في Home Assistant',
+    m0: 'عادي', m1: 'خارج المنزل', m2: 'عدم الإزعاج', m3: 'مخصص', mode_to: 'الوضع: {m}', by: '{w}',
+    ring: 'تم الضغط على الجرس', visitor: 'تم اكتشاف زائر', package: 'طرد عند الباب', person_with_package: 'شخص يحمل طرداً', package_gone: 'لم يعد الطرد ظاهراً',
+    call_answered: 'تم الرد على المكالمة', call_declined: 'تم رفض المكالمة', call_missed: 'لم يرد أحد', visitor_message: 'رسالة من الزائر',
+    door_opened: 'تم فتح الباب', device_offline: 'جرس الباب غير متصل', device_online: 'عاد جرس الباب للاتصال', storage_problem: 'مشكلة في البطاقة',
+    firmware_available: 'تحديث البرنامج الثابت متاح', unexpected_reboot: 'إعادة تشغيل غير متوقعة', client_paired: 'تم إقران عميل جديد', user_added: 'تمت إضافة مستخدم',
+    user_revoked: 'تم إلغاء مستخدم', login_failed: 'محاولات دخول فاشلة', key_denied: 'تم رفض المفتاح', key_locked: 'تم قفل المفتاح بعد محاولات فاشلة',
+    mode_changed: 'تم تغيير الوضع', ring_suppressed: 'تم كتم الجرس بوضع عدم الإزعاج', viewer_joined: 'شخص ما يشاهد الكاميرا', unknown: 'تنبيه',
+    mode_failed: 'لم يغيّر جرس الباب الوضع', mode_failed_why: 'لم يغيّر جرس الباب الوضع: {w}',
+  },
+};
+
+function igEvText(hass, key, vars) {
+  const lang = (hass && hass.language) ? hass.language.substring(0, 2) : 'en';
+  const table = IG_EV_TEXT[lang] || IG_EV_TEXT.en;
+  let s = (table[key] !== undefined) ? table[key] : (IG_EV_TEXT.en[key] !== undefined ? IG_EV_TEXT.en[key] : key);
+  if (vars) for (const k of Object.keys(vars)) s = s.replace(`{${k}}`, vars[k]);
+  return s;
+}
+
 
 function getLocalText(hass, key) {
   // 1. Si no hay idioma configurado en HA, asumimos inglés ('en')
@@ -687,6 +886,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       return;
     }
     if (this.content) this._registerFullscreenListeners();
+    if (this.content) this._registerFitObservers();
     this._registerVisibilityStreamHandler();
     this._registerOffscreenStreamHandler();
     if (this.content && !this.pc && !this._restaurarPausaGuardada()) this.startWebRTC('connectedCallback');
@@ -833,6 +1033,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     // este mismo elemento, connectedCallback() la reanuda en el mismo estado. Si no lo vuelve a
     // meter nunca, la gracia cuelga igual (y con llamada, el tope de CALL_OCULTA_MAX_MS).
     this._pausar('oculta');                     // salir del DOM = pausar, no desmontar
+    this._unregisterFitObservers();
     this._unregisterUnloadHandler();
     this._unregisterVisibilityStreamHandler();
     this._unregisterOffscreenStreamHandler();
@@ -942,7 +1143,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     if (this.unlockButton) {
       this.unlockButton.classList.remove('active-unlock');
       this.unlockButton.setAttribute('disabled', '');
-      if (this.unlockIcon) this.unlockIcon.setAttribute('icon', 'mdi:key');
+      if (this.unlockIcon) this.unlockIcon.setAttribute('icon', 'mdi:lock-open-variant');
       this._setDoorLabel(false);
     }
     if (this._doorCountdownTimer) { clearInterval(this._doorCountdownTimer); this._doorCountdownTimer = null; }
@@ -1131,6 +1332,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._updateRingState();
     this._updateRecButton();
     this._updateRecordingsButton();
+    this._updateBell();
     this._vigilarPlazoInactividad();
     this._repaintTextsIfLanguageChanged();
   }
@@ -1161,6 +1363,14 @@ class IslautopiaIntercomCard extends HTMLElement {
     const motionTxt = this.motionPill && this.motionPill.querySelector('span');
     if (motionTxt) motionTxt.textContent = getLocalText(this._hass, 'motion_detected');
     this._paintAudioState(); // el titulo del control de altavoz tambien se escribe una sola vez
+    // (1.9.7) Las etiquetas de micro/puerta y Grabaciones tambien se escribian solo en render():
+    // micro y puerta se salvaban al cambiar de estado, Grabaciones nunca.
+    if (this.micLabel) this._paintMicState();
+    if (this.unlockLabel && !this.unlockLabel.classList.contains('on-green')) this._setDoorLabel(false);
+    const recLbl = this.recordingsButton && this.recordingsButton.querySelector('.quick-btn-label');
+    if (recLbl) recLbl.textContent = getLocalText(this._hass, 'recordings_title');
+    if (this._bellBtn) this._paintBell();
+    if (this._evOpen) this._renderEvents();
     // El badge de estado y la linea inferior se repintan solos en cuanto la sesion cambia de
     // estado, asi que casi siempre se arreglaban solos. Casi: una card que NUNCA llega a
     // conectar - el portero apagado, o fuera de casa sin cobertura - se queda con el
@@ -1269,7 +1479,14 @@ class IslautopiaIntercomCard extends HTMLElement {
       this.modeRow.style.display = 'none';
       return;
     }
-    const sig = `${entityId}|${stateObj.state}|${options.join(',')}`;
+    // OPTIMISTA (1.9.7, Iñaki 2026-09-25: «el boton de modo es bastante perezoso en mostrar el
+    // nuevo modo ... a veces parece que no funciona»). El chip enseña lo elegido AL PULSAR, marcado
+    // como pendiente (.pending), y vuelve atras si el servicio falla - ver _pickMode(). Cuando la
+    // entidad ya dice lo mismo que lo elegido, lo pendiente se da por confirmado y desaparece.
+    if (this._modePending && this._modePending.option === stateObj.state && this._modePending.done) this._modePending = null;
+    const shown = this._modePending ? this._modePending.option : stateObj.state;
+    const pending = !!(this._modePending && this._modePending.option !== stateObj.state);
+    const sig = `${entityId}|${stateObj.state}|${shown}|${pending}|${options.join(',')}`;
     if (this._lastModeSig === sig) return; // sin cambios reales, evita repintar en cada tick de hass
     this._lastModeSig = sig;
 
@@ -1281,22 +1498,22 @@ class IslautopiaIntercomCard extends HTMLElement {
       try { if (this._hass.formatEntityState) etiqueta = this._hass.formatEntityState(stateObj, opt) || opt; } catch (err) { /* frontend antiguo */ }
       return String(etiqueta).replace(/</g, '&lt;');
     };
-    const activeKey = this._modeKeyFor(stateObj.state);
+    const activeKey = this._modeKeyFor(shown);
     const activeMeta = activeKey ? MODE_META[activeKey] : null;
-    const pillCls = ['mode-pill', activeKey ? `mode-${activeKey}` : ''].filter(Boolean).join(' ');
+    const pillCls = ['mode-pill', activeKey ? `mode-${activeKey}` : '', pending ? 'pending' : ''].filter(Boolean).join(' ');
 
     this.modeRow.style.display = 'flex';
     this.modeRow.innerHTML = `
       <button type="button" class="${pillCls}" id="mode-pill">
         <ha-icon icon="${activeMeta ? activeMeta.icon : 'mdi:tune'}"></ha-icon>
-        <span class="mode-pill-label">${etiquetaDe(stateObj.state)}</span>
+        <span class="mode-pill-label">${etiquetaDe(shown)}</span>
         <ha-icon class="mode-pill-caret" icon="mdi:menu-down"></ha-icon>
       </button>
       <div class="mode-menu" id="mode-menu" style="display:none;">
         ${options.map((opt) => {
           const key = this._modeKeyFor(opt);
           const meta = key ? MODE_META[key] : null;
-          const active = opt === stateObj.state;
+          const active = opt === shown;
           const cls = ['mode-opt', active ? 'sel' : '', key ? `mode-${key}` : ''].filter(Boolean).join(' ');
           const icon = meta ? meta.icon : 'mdi:circle-outline';
           const safeOpt = String(opt).replace(/"/g, '&quot;');
@@ -1313,9 +1530,57 @@ class IslautopiaIntercomCard extends HTMLElement {
       btn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         this._toggleModeMenu(false);
-        this._hass.callService('select', 'select_option', { entity_id: entityId, option: btn.getAttribute('data-option') });
+        this._pickMode(entityId, btn.getAttribute('data-option'), stateObj.state);
       });
     });
+  }
+
+  _pickMode(entityId, option, previous) {
+    if (option === previous && !this._modePending) return;
+    const token = {};
+    this._modePending = { option, token, done: false };
+    this._lastModeSig = null;
+    this._updateModeRow();
+    let call;
+    try {
+      call = this._hass.callService('select', 'select_option', { entity_id: entityId, option });
+    } catch (err) {
+      call = Promise.reject(err);
+    }
+    Promise.resolve(call).then(() => {
+      // Aceptado. Con la integracion 0.7.4 el servicio no vuelve hasta que el portero lo ha
+      // confirmado, y la entidad ya lo publica; con una anterior la entidad puede tardar (el
+      // sondeo de 30 s): el chip se queda en lo elegido, pendiente, hasta que la entidad coincida.
+      if (!this._modePending || this._modePending.token !== token) return;
+      this._modePending.done = true;
+      this._lastModeSig = null;
+      this._updateModeRow();
+      // Tope: si en 35 s (mas que el sondeo de 30 s) la entidad sigue sin decir lo elegido, el
+      // portero no lo aplico - se vuelve atras y se dice, nunca un chip pendiente para siempre.
+      setTimeout(() => {
+        if (!this._modePending || this._modePending.token !== token) return;
+        this._modePending = null;
+        this._lastModeSig = null;
+        this._updateModeRow();
+        this._flashStatusText(igEvText(this._hass, 'mode_failed'), 7000);
+      }, 35000);
+    }, (err) => {
+      if (!this._modePending || this._modePending.token !== token) return;
+      this._modePending = null;   // vuelve atras: la entidad sigue diciendo el modo real
+      this._lastModeSig = null;
+      this._updateModeRow();
+      const why = err && err.message ? String(err.message) : '';
+      this._flashStatusText(why ? igEvText(this._hass, 'mode_failed_why', { w: why }) : igEvText(this._hass, 'mode_failed'), 7000);
+    });
+  }
+
+  _flashStatusText(text, ms) {
+    if (!this.statusLine) return;
+    this.statusLine.textContent = text;
+    this.statusLine.classList.remove('open');
+    this.statusLine.classList.add('warn');
+    clearTimeout(this._flashTextTimer);
+    this._flashTextTimer = setTimeout(() => { if (!this._doorCountdownTimer && !this._retryCountdownTimer) this._resetStatusLine(); }, ms);
   }
 
   _toggleModeMenu(force) {
@@ -1402,7 +1667,9 @@ class IslautopiaIntercomCard extends HTMLElement {
   _updateRecordingsButton() {
     if (!this.recordingsAction) return;
     const isAdmin = !!(this._connInfo && this._connInfo.role === 'admin');
+    const antes = this.recordingsAction.style.display;
     this.recordingsAction.style.display = isAdmin ? '' : 'none';
+    if (antes !== this.recordingsAction.style.display) this._scheduleFit();   // cambia el alto a repartir
   }
 
   // Abre el navegador de medios NATIVO de Home Assistant contra el media_source que ya publica la
@@ -1581,7 +1848,9 @@ class IslautopiaIntercomCard extends HTMLElement {
       return;
     }
     this.statusLine.classList.remove('open', 'warn');
-    this.statusLine.textContent = getLocalText(this._hass, 'idle_status');
+    // Vacia en reposo (1.9.7, Iñaki: «System idle» no aporta nada; igual que se quito
+    // «sistema en funcionamiento» en Android). La linea solo habla cuando hay algo que decir.
+    this.statusLine.textContent = '';
   }
 
   // ==============================================================================
@@ -2324,6 +2593,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     // Entrar/salir de pantalla completa recoloca la card, y el IntersectionObserver puede decir
     // «no se ve» durante la transicion: eso NO es salir de la vista (ver el observador).
     this._fsTransitionUntil = Date.now() + 2500;
+    this._fitToSpace();
     // El marco cambia de medida al entrar/salir, y con la imagen girada la caja del video se
     // calcula a partir de esa medida (§1.9). El ResizeObserver acabaria llegando, pero un frame
     // tarde: recalcular aqui evita el parpadeo. Ademas es aqui donde el carril lateral aparece o
@@ -2907,7 +3177,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     // esto se llama justo antes de abrir, quien manda es triggerNativeOpen()/triggerUnlock().
     const abierta = this.unlockButton && this.unlockButton.classList.contains('active-unlock');
     if (!abierta) {
-      if (this.unlockIcon) this.unlockIcon.setAttribute('icon', 'mdi:key');
+      if (this.unlockIcon) this.unlockIcon.setAttribute('icon', 'mdi:lock-open-variant');
       if (this.unlockLabel) this.unlockLabel.classList.remove('on-amber');
       this._setDoorLabel(false);
     }
@@ -3078,19 +3348,440 @@ class IslautopiaIntercomCard extends HTMLElement {
     // EXPLICITAMENTE no debe saltar). Con metadatos ya cargados se usa el contenido de verdad;
     // sin ellos (arranque, antes de 'loadedmetadata') se usa `_rot` como mejor suposicion y esta
     // funcion se vuelve a llamar en cuanto lleguen (ver render()).
-    const content = this._contentSize();
-    const vertical = (content.w > 0 && content.h > 0)
-      ? (content.h > content.w)
-      : (this._rot === 90 || this._rot === 270);
-    if (this.config.height && this.config.height !== 'auto') {
-      this.feedWrap.style.height = this.config.height;
-      this.feedWrap.style.aspectRatio = 'unset';
-      this.feedWrap.style.maxHeight = '';
+    // 1.9.7: el alto ya no sale de una proporcion fija (9:16 con tope de 72vh, o el `height` del
+    // YAML a pelo) sino de _fitToSpace(), que mide el hueco real. Ver alli el porque.
+    this._fitToSpace();
+  }
+
+  // ==============================================================================================
+  // LA CARD CABE SOLA EN EL HUECO QUE TIENE (1.9.7, Iñaki 2026-09-25: «la card deberia ajustarse
+  // ella sola al espacio disponible»; y descartado a proposito que el usuario baje a mano el
+  // `height` de su panel).
+  //
+  // Lo que habia hasta la 1.9.6, medido con Playwright contra el Home Assistant real (vista
+  // `panel` del portero, 393x852 como el iPhone de Iñaki):
+  //   - el marco de video tomaba el `height` del YAML A PELO (650px) - con el video real de
+  //     1080x1200 (casi cuadrado) en 373px de ancho, la imagen ocupa 414px y los otros ~240px eran
+  //     bandas negras, la de ARRIBA es el «hueco oscuro encima del video» de la captura;
+  //   - y Grabaciones no salia NUNCA por otro motivo, no por el alto: ver .bottom-row en la hoja.
+  //   - El envoltorio de HA NO recorta nada: `hui-panel-view` mide exactamente el viewport menos
+  //     la barra de HA (796px de 852) con overflow visible. Lo que no cabia era la propia card.
+  //
+  // Ahora: el alto disponible se MIDE (viewport visible menos lo que hay encima de la card, que
+  // en la vista panel es la barra de HA), se le resta lo que ocupan los controles, y el video se
+  // queda con lo que sobra, conservando su proporcion (bandas a los lados si hace falta, nunca
+  // controles fuera). El `height` del YAML pasa a ser un TOPE, no un alto fijo.
+  //
+  // Dos disposiciones, elegidas por el hueco y no por el aparato:
+  //   - PILA (movil en vertical, como la app de iOS): video arriba, chips debajo, botones debajo
+  //     (fuera de la imagen), Grabaciones al final. Se elige cuando apilar no le cuesta al video
+  //     mas de un 15 % de alto, o cuando el ancho no da para botones encima de la imagen.
+  //   - ENCIMA (wallpanel apaisado): chips arriba, botones sobre el video o en el carril lateral
+  //     (§1.9), Grabaciones debajo. Es la de siempre, solo que ahora con el alto medido.
+  // ==============================================================================================
+  static get STACK_CONTROLS_H() { return 128; }  // fila de botones en pila: micro 96 + etiqueta + aire
+  static get MIN_FEED_H() { return 180; }
+
+  _viewHost() {
+    // El contenedor de la vista de Lovelace (hui-panel-view, hui-masonry-view...), subiendo tambien
+    // a traves de los shadow roots. Solo se usa su borde superior: ahi termina la barra de HA.
+    let el = this;
+    for (let i = 0; i < 25 && el; i++) {
+      const tag = el.tagName ? el.tagName.toLowerCase() : '';
+      if (tag === 'hui-panel-view' || tag === 'hui-masonry-view' || tag === 'hui-sections-view' || tag === 'hui-view') return el;
+      el = el.parentElement || (el.getRootNode && el.getRootNode().host) || null;
+    }
+    return null;
+  }
+
+  _availableHeight() {
+    const vv = window.visualViewport;
+    const vh = vv && vv.height ? vv.height : window.innerHeight;
+    const sy = window.scrollY || 0;
+    const cardTop = this.getBoundingClientRect().top + sy;
+    const view = this._viewHost();
+    const viewTop = view ? view.getBoundingClientRect().top + sy : 0;
+    const panel = !!(view && view.tagName.toLowerCase() === 'hui-panel-view');
+    // Lo que queda encima de la card al principio de la pagina: la barra de HA y el margen de la
+    // vista. Una card mas abajo en una columna no se encoge por los que tiene encima (se llega a
+    // ella con scroll); se ajusta a una pantalla, no a lo que queda de la primera.
+    const reservedTop = Math.max(0, Math.min(cardTop, viewTop + 24));
+    return Math.max(0, vh - reservedTop - (panel ? 0 : 8));
+  }
+
+  _feedCap() {
+    const h = this.config && this.config.height;
+    if (!h || h === 'auto') return Infinity;
+    const n = parseFloat(h);
+    return (Number.isFinite(n) && n > 0 && /px\s*$|^\d+(\.\d+)?$/.test(String(h).trim())) ? n : Infinity;
+  }
+
+  _recallAspect() {
+    try {
+      const v = parseFloat(localStorage.getItem(`islautopia-intercom-aspect-${this.config && this.config.device_id || 'sin-id'}`));
+      if (v > 0.2 && v < 5) return v;
+    } catch (err) { /* sin almacenamiento: se supone */ }
+    return (this._rot === 90 || this._rot === 270) ? 9 / 16 : 16 / 9;
+  }
+
+  _rememberAspect(a) {
+    if (Math.abs((this._lastAspectSaved || 0) - a) < 0.001) return;
+    this._lastAspectSaved = a;
+    try { localStorage.setItem(`islautopia-intercom-aspect-${this.config && this.config.device_id || 'sin-id'}`, String(a)); } catch (err) { /* idem */ }
+  }
+
+  _fitToSpace() {
+    if (!this.feedWrap || !this.content || typeof getComputedStyle !== 'function') return;   // sin layout (bancos en vm)
+    if (this._fsActive) {
+      // Pantalla completa tiene su propia hoja (.ig-fs): botones siempre sobre el video.
+      this.content.classList.remove('ig-stack');
+      this._placeControls(false);
       return;
     }
-    this.feedWrap.style.height = 'auto';
-    this.feedWrap.style.aspectRatio = vertical ? '9/16' : '16/9';
-    this.feedWrap.style.maxHeight = vertical ? '72vh' : '';
+    const width = this.feedWrap.clientWidth || Math.max(0, this.content.clientWidth - 20);
+    if (!width) return;
+    const c = this._contentSize();
+    let aspect;
+    if (c.w > 0 && c.h > 0) { aspect = c.w / c.h; this._rememberAspect(aspect); } else aspect = this._recallAspect();
+    const natural = width / aspect;
+
+    const cs = getComputedStyle(this.content);
+    const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    const gap = parseFloat(cs.rowGap) || 10;
+    const visible = (el) => !!el && el.style.display !== 'none' && getComputedStyle(el).display !== 'none';
+    const topVisible = !!this.topRow && ((this.modeRow && this.modeRow.style.display !== 'none') ||
+      (this.recAction && this.recAction.style.display !== 'none') || (this._bellBtn && this._bellBtn.style.display !== 'none'));
+    const topH = topVisible ? (this.topRow.offsetHeight || 32) : 0;
+    const bottomH = visible(this.recordingsAction) ? (this.recordingsAction.offsetHeight || 54) : 0;
+    const chrome = pad + (topH ? topH + gap : 0) + (bottomH ? bottomH + gap : 0);
+    const stackH = IslautopiaIntercomCard.STACK_CONTROLS_H + gap;
+
+    const avail = this._availableHeight();
+    const cap = this._feedCap();
+    const feedOver = Math.min(natural, avail - chrome, cap);
+    const feedStack = Math.min(natural, avail - chrome - stackH, cap);
+    const stack = width < 520 || feedStack >= 0.85 * feedOver;
+    const feedH = Math.round(Math.max(IslautopiaIntercomCard.MIN_FEED_H, stack ? feedStack : feedOver));
+
+    this.content.classList.toggle('ig-stack', stack);
+    this._placeControls(stack);
+    if (Math.abs((parseFloat(this.feedWrap.style.height) || 0) - feedH) > 0.5) this.feedWrap.style.height = `${feedH}px`;
+    if (this.feedWrap.style.aspectRatio !== 'auto') this.feedWrap.style.aspectRatio = 'auto';
+    if (this.feedWrap.style.maxHeight) this.feedWrap.style.maxHeight = '';
+  }
+
+  _placeControls(stack) {
+    if (!this.actionsRow || !this.stackControls || !this.feedWrap) return;
+    const destino = stack ? this.stackControls : this.feedWrap;
+    if (this.actionsRow.parentElement !== destino) destino.appendChild(this.actionsRow);
+  }
+
+  _scheduleFit() {
+    if (this._fitRaf) return;
+    const run = () => { this._fitRaf = null; this._fitToSpace(); this._layoutRotation(); };
+    this._fitRaf = (typeof requestAnimationFrame === 'function') ? requestAnimationFrame(run) : setTimeout(run, 16);
+  }
+
+  _registerFitObservers() {
+    if (this._fitObserving || !this.content || typeof window === 'undefined' || !window.addEventListener) return;
+    this._fitObserving = true;
+    this._onFitResize = () => this._scheduleFit();
+    window.addEventListener('resize', this._onFitResize);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', this._onFitResize);
+    if (typeof ResizeObserver === 'function') {
+      // El propio elemento (cambia el ancho de la columna, aparece REC/Grabaciones...) y el
+      // contenedor de la vista (gira la tablet, se abre la barra lateral de HA).
+      this._fitRO = new ResizeObserver(() => this._scheduleFit());
+      this._fitRO.observe(this);
+      const view = this._viewHost();
+      if (view) this._fitRO.observe(view);
+    }
+    this._scheduleFit();
+  }
+
+  _unregisterFitObservers() {
+    if (!this._fitObserving) return;
+    this._fitObserving = false;
+    window.removeEventListener('resize', this._onFitResize);
+    if (window.visualViewport) window.visualViewport.removeEventListener('resize', this._onFitResize);
+    if (this._fitRO) { this._fitRO.disconnect(); this._fitRO = null; }
+  }
+
+  // ==============================================================================================
+  // CAMPANITA DE AVISOS (1.9.7). DE DONDE SALEN LOS DATOS, y por que de ahi:
+  //  - El portero NO tiene una ruta de historial de eventos: las apps los recogen de la cola del
+  //    relay (§3.6.3), que es del VPS - y esta card no habla con el VPS (principio 1 y Fase 0).
+  //  - Lo que SI llega por la LAN es cada evento, en el momento, por el webhook local del portero a
+  //    la integracion (webhook.py, `local_only`), que lo publica en su entidad `event` (event.py)
+  //    con el sobre entero como atributos. El recorder de Home Assistant guarda esos cambios.
+  //  - La card los pide con la orden de historial NATIVA de Home Assistant
+  //    (`history/history_during_period`) por el WebSocket ya autenticado del propio HA, para la
+  //    entidad que la integracion le da en `get_connection_info.events_entity`. Ninguna credencial
+  //    del portero pasa por el navegador, y funciona sin internet.
+  //  - Cuanto se conserva lo decide el recorder de HA (`purge_keep_days`, 10 dias por defecto),
+  //    no esta card. Los eventos que genera el RELAY (llamada atendida/perdida, sin conexion) no
+  //    pasan por el webhook y no salen aqui.
+  // ==============================================================================================
+  _eventsEntity() {
+    return (this._connInfo && this._connInfo.events_entity) || this._autoEntity('events') || null;
+  }
+
+  _bellSeenKey() { return `islautopia-intercom-bell-seen-${this.config && this.config.device_id || 'sin-id'}`; }
+  _bellSeen() {
+    try { const v = parseInt(localStorage.getItem(this._bellSeenKey()), 10); return Number.isFinite(v) ? v : 0; } catch (err) { return 0; }
+  }
+  _setBellSeen(ms) { try { localStorage.setItem(this._bellSeenKey(), String(ms)); } catch (err) { /* idem */ } }
+
+  _isAviso(ev) {
+    const k = IG_EVENT_KINDS[ev];
+    return k ? k.aviso : true;   // desconocido: se enseña, como en las apps
+  }
+
+  _updateBell() {
+    if (!this._bellBtn) return;
+    const ent = this._eventsEntity();
+    const st = ent && this._hass ? this._hass.states[ent] : null;
+    this._bellBtn.style.display = st ? '' : 'none';
+    if (!st) return;
+    if (this._bellLastState !== st.state) {
+      const primera = this._bellLastState === undefined;
+      this._bellLastState = st.state;
+      if (primera) {
+        this._checkUnread();
+      } else {
+        const ev = st.attributes && st.attributes.event_type;
+        const ts = Date.parse(st.state) || Date.now();
+        if (ev && this._isAviso(ev) && ts > this._bellSeen()) this._bellUnread = true;
+        if (this._evOpen) this._loadEvents();
+      }
+    }
+    this._paintBell();
+  }
+
+  _paintBell() {
+    if (!this._bellBtn) return;
+    this._bellBtn.classList.toggle('unread', !!this._bellUnread);
+    this._bellBtn.setAttribute('title', igEvText(this._hass, this._bellUnread ? 'bell_new' : 'bell'));
+    this._bellBtn.setAttribute('aria-label', igEvText(this._hass, this._bellUnread ? 'bell_new' : 'bell'));
+  }
+
+  async _fetchEvents(startMs, endMs) {
+    const ent = this._eventsEntity();
+    if (!ent) throw new Error('no_entity');
+    const res = await this._hass.connection.sendMessagePromise({
+      type: 'history/history_during_period',
+      start_time: new Date(startMs).toISOString(),
+      end_time: new Date(endMs).toISOString(),
+      entity_ids: [ent],
+      include_start_time_state: false,
+      significant_changes_only: false,
+      minimal_response: false,
+      no_attributes: false,
+    });
+    const rows = (res && res[ent]) || [];
+    const out = [];
+    for (const x of rows) {
+      const st = x.s !== undefined ? x.s : x.state;
+      const a = x.a || x.attributes || {};
+      const ev = a.event_type;
+      if (!ev || st === 'unavailable' || st === 'unknown') continue;
+      let ts = (typeof a.ts === 'number' && a.ts > 1e9) ? a.ts * 1000 : Date.parse(st);
+      if (!Number.isFinite(ts)) ts = (x.lu || x.lc || 0) * 1000;
+      if (ts < startMs - 60000 || ts > endMs + 60000) continue;
+      out.push({ ev, ts, a });
+    }
+    out.sort((p, q) => q.ts - p.ts);
+    return out;
+  }
+
+  async _checkUnread() {
+    if (this._bellChecking || !this._hass || !this._hass.connection) return;
+    this._bellChecking = true;
+    try {
+      const now = Date.now();
+      const items = await this._fetchEvents(now - 7 * 86400000, now);
+      const seen = this._bellSeen();
+      this._bellUnread = items.some((e) => this._isAviso(e.ev) && e.ts > seen);
+      this._paintBell();
+    } catch (err) {
+      console.warn('[islautopia-intercom-card] bell: could not read the events history', err);
+    } finally {
+      this._bellChecking = false;
+    }
+  }
+
+  _evLang() { return (this._hass && this._hass.language) || navigator.language || 'en'; }
+
+  _evFirstDayOfWeek() {
+    // Como las apps: el primer dia de la semana sale del calendario del idioma, no de restar 7 dias.
+    try {
+      const loc = new Intl.Locale(this._evLang());
+      const info = (typeof loc.getWeekInfo === 'function') ? loc.getWeekInfo() : loc.weekInfo;
+      if (info && info.firstDay) return info.firstDay % 7;   // 1=lunes ... 7=domingo -> 0=domingo
+    } catch (err) { /* navegador sin weekInfo */ }
+    return 1;
+  }
+
+  _evBounds() {
+    const now = new Date();
+    const r = this._evRange || 'day';
+    if (r === 'lastHour') return [now.getTime() - 3600000, now.getTime()];
+    if (r === 'last6Hours') return [now.getTime() - 6 * 3600000, now.getTime()];
+    if (r === 'day') {
+      // Por componentes y no restando 24 h: el dia del cambio de hora no dura 24 h (igual que las apps).
+      const d0 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (this._evOffset || 0));
+      const d1 = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + 1);
+      return [d0.getTime(), Math.min(d1.getTime(), now.getTime())];
+    }
+    const first = this._evFirstDayOfWeek();
+    const back = (now.getDay() - first + 7) % 7;
+    const w0 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - back - 7 * (this._evOffset || 0));
+    const w1 = new Date(w0.getFullYear(), w0.getMonth(), w0.getDate() + 7);
+    return [w0.getTime(), Math.min(w1.getTime(), now.getTime())];
+  }
+
+  _evPeriodLabel() {
+    const off = this._evOffset || 0;
+    const lang = this._evLang();
+    if (this._evRange === 'day') {
+      if (off === 0) return igEvText(this._hass, 'today');
+      if (off === 1) return igEvText(this._hass, 'yesterday');
+      const [a] = this._evBounds();
+      return new Intl.DateTimeFormat(lang, { weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(a));
+    }
+    if (this._evRange === 'week') {
+      if (off === 0) return igEvText(this._hass, 'this_week');
+      if (off === 1) return igEvText(this._hass, 'last_week');
+      const [a] = this._evBounds();
+      const f = new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'short' });
+      return `${f.format(new Date(a))} – ${f.format(new Date(a + 6 * 86400000))}`;
+    }
+    return '';
+  }
+
+  _openEvents() {
+    if (!this._evPanel) return;
+    this._evOpen = true;
+    if (!this._evRange) { this._evRange = 'day'; this._evOffset = 0; this._evGroup = null; }
+    this._evPrevSeen = this._bellSeen();
+    this._setBellSeen(Date.now());
+    this._bellUnread = false;
+    this._paintBell();
+    this._evPanel.style.display = 'flex';
+    this._evItems = null;
+    this._evError = null;
+    this._renderEvents();
+    this._loadEvents();
+  }
+
+  _closeEvents() {
+    this._evOpen = false;
+    if (this._evPanel) this._evPanel.style.display = 'none';
+  }
+
+  async _loadEvents() {
+    const gen = (this._evGen = (this._evGen || 0) + 1);
+    const [a, b] = this._evBounds();
+    try {
+      const items = await this._fetchEvents(a, b);
+      if (gen !== this._evGen) return;
+      this._evItems = items.filter((e) => this._isAviso(e.ev));
+      this._evError = null;
+    } catch (err) {
+      if (gen !== this._evGen) return;
+      this._evError = (err && err.message === 'no_entity') ? 'no_entity' : 'load_err';
+      console.warn('[islautopia-intercom-card] events history', err);
+    }
+    if (this._evOpen) this._renderEvents();
+  }
+
+  _evPresent(e) {
+    const T = (k, v) => igEvText(this._hass, k, v);
+    const esc = (v) => String(v).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+    const kind = IG_EVENT_KINDS[e.ev];
+    const who = ['by', 'label', 'por'].map((k) => e.a[k]).find((v) => typeof v === 'string' && v.trim());
+    let title = kind ? T(e.ev) : T('unknown');
+    let detail = kind ? (who ? T('by', { w: esc(who.trim()) }) : '') : esc(e.ev);
+    if (e.ev === 'mode_changed') {
+      const m = parseInt(e.a.mode !== undefined ? e.a.mode : e.a.modo, 10);
+      if (m >= 0 && m <= 3) title = T('mode_to', { m: T(`m${m}`) });
+    }
+    return { title, detail, icon: kind ? kind.icon : 'mdi:information-outline', c: kind ? kind.c : 'muted', g: kind ? kind.g : 'status' };
+  }
+
+  _renderEvents() {
+    const p = this._evPanel;
+    if (!p) return;
+    const T = (k, v) => igEvText(this._hass, k, v);
+    const lang = this._evLang();
+    const items = this._evItems || [];
+    const present = IG_EVENT_GROUPS.filter((g) => items.some((e) => this._evPresent(e).g === g));
+    if (this._evGroup && !present.includes(this._evGroup)) present.push(this._evGroup);
+    const visibles = items.filter((e) => !this._evGroup || this._evPresent(e).g === this._evGroup);
+    const navegable = this._evRange === 'day' || this._evRange === 'week';
+    const hora = new Intl.DateTimeFormat(lang, { hour: '2-digit', minute: '2-digit' });
+    const dia = new Intl.DateTimeFormat(lang, { weekday: 'long', day: 'numeric', month: 'long' });
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+
+    let body;
+    if (this._evError) {
+      body = `<div class="ev-empty"><ha-icon icon="mdi:alert-circle-outline"></ha-icon><div>${T(this._evError)}</div></div>`;
+    } else if (this._evItems === null) {
+      body = `<div class="ev-empty"><div>${T('loading')}</div></div>`;
+    } else if (!visibles.length) {
+      body = `<div class="ev-empty"><ha-icon icon="mdi:bell-outline"></ha-icon><div class="ev-empty-t">${T('empty')}</div><div class="ev-empty-h">${T('empty_hint')}</div></div>`;
+    } else {
+      let ultimoDia = null;
+      const multiDia = this._evRange === 'week' || new Date(visibles[0].ts).toDateString() !== new Date(visibles[visibles.length - 1].ts).toDateString();
+      body = visibles.map((e) => {
+        const pr = this._evPresent(e);
+        const d = new Date(e.ts);
+        let cab = '';
+        if (multiDia && d.toDateString() !== ultimoDia) {
+          ultimoDia = d.toDateString();
+          const d0 = new Date(d); d0.setHours(0, 0, 0, 0);
+          const diff = Math.round((hoy - d0) / 86400000);
+          const nombre = diff === 0 ? T('today') : diff === 1 ? T('yesterday') : dia.format(d);
+          cab = `<div class="ev-day">${nombre}</div>`;
+        }
+        const nuevo = e.ts > (this._evPrevSeen || 0);
+        return `${cab}<div class="ev-row${nuevo ? ' new' : ''}"><span class="ev-ic c-${pr.c}"><ha-icon icon="${pr.icon}"></ha-icon></span>` +
+          `<div class="ev-txt"><div class="ev-t">${pr.title}</div>${pr.detail ? `<div class="ev-d">${pr.detail}</div>` : ''}</div>` +
+          `<div class="ev-h">${hora.format(d)}</div></div>`;
+      }).join('');
+    }
+
+    p.innerHTML = `
+      <div class="ev-head">
+        <button type="button" class="ev-back" id="ev-back" title="${T('back')}"><ha-icon icon="mdi:chevron-left"></ha-icon></button>
+        <div class="ev-title">${T('bell')}</div>
+      </div>
+      <div class="ev-chips">
+        <button type="button" class="ev-chip${this._evGroup ? '' : ' sel'}" data-g="">${T('all')}</button>
+        ${present.map((g) => `<button type="button" class="ev-chip${this._evGroup === g ? ' sel' : ''}" data-g="${g}">${T(`g_${g}`)}</button>`).join('')}
+      </div>
+      <div class="ev-time">
+        <select class="ev-range" id="ev-range">
+          ${IG_EV_RANGES.map((r) => `<option value="${r}"${this._evRange === r ? ' selected' : ''}>${T(`r_${r}`)}</option>`).join('')}
+        </select>
+        <div class="ev-nav"${navegable ? '' : ' style="visibility:hidden"'}>
+          <button type="button" class="ev-navb" id="ev-prev" title="${T('prev')}"><ha-icon icon="mdi:chevron-left"></ha-icon></button>
+          <span class="ev-period">${this._evPeriodLabel()}</span>
+          <button type="button" class="ev-navb" id="ev-next" title="${T('next')}"${(this._evOffset || 0) === 0 ? ' disabled' : ''}><ha-icon icon="mdi:chevron-right"></ha-icon></button>
+        </div>
+      </div>
+      <div class="ev-list">${body}</div>
+    `;
+    p.querySelector('#ev-back').addEventListener('click', (ev) => { ev.stopPropagation(); this._closeEvents(); });
+    p.querySelectorAll('.ev-chip').forEach((b) => b.addEventListener('click', (ev) => {
+      ev.stopPropagation(); this._evGroup = b.getAttribute('data-g') || null; this._renderEvents();
+    }));
+    p.querySelector('#ev-range').addEventListener('change', (ev) => {
+      this._evRange = ev.target.value; this._evOffset = 0; this._evItems = null; this._renderEvents(); this._loadEvents();
+    });
+    const mover = (d) => { this._evOffset = Math.max(0, (this._evOffset || 0) + d); this._evItems = null; this._renderEvents(); this._loadEvents(); };
+    p.querySelector('#ev-prev').addEventListener('click', (ev) => { ev.stopPropagation(); mover(1); });
+    p.querySelector('#ev-next').addEventListener('click', (ev) => { ev.stopPropagation(); mover(-1); });
   }
 
   // Ancho del carril lateral de §1.9. ESTRECHO: solo lo que ocupa el objetivo tactil, porque el
@@ -3275,10 +3966,18 @@ class IslautopiaIntercomCard extends HTMLElement {
                  CLAUDE.md/COORDINATION.md de este repo. -->
             <div class="top-row" id="top-row">
               <div class="mode-row" id="mode-row" style="display:none;"></div>
-              <div class="rec-action-wrap" id="rec-action" style="display:none;">
-                <button type="button" id="rec-button" class="rec-pill">
-                  <span class="rec-dot" id="rec-dot"></span>
-                  <span class="rec-pill-label" id="rec-lbl">REC</span>
+              <div class="top-right">
+                <div class="rec-action-wrap" id="rec-action" style="display:none;">
+                  <button type="button" id="rec-button" class="rec-pill">
+                    <span class="rec-dot" id="rec-dot"></span>
+                    <span class="rec-pill-label" id="rec-lbl">REC</span>
+                  </button>
+                </div>
+                <!-- Campanita (1.9.7): como la de las apps (bell_button.dart) - circulo surf2, punto
+                     rojo sin numero si hay avisos nuevos. Abre el panel de avisos (#ev-panel). -->
+                <button type="button" class="bell-btn" id="bell-btn" style="display:none;">
+                  <ha-icon icon="mdi:bell-outline"></ha-icon>
+                  <span class="bell-dot" id="bell-dot"></span>
                 </button>
               </div>
             </div>
@@ -3345,7 +4044,7 @@ class IslautopiaIntercomCard extends HTMLElement {
                    contenedor entero de la card (que tambien incluye .mode-row encima, de alto
                    variable) - exactamente el mismo truco que ya usaba pantalla completa, donde
                    funcionaba solo porque alli el contenedor SI coincide con el marco de video. -->
-              <div class="status-line" id="status-line">${getLocalText(this._hass, 'idle_status')}</div>
+              <div class="status-line" id="status-line"></div>
 
               <div class="actions-row">
                 <div class="action">
@@ -3370,7 +4069,7 @@ class IslautopiaIntercomCard extends HTMLElement {
                 </div>
                 <div class="action">
                   <button id="unlock-button" class="btn door" disabled>
-                    <ha-icon icon="mdi:key"></ha-icon>
+                    <ha-icon icon="mdi:lock-open-variant"></ha-icon>
                   </button>
                   <span class="lbl" id="unlock-lbl">${getLocalText(this._hass, 'lbl_door_idle')}</span>
                 </div>
@@ -3392,12 +4091,19 @@ class IslautopiaIntercomCard extends HTMLElement {
                  Assistant contra el media_source que ya expone la integracion
                  (media_source.py/DoorbellMediaSource) - la card NO reimplementa un reproductor,
                  ver _openRecordings(). -->
+            <!-- Botones en MODO PILA (1.9.7): en un movil en vertical la fila de botones sale del
+                 video y vive aqui, bajo los chips, como en las apps. _fitToSpace() la mueve. -->
+            <div class="stack-controls" id="stack-controls"></div>
+
             <div class="bottom-row" id="bottom-row" style="display:none;">
               <button type="button" id="recordings-button" class="quick-btn">
                 <span class="quick-btn-icon"><ha-icon icon="mdi:play-box-multiple-outline"></ha-icon></span>
                 <span class="quick-btn-label">${getLocalText(this._hass, 'recordings_title')}</span>
+                <ha-icon class="quick-btn-chev" icon="mdi:chevron-right"></ha-icon>
               </button>
             </div>
+
+            <div class="ev-panel" id="ev-panel" style="display:none;"></div>
 
           </div>
         </ha-card>
@@ -3427,6 +4133,13 @@ class IslautopiaIntercomCard extends HTMLElement {
       this.recLabel = this.querySelector('#rec-lbl');
       this.recordingsAction = this.querySelector('#bottom-row');
       this.recordingsButton = this.querySelector('#recordings-button');
+      this.topRow = this.querySelector('#top-row');
+      this.stackControls = this.querySelector('#stack-controls');
+      this.actionsRow = this.querySelector('.actions-row');
+      this._bellBtn = this.querySelector('#bell-btn');
+      this._bellDot = this.querySelector('#bell-dot');
+      this._evPanel = this.querySelector('#ev-panel');
+      this._bellBtn.addEventListener('click', (ev) => { ev.stopPropagation(); this._openEvents(); });
       this.loader = this.querySelector('#ig-loader');
       this.clientsPill = this.querySelector('#clients-pill');
       this.clientsCount = this.querySelector('#clients-count');
@@ -3497,6 +4210,7 @@ class IslautopiaIntercomCard extends HTMLElement {
         this._onWindowResizeForRot = () => this._layoutRotation();
         window.addEventListener('resize', this._onWindowResizeForRot);
       }
+      this._registerFitObservers();
 
       // Camino primario: mensaje de senalizacion nativo 'open'/'open_result' (API_CONTRACT.md
       // §3.3, funciona igual local y remoto). unlock_entity sigue disponible como alternativa
@@ -3750,6 +4464,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       // `set hass()`, que podria tardar si el estado de HA esta tranquilo justo despues de conectar.
       this._updateRecButton();
       this._updateRecordingsButton();
+      this._updateBell();
 
       // Espera nº2 (credenciales TURN: HTTPS a Alemania). ESTA es la larga, y la que abria la
       // ventana del fallo medido. A partir de aqui SI hay objetos que cerrar, asi que un relevo
@@ -4298,7 +5013,7 @@ class IslautopiaIntercomCard extends HTMLElement {
 
   _doorOpenSinRespuesta() {
     this._limpiarEsperaDePuerta();
-    if (this.unlockIcon) this.unlockIcon.setAttribute('icon', 'mdi:key');
+    if (this.unlockIcon) this.unlockIcon.setAttribute('icon', 'mdi:lock-open-variant');
     this._setDoorLabel(false);
     console.warn('[islautopia-intercom-card] no llego ningun open_result en 6s - NO se afirma que la puerta se haya abierto');
     this._flashStatusLine('door_no_answer', 6000);
@@ -4319,12 +5034,12 @@ class IslautopiaIntercomCard extends HTMLElement {
       this._startDoorCountdown(duration);
       setTimeout(() => {
         this.unlockButton.classList.remove('active-unlock');
-        this.unlockIcon.setAttribute('icon', 'mdi:key');
+        this.unlockIcon.setAttribute('icon', 'mdi:lock-open-variant');
         this._setDoorLabel(false);
       }, duration * 1000);
     } else {
       this.unlockButton.classList.remove('active-unlock');
-      this.unlockIcon.setAttribute('icon', 'mdi:key');
+      this.unlockIcon.setAttribute('icon', 'mdi:lock-open-variant');
       this._setDoorLabel(false);
       console.warn('[islautopia-intercom-card] no se pudo abrir la puerta:', msg.error);
       if (msg.error === 'no_lock_configured') {
@@ -4595,7 +5310,7 @@ class IslautopiaIntercomCard extends HTMLElement {
         // encendio es ruido en el registro de alguien que ya tiene un problema.
         setTimeout(() => {
           this.unlockButton.classList.remove('active-unlock');
-          this.unlockIcon.setAttribute('icon', 'mdi:key');
+          this.unlockIcon.setAttribute('icon', 'mdi:lock-open-variant');
           this._setDoorLabel(false);
           if (domain === 'switch' || domain === 'light') {
             this._hass.callService(domain, 'turn_off', { entity_id: entityId });
@@ -4606,7 +5321,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       })
       .catch((err) => {
         this._limpiarEsperaDePuerta();
-        this.unlockIcon.setAttribute('icon', 'mdi:key');
+        this.unlockIcon.setAttribute('icon', 'mdi:lock-open-variant');
         this._setDoorLabel(false);
         console.error(`[islautopia-intercom-card] Home Assistant rechazo ${domain}.${service} sobre ${entityId}`, err);
         this._flashStatusLine('door_no_answer', 6000);
@@ -4713,7 +5428,12 @@ class IslautopiaIntercomCard extends HTMLElement {
 
       /* Grabaciones (v1.9.5): mismo aspecto que _QuickButton de las apps (icono en caja
          redondeada + etiqueta, fila ancha) - sin "Ajustes": esa vive en la integracion. */
-      .bottom-row { display: none; }
+      /* ⚠️ NUNCA "display:none" aqui (1.9.7). Hasta la 1.9.6 esta regla decia none, y
+         _updateRecordingsButton() "lo enseña" quitando el display en linea (style.display='') - que
+         cae de vuelta en ESTA regla: Grabaciones no se veia NUNCA, en ningun sitio, y se busco el
+         fallo en el alto de la card y en el envoltorio de HA. Lo oculta el style="display:none"
+         en linea del propio markup hasta que el rol lo permite. */
+      .bottom-row { display: block; }
       .quick-btn {
         display: flex; align-items: center; gap: 9px; width: 100%; box-sizing: border-box;
         padding: 10px 12px; border-radius: 16px; background: var(--ig-surf1);
@@ -5156,6 +5876,99 @@ class IslautopiaIntercomCard extends HTMLElement {
         width: auto !important; height: auto !important; max-width: none;
       }
       body.ig-fs-body-lock { overflow: hidden !important; }
+
+      /* ---- 1.9.7: cabecera con REC + campanita a la derecha ---- */
+      .top-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+      .bell-btn {
+        position: relative; width: 30px; height: 30px; border-radius: 50%; border: none; padding: 0;
+        background: var(--ig-surf2); color: var(--ig-muted); cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .bell-btn ha-icon { --mdc-icon-size: 16px; }
+      .bell-btn.unread { color: var(--ig-text); }
+      .bell-dot {
+        display: none; position: absolute; top: 3px; right: 3px; width: 8px; height: 8px;
+        border-radius: 50%; background: var(--ig-red); border: 1.5px solid var(--ig-surf2);
+      }
+      .bell-btn.unread .bell-dot { display: block; }
+      .mode-pill.pending { opacity: 0.7; }
+      .mode-pill.pending .mode-pill-caret { animation: ig-breathe 1.1s ease-in-out infinite; }
+      .quick-btn-chev { --mdc-icon-size: 18px; color: var(--ig-dim); margin-left: auto; }
+
+      /* ---- 1.9.7: MODO PILA (movil en vertical), copiado de la app de iOS: video arriba, chips
+         debajo, botones fuera de la imagen, Grabaciones al final. _fitToSpace() pone la clase y
+         mueve .actions-row a #stack-controls. ---- */
+      .stack-controls { display: none; }
+      .intercom-container.ig-stack .feed-wrap { order: 0; }
+      .intercom-container.ig-stack .top-row { order: 1; }
+      .intercom-container.ig-stack .stack-controls { order: 2; display: block; }
+      .intercom-container.ig-stack .bottom-row { order: 3; }
+      .intercom-container.ig-stack .ev-panel { order: 4; }
+      .intercom-container.ig-stack .feed-wrap::after { display: none; }
+      .intercom-container.ig-stack .hud-bottom { bottom: 12px; }
+      /* La fecha/hora va quemada en la esquina superior izquierda del video: el chip de directo
+         baja por debajo, como en la app (medido en su captura, 2026-09-25). */
+      .intercom-container.ig-stack .hud-top { top: 36px; }
+      .intercom-container.ig-stack .status-line { bottom: 58px; left: 12px; right: 12px; }
+      .intercom-container.ig-stack .actions-row {
+        position: static; display: flex; justify-content: center; align-items: center;
+        gap: 30px; padding: 4px 0 2px; pointer-events: auto; min-height: 120px; box-sizing: border-box;
+      }
+      /* Jerarquia de tamaños de la app (Iñaki: «el boton principal es mas grande en comparacion y
+         no parece facil de confundir»): micro 96, puerta 60, sonido 48 - medidos en su captura. */
+      .intercom-container.ig-stack .action .btn.mic { width: 96px; height: 96px; }
+      .intercom-container.ig-stack .action .btn.mic ha-icon { --mdc-icon-size: 36px; }
+      .intercom-container.ig-stack .action .btn.door { width: 60px; height: 60px; }
+      .intercom-container.ig-stack .action .btn.door ha-icon { --mdc-icon-size: 26px; }
+      .intercom-container.ig-stack .action .btn.snd { width: 48px; height: 48px; }
+      .intercom-container.ig-stack .action .btn.snd ha-icon { --mdc-icon-size: 20px; }
+      .intercom-container.ig-stack .action .btn { background: linear-gradient(135deg, var(--ig-surf2), var(--ig-surf3)); backdrop-filter: none; box-shadow: none; }
+      .intercom-container.ig-stack .action .lbl { color: var(--ig-muted); text-shadow: none; font-size: 12px; }
+      .intercom-container.ig-stack .quick-btn { padding: 12px 14px; }
+      .intercom-container.ig-stack .quick-btn-label { font-size: 14px; font-weight: 600; color: var(--ig-text); }
+
+      /* ---- 1.9.7: panel de avisos (la campanita), encima de toda la card ---- */
+      .ev-panel {
+        position: absolute; inset: 0; z-index: 40; background: var(--ig-bg);
+        flex-direction: column; gap: 8px; padding: 10px; box-sizing: border-box; min-height: 0;
+      }
+      .ev-head { display: flex; align-items: center; gap: 6px; }
+      .ev-back { width: 34px; height: 34px; border-radius: 50%; border: none; background: var(--ig-surf1); color: var(--ig-text); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+      .ev-back ha-icon { --mdc-icon-size: 22px; }
+      .ev-title { font-size: 17px; font-weight: 700; color: var(--ig-text); }
+      .ev-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; flex-shrink: 0; }
+      .ev-chip {
+        flex-shrink: 0; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.10);
+        background: var(--ig-surf1); color: var(--ig-muted); font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+      }
+      .ev-chip.sel { background: rgba(25,118,210,0.22); border-color: var(--ig-blue); color: var(--ig-text); }
+      .ev-time { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+      .ev-range {
+        flex: 0 1 auto; min-width: 0; padding: 6px 8px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.10);
+        background: var(--ig-surf1); color: var(--ig-text); font-size: 13px; font-family: inherit;
+      }
+      .ev-nav { display: flex; align-items: center; gap: 2px; margin-left: auto; min-width: 0; }
+      .ev-navb { width: 30px; height: 30px; border-radius: 50%; border: none; background: var(--ig-surf1); color: var(--ig-text); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+      .ev-navb:disabled { opacity: 0.3; cursor: default; }
+      .ev-period { font-size: 13px; font-weight: 600; color: var(--ig-text); padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .ev-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+      .ev-day { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ig-dim); padding: 8px 2px 2px; }
+      .ev-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 14px; background: var(--ig-surf1); }
+      .ev-row.new { box-shadow: inset 3px 0 0 var(--ig-blue); }
+      .ev-ic { width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: rgba(148,163,184,0.12); color: var(--ig-muted); }
+      .ev-ic ha-icon { --mdc-icon-size: 17px; }
+      .ev-ic.c-blue { background: rgba(25,118,210,0.16); color: #64B5F6; }
+      .ev-ic.c-green { background: rgba(76,175,80,0.16); color: var(--ig-green); }
+      .ev-ic.c-amber { background: rgba(255,179,0,0.16); color: var(--ig-amber); }
+      .ev-ic.c-red { background: rgba(239,83,80,0.16); color: var(--ig-red); }
+      .ev-txt { flex: 1 1 auto; min-width: 0; }
+      .ev-t { font-size: 13px; font-weight: 600; color: var(--ig-text); }
+      .ev-d { font-size: 11px; color: var(--ig-muted); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .ev-h { font-size: 12px; color: var(--ig-muted); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+      .ev-empty { margin: auto; text-align: center; color: var(--ig-muted); font-size: 13px; padding: 24px 12px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+      .ev-empty ha-icon { --mdc-icon-size: 32px; color: var(--ig-dim); }
+      .ev-empty-t { color: var(--ig-text); font-weight: 600; }
+
     `;
     this.appendChild(style);
   }
