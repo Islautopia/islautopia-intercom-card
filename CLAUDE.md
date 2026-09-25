@@ -16,6 +16,48 @@ Fuente de verdad de la interfaz del propio doorbell (WebRTC, señalización, `pa
 `app_turn_credentials`, etc.): `C:\Proyectos_espressif\IG_Doorbell\API_CONTRACT.md`. No la
 dupliques aquí.
 
+**v1.9.8 (2026-09-25, madrugada) — Respuesta rápida, integrada en la misma fila de Grabaciones.**
+
+- Encargo: llevar a la card la fila «Respuesta rápida ›» que ya tienen las apps, debajo de los tres
+  botones. Diseño de Iñaki tras el primer borrador: *"para no ocupar más espacio, partir la barra de
+  Grabaciones en dos botones: Grabaciones y Respuestas rápidas"* — nada de fila nueva, la MISMA fila
+  ancha de la 1.9.7 pasa de un botón a dos, mismo alto que antes. `#bottom-row` ahora es `flex` con
+  dos `.quick-btn.half` (Grabaciones y Respuestas rápidas); si uno se oculta el otro ocupa la fila
+  entera solo, gratis, por ser `flex:1` — sin CSS aparte para ese caso.
+  Grabaciones sigue solo-admin; Respuestas rápidas la ve cualquier usuario, igual que `/api/sequences?quick=1`
+  en el propio portero (no exige rol) — visibilidad en un método aparte
+  (`_updateQuickReplyButton()`, no fundido con `_updateRecordingsButton()`: dos reglas de
+  visibilidad distintas en el mismo `if` es la landmine de "defensa repartida" de CLAUDE.md).
+- **La lista sale de la integración (`islautopia_doorbell/get_quick_replies`, WS nuevo en la 0.7.5),
+  que a su vez la lee del portero por `GET /api/sequences?quick=1` (API_CONTRACT.md §1.18.8) — NUNCA
+  `/api/list_audios`**, el mecanismo de 10 slots retirado que hizo que Android dijera un día "no hay
+  ninguna" teniéndolas: aquí se usa la misma fuente que ya usa iOS. Ninguna credencial llega a la
+  card — mismo patrón que `get_connection_info`/`get_local_signal_url`.
+- Tocar una frase llama al servicio `play_sequence` que la integración ya exponía desde la Fase 0
+  ("la card enseña, la integración expone") — no hay ruta nueva para reproducir. Ese mismo mensaje de
+  señalización es el que ya resuelve un timbrazo en curso (§1.18.1: el firmware corta el anuncio en
+  la calle y NO encadena la secuencia de no respuesta) desde el firmware 0.94.40, así que esta card
+  no necesita ningún camino aparte para ese caso: es el mismo botón, en el mismo instante.
+- Panel de la lista (`#qr-panel`) reutiliza el patrón y las clases CSS de la campanita (`#ev-panel`,
+  `.ev-head`/`.ev-row`/`.ev-empty`) en vez de duplicar estilos. Un fallo de red no vacía lo ya
+  pintado (§1.18.8); un fallo al reproducir NO cierra el panel (mismo criterio que
+  `QuickRepliesSheet` de iOS): hay alguien esperando en la puerta y cerrar el panel le quitaría el
+  botón para reintentar.
+- `test/ui_v1_9_8` (Playwright real, dist/ real, solo red/hass doblados): 22/22 OK — dos mitades sin
+  cortar texto a 375px de ancho ni en español ni en el alemán más largo del catálogo
+  ("Schnellantworten"), Grabaciones solo-admin, Respuestas rápidas para cualquier rol, la fila no
+  crece de alto (50px), abrir/listar/tocar/cerrar, un rechazo del portero deja el panel abierto con
+  su propio texto, catálogo vacío y fallo de red dan cada uno su mensaje (nunca una lista en
+  blanco). **Control positivo**: el mismo banco contra el `dist/` de la 1.9.7 no da rojo limpio,
+  da **excepción** (`#qr-button` no existe todavía) — confirma que el banco mide algo real y no
+  sale verde por accidente.
+- **⚠️ Sin probar el caso del timbrazo en banco real** (ni la Waveshare —sin pulsador— ni Ermita
+  —vivienda real, sin tocar timbre/micro/altavoz—): cubierto por el hecho de que es el mismo mensaje
+  `play_sequence` que las apps ya usan ahí, con el gancho de firmware ya medido en
+  `tools/probar_respuesta_en_timbrazo.py` (17 OK / 0 FALLAN, API_CONTRACT.md §1.18.1) — no hay
+  código nuevo en el camino de la llamada, pero la card en sí no se ha visto disparar una respuesta
+  rápida con el timbre sonando de verdad.
+
 **v1.9.7 (2026-09-25, noche) — la card cabe sola, Grabaciones se ve de verdad, campanita, modo
 optimista. Medido con Playwright contra el HA real (vista `panel`, 393x852 y 1280x800) y en la tablet.**
 

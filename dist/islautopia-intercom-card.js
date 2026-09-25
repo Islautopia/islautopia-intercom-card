@@ -16,8 +16,8 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_VERSION = '1.9.7';
-const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-25-cabe-sola-y-campanita`;
+const CARD_VERSION = '1.9.8';
+const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-25-respuesta-rapida`;
 
 // ⚠️ ESTA MARCA VIVE EN EL MODULO Y NO EN EL ELEMENTO, Y ESA ES TODA LA GRACIA (2026-09-07).
 //
@@ -106,6 +106,7 @@ const islautopiaLocales = {
     conn_lan: "Home Assistant no llega al portero por la red local", paused: "En pausa", paused_tap: "En pausa para liberar el portero · toca para reanudar", retry_prefix: "Sin conexión · reintentando en",
     snd_blocked: "Toca el altavoz para oír", cred_revoked: "El portero rechazó el emparejamiento — vuelve a emparejarlo en Ajustes › Dispositivos y servicios",
     lbl_rec_off: "REC", lbl_rec_on: "Grabando", rec_start_tip: "Empezar a grabar", rec_stop_tip: "Parar la grabación", rec_no_answer: "Home Assistant no aceptó la orden de grabar", recordings_title: "Grabaciones",
+    quick_reply_title: "Respuestas rápidas", qr_empty: "El portero no tiene respuestas rápidas configuradas", qr_load_error: "No se pudo obtener la lista del portero", qr_no_answer: "El portero no aceptó la respuesta rápida",
     ed_device_id: "Device ID nativo IG Doorbell (recomendado - ver Ajustes > Dispositivos y servicios)",
     ed_mode_entity: "Entidad de Modo (Opcional - select.* para mostrar los chips Normal/Ausente/Noche/Custom)",
     ed_motion_entity: "Entidad de Movimiento (Opcional - binary_sensor.* para el aviso de movimiento sobre el vídeo)",
@@ -131,6 +132,7 @@ const islautopiaLocales = {
     conn_lan: "Home Assistant can't reach the doorbell on the local network", paused: "Paused", paused_tap: "Paused to free the doorbell · tap to resume", retry_prefix: "No connection · retrying in",
     snd_blocked: "Tap the speaker to listen", cred_revoked: "The doorbell rejected this pairing — re-pair it in Settings › Devices & services",
     lbl_rec_off: "REC", lbl_rec_on: "Recording", rec_start_tip: "Start recording", rec_stop_tip: "Stop recording", rec_no_answer: "Home Assistant did not accept the recording request", recordings_title: "Recordings",
+    quick_reply_title: "Quick replies", qr_empty: "The doorbell has no quick replies configured", qr_load_error: "Could not load the list from the doorbell", qr_no_answer: "The doorbell did not accept the quick reply",
     ed_device_id: "Native IG Doorbell Device ID (recommended - see Settings > Devices & services)",
     ed_mode_entity: "Mode Entity (Optional - select.* to show the Normal/Away/Night/Custom chips)",
     ed_motion_entity: "Motion Entity (Optional - binary_sensor.* for the motion badge over the video)",
@@ -156,6 +158,7 @@ const islautopiaLocales = {
     conn_lan: "O Home Assistant não chega ao porteiro pela rede local", paused: "Em pausa", paused_tap: "Em pausa para libertar o porteiro · toque para retomar", retry_prefix: "Sem ligação · a tentar de novo em",
     snd_blocked: "Toque no altifalante para ouvir", cred_revoked: "O porteiro rejeitou este emparelhamento — volte a emparelhá-lo em Definições › Dispositivos e serviços",
     lbl_rec_off: "REC", lbl_rec_on: "A gravar", rec_start_tip: "Começar a gravar", rec_stop_tip: "Parar a gravação", rec_no_answer: "O Home Assistant não aceitou o pedido de gravação", recordings_title: "Gravações",
+    quick_reply_title: "Respostas rápidas", qr_empty: "A campainha não tem respostas rápidas configuradas", qr_load_error: "Não foi possível obter a lista da campainha", qr_no_answer: "A campainha não aceitou a resposta rápida",
     ed_device_id: "Device ID nativo do IG Doorbell (recomendado)",
     ed_mode_entity: "Entidade de Modo (Opcional - select.* para mostrar os chips Normal/Ausente/Noite/Custom)",
     ed_motion_entity: "Entidade de Movimento (Opcional - binary_sensor.* para o aviso de movimento sobre o vídeo)",
@@ -181,6 +184,7 @@ const islautopiaLocales = {
     conn_lan: "Home Assistant erreicht die Türsprechanlage im lokalen Netz nicht", paused: "Pausiert", paused_tap: "Pausiert, um die Türsprechanlage freizugeben · tippen zum Fortsetzen", retry_prefix: "Keine Verbindung · neuer Versuch in",
     snd_blocked: "Auf den Lautsprecher tippen, um zu hören", cred_revoked: "Die Türsprechanlage hat diese Kopplung abgelehnt — in Einstellungen › Geräte & Dienste neu koppeln",
     lbl_rec_off: "REC", lbl_rec_on: "Aufnahme läuft", rec_start_tip: "Aufnahme starten", rec_stop_tip: "Aufnahme stoppen", rec_no_answer: "Home Assistant hat die Aufnahme-Anfrage nicht angenommen", recordings_title: "Aufnahmen",
+    quick_reply_title: "Schnellantworten", qr_empty: "Für die Klingel sind keine Schnellantworten eingerichtet", qr_load_error: "Liste konnte nicht von der Klingel geladen werden", qr_no_answer: "Die Klingel hat die Schnellantwort nicht angenommen",
     ed_device_id: "Native IG Doorbell Device ID (empfohlen)",
     ed_mode_entity: "Modus-Entität (Optional - select.* für die Chips Normal/Abwesend/Nacht/Custom)",
     ed_motion_entity: "Bewegungs-Entität (Optional - binary_sensor.* für den Bewegungshinweis über dem Video)",
@@ -206,6 +210,7 @@ const islautopiaLocales = {
     conn_lan: "Home Assistant n'atteint pas l'interphone sur le réseau local", paused: "En pause", paused_tap: "En pause pour libérer l'interphone · touchez pour reprendre", retry_prefix: "Pas de connexion · nouvel essai dans",
     snd_blocked: "Touchez le haut-parleur pour écouter", cred_revoked: "Le portier a refusé cet appairage — réappairez-le dans Paramètres › Appareils et services",
     lbl_rec_off: "REC", lbl_rec_on: "Enregistrement", rec_start_tip: "Démarrer l'enregistrement", rec_stop_tip: "Arrêter l'enregistrement", rec_no_answer: "Home Assistant n'a pas accepté la demande d'enregistrement", recordings_title: "Enregistrements",
+    quick_reply_title: "Réponses rapides", qr_empty: "Aucune réponse rapide configurée sur la sonnette", qr_load_error: "Impossible de récupérer la liste depuis la sonnette", qr_no_answer: "La sonnette n'a pas accepté la réponse rapide",
     ed_device_id: "Device ID natif IG Doorbell (recommandé)",
     ed_mode_entity: "Entité de Mode (Optionnel - select.* pour afficher les puces Normal/Absent/Nuit/Custom)",
     ed_motion_entity: "Entité de Mouvement (Optionnel - binary_sensor.* pour l'alerte de mouvement sur la vidéo)",
@@ -231,6 +236,7 @@ const islautopiaLocales = {
     conn_lan: "Home Assistant не может связаться с домофоном в локальной сети", paused: "Пауза", paused_tap: "Пауза, чтобы освободить домофон · коснитесь, чтобы продолжить", retry_prefix: "Нет связи · повтор через",
     snd_blocked: "Коснитесь динамика, чтобы слышать", cred_revoked: "Домофон отклонил эту привязку — выполните привязку заново в Настройки › Устройства и службы",
     lbl_rec_off: "REC", lbl_rec_on: "Запись", rec_start_tip: "Начать запись", rec_stop_tip: "Остановить запись", rec_no_answer: "Home Assistant не принял запрос на запись", recordings_title: "Записи",
+    quick_reply_title: "Быстрые ответы", qr_empty: "На звонке не настроено ни одного быстрого ответа", qr_load_error: "Не удалось получить список со звонка", qr_no_answer: "Звонок не принял быстрый ответ",
     ed_device_id: "Собственный Device ID IG Doorbell (рекомендуется)",
     ed_mode_entity: "Объект режима (Необязательно - select.* для чипов Обычный/Отсутствие/Ночь/Custom)",
     ed_motion_entity: "Объект движения (Необязательно - binary_sensor.* для значка движения поверх видео)",
@@ -256,6 +262,7 @@ const islautopiaLocales = {
     conn_lan: "Home Assistant 无法通过局域网连接门铃", paused: "已暂停", paused_tap: "已暂停以释放门铃 · 轻触继续", retry_prefix: "无连接 · 重试倒计时",
     snd_blocked: "点击扬声器以收听", cred_revoked: "门口机拒绝了此配对 — 请在 设置 › 设备与服务 中重新配对",
     lbl_rec_off: "REC", lbl_rec_on: "录制中", rec_start_tip: "开始录制", rec_stop_tip: "停止录制", rec_no_answer: "Home Assistant 未接受录制请求", recordings_title: "录像",
+    quick_reply_title: "快捷回复", qr_empty: "门铃未配置任何快捷回复", qr_load_error: "无法从门铃获取列表", qr_no_answer: "门铃未接受该快捷回复",
     ed_device_id: "原生 IG Doorbell 设备 ID (推荐)",
     ed_mode_entity: "模式实体 (可选 - select.* 用于显示 正常/离开/夜间/自定义 标签)",
     ed_motion_entity: "移动实体 (可选 - binary_sensor.* 用于视频上的移动提示)",
@@ -281,6 +288,7 @@ const islautopiaLocales = {
     conn_lan: "Home Assistant लोकल नेटवर्क पर डोरबेल तक नहीं पहुँच पा रहा", paused: "रुका हुआ", paused_tap: "डोरबेल खाली करने के लिए रुका · फिर शुरू करने के लिए छुएँ", retry_prefix: "कनेक्शन नहीं · फिर कोशिश",
     snd_blocked: "सुनने के लिए स्पीकर पर टैप करें", cred_revoked: "डोरबेल ने यह पेयरिंग अस्वीकार कर दी — सेटिंग्स › डिवाइस और सेवाएँ में दोबारा पेयर करें",
     lbl_rec_off: "REC", lbl_rec_on: "रिकॉर्डिंग हो रही है", rec_start_tip: "रिकॉर्डिंग शुरू करें", rec_stop_tip: "रिकॉर्डिंग रोकें", rec_no_answer: "Home Assistant ने रिकॉर्डिंग का अनुरोध स्वीकार नहीं किया", recordings_title: "रिकॉर्डिंग",
+    quick_reply_title: "त्वरित उत्तर", qr_empty: "डोरबेल में कोई त्वरित उत्तर कॉन्फ़िगर नहीं है", qr_load_error: "डोरबेल से सूची प्राप्त नहीं हो सकी", qr_no_answer: "डोरबेल ने त्वरित उत्तर स्वीकार नहीं किया",
     ed_device_id: "नेटिव IG Doorbell डिवाइस ID (अनुशंसित)",
     ed_mode_entity: "मोड एंटिटी (वैकल्पिक - select.* सामान्य/अनुपस्थित/रात/कस्टम चिप्स दिखाने के लिए)",
     ed_motion_entity: "मोशन एंटिटी (वैकल्पिक - binary_sensor.* वीडियो पर मोशन बैज के लिए)",
@@ -306,6 +314,7 @@ const islautopiaLocales = {
     conn_lan: "لا يصل Home Assistant إلى الجرس عبر الشبكة المحلية", paused: "متوقف مؤقتاً", paused_tap: "متوقف مؤقتاً لتحرير الجرس · المس للمتابعة", retry_prefix: "لا يوجد اتصال · إعادة المحاولة خلال",
     snd_blocked: "المس مكبر الصوت للاستماع", cred_revoked: "رفض الجهاز هذا الاقتران — أعد الاقتران من الإعدادات › الأجهزة والخدمات",
     lbl_rec_off: "REC", lbl_rec_on: "جارٍ التسجيل", rec_start_tip: "بدء التسجيل", rec_stop_tip: "إيقاف التسجيل", rec_no_answer: "لم يقبل Home Assistant طلب التسجيل", recordings_title: "التسجيلات",
+    quick_reply_title: "الردود السريعة", qr_empty: "لا توجد ردود سريعة مُعدة على الجرس", qr_load_error: "تعذر جلب القائمة من الجرس", qr_no_answer: "لم يقبل الجرس الرد السريع",
     ed_device_id: "معرّف الجهاز الأصلي IG Doorbell (موصى به)",
     ed_mode_entity: "كيان الوضع (اختياري - select.* لعرض رقائق عادي/غائب/ليلي/مخصص)",
     ed_motion_entity: "كيان الحركة (اختياري - binary_sensor.* لشارة الحركة فوق الفيديو)",
@@ -1332,6 +1341,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._updateRingState();
     this._updateRecButton();
     this._updateRecordingsButton();
+    this._updateQuickReplyButton();
     this._updateBell();
     this._vigilarPlazoInactividad();
     this._repaintTextsIfLanguageChanged();
@@ -1369,8 +1379,12 @@ class IslautopiaIntercomCard extends HTMLElement {
     if (this.unlockLabel && !this.unlockLabel.classList.contains('on-green')) this._setDoorLabel(false);
     const recLbl = this.recordingsButton && this.recordingsButton.querySelector('.quick-btn-label');
     if (recLbl) recLbl.textContent = getLocalText(this._hass, 'recordings_title');
+    // Respuesta rapida (v1.9.8): mismo patron que Grabaciones justo arriba.
+    const qrLbl = this.qrButton && this.qrButton.querySelector('.quick-btn-label');
+    if (qrLbl) qrLbl.textContent = getLocalText(this._hass, 'quick_reply_title');
     if (this._bellBtn) this._paintBell();
     if (this._evOpen) this._renderEvents();
+    if (this._qrOpen) this._renderQuickReplies();
     // El badge de estado y la linea inferior se repintan solos en cuanto la sesion cambia de
     // estado, asi que casi siempre se arreglaban solos. Casi: una card que NUNCA llega a
     // conectar - el portero apagado, o fuera de casa sin cobertura - se queda con el
@@ -1665,11 +1679,38 @@ class IslautopiaIntercomCard extends HTMLElement {
   // diferencia de REC no depende de ninguna entidad: es solo un enlace, asi que basta con el rol
   // para decidir si se enseña.
   _updateRecordingsButton() {
-    if (!this.recordingsAction) return;
+    if (!this.recordingsButton) return;
     const isAdmin = !!(this._connInfo && this._connInfo.role === 'admin');
-    const antes = this.recordingsAction.style.display;
-    this.recordingsAction.style.display = isAdmin ? '' : 'none';
-    if (antes !== this.recordingsAction.style.display) this._scheduleFit();   // cambia el alto a repartir
+    const antes = this.recordingsButton.style.display;
+    this.recordingsButton.style.display = isAdmin ? '' : 'none';
+    if (antes !== this.recordingsButton.style.display) this._scheduleFit();   // cambia el alto a repartir
+    this._updateBottomRowVisibility();
+  }
+
+  // Respuesta rapida (v1.9.8): a diferencia de Grabaciones, la ve CUALQUIER usuario -- el propio
+  // portero no exige admin para `?quick=1` ni para el mensaje `play_sequence` (§1.18.8/§1.18.1),
+  // asi que aqui basta con que haya conexion establecida (_connInfo != null). Vive en un metodo
+  // separado de _updateRecordingsButton() a proposito: los dos botones comparten fila pero NO
+  // comparten regla de visibilidad, y fundirlos en un solo `if` es exactamente como una de las dos
+  // reglas se pierde el dia que alguien solo mire una condicion (ver CLAUDE.md, landminas de
+  // "defensa repartida").
+  _updateQuickReplyButton() {
+    if (!this.qrButton) return;
+    const show = !!this._connInfo;
+    const antes = this.qrButton.style.display;
+    this.qrButton.style.display = show ? '' : 'none';
+    if (antes !== this.qrButton.style.display) this._scheduleFit();
+    this._updateBottomRowVisibility();
+  }
+
+  // La fila entera solo se ve si AL MENOS uno de los dos botones se ve -- si Grabaciones se oculta
+  // (usuario no-admin) el otro boton ocupa la fila entera solo, gratis, por ser flex:1 (ver CSS
+  // .quick-btn.half): no hace falta ningun caso especial para ese ancho.
+  _updateBottomRowVisibility() {
+    if (!this.recordingsAction) return;
+    const algunoVisible = (this.recordingsButton && this.recordingsButton.style.display !== 'none')
+      || (this.qrButton && this.qrButton.style.display !== 'none');
+    this.recordingsAction.style.display = algunoVisible ? '' : 'none';
   }
 
   // Abre el navegador de medios NATIVO de Home Assistant contra el media_source que ya publica la
@@ -1690,6 +1731,134 @@ class IslautopiaIntercomCard extends HTMLElement {
     const path = `/media-browser/browser/${encodeURIComponent(`video,${mediaContentId}`)}`;
     history.pushState(null, '', path);
     window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: false } }));
+  }
+
+  // ==============================================================================
+  // Respuesta rapida (v1.9.8, Iñaki 2026-09-25): "Grabaciones y Respuestas rapidas" como dos
+  // botones de la misma fila (ver el markup de #bottom-row y _updateQuickReplyButton() mas
+  // arriba). La lista sale SIEMPRE de la integracion (islautopia_doorbell/get_quick_replies,
+  // websocket_api.py), que a su vez la lee del portero por `GET /api/sequences?quick=1`
+  // (API_CONTRACT.md §1.18.8) -- NUNCA de `/api/list_audios`, el mecanismo de 10 slots retirado
+  // (la landmine que hizo que Android dijera "no hay ninguna" teniendolas: leia esa ruta vieja).
+  // Disparar una elige el servicio `play_sequence` que la integracion ya expone desde la Fase 0
+  // ("la card enseña, la integracion expone") -- ese mismo mensaje de señalizacion es el que
+  // resuelve un timbrazo en curso (§1.18.1: corta el anuncio en la calle sin encadenar la
+  // secuencia de no respuesta), asi que esta card no necesita ningun camino aparte para ese caso:
+  // es el MISMO boton, tocado en el MISMO momento, y el firmware ya lo distingue.
+  // ==============================================================================
+  _openQuickReplies() {
+    if (!this._qrPanel) return;
+    this._qrOpen = true;
+    this._qrPanel.style.display = 'flex';
+    this._qrError = null;
+    this._qrNotice = null;
+    this._qrPlaying = null;
+    // Pinta con lo que ya hubiera (si esta es la segunda vez que se abre en esta instancia) y
+    // refresca por debajo -- mismo criterio que la campanita, y el mismo que pide el contrato para
+    // las respuestas rapidas de las apps (§1.18.8: "se pinta lo cacheado de inmediato").
+    this._renderQuickReplies();
+    this._loadQuickReplies();
+  }
+
+  _closeQuickReplies() {
+    this._qrOpen = false;
+    if (this._qrPanel) this._qrPanel.style.display = 'none';
+  }
+
+  async _loadQuickReplies() {
+    const deviceId = this.config && this.config.device_id;
+    if (!deviceId || !this._hass || !this._hass.connection) return;
+    const gen = (this._qrGen = (this._qrGen || 0) + 1);
+    try {
+      const res = await this._hass.connection.sendMessagePromise({
+        type: 'islautopia_doorbell/get_quick_replies',
+        device_id: deviceId,
+      });
+      if (gen !== this._qrGen) return;   // el panel se cerro y se reabrio mientras tanto
+      // Un fallo de red NO vacia lo que ya hubiera pintado (§1.18.8) -- solo lo pisa una
+      // respuesta buena. `res.quick_replies` es siempre una lista (vacia si el portero no tiene
+      // ninguna configurada), nunca `undefined`.
+      this._qrItems = Array.isArray(res && res.quick_replies) ? res.quick_replies : [];
+      this._qrError = null;
+    } catch (err) {
+      if (gen !== this._qrGen) return;
+      console.warn('[islautopia-intercom-card] get_quick_replies', err);
+      this._qrError = true;
+      if (this._qrItems === undefined) this._qrItems = null;   // primer intento: sin nada que enseñar
+    }
+    if (this._qrOpen) this._renderQuickReplies();
+  }
+
+  _renderQuickReplies() {
+    const p = this._qrPanel;
+    if (!p) return;
+    const T = (k) => getLocalText(this._hass, k);
+    const E = (k) => igEvText(this._hass, k);
+    const esc = (v) => String(v).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+    let body;
+    if (this._qrItems == null && this._qrError) {
+      body = `<div class="ev-empty"><ha-icon icon="mdi:alert-circle-outline"></ha-icon><div>${T('qr_load_error')}</div></div>`;
+    } else if (this._qrItems == null) {
+      body = `<div class="ev-empty"><div>${E('loading')}</div></div>`;
+    } else if (this._qrItems.length === 0) {
+      body = `<div class="ev-empty"><ha-icon icon="mdi:message-off-outline"></ha-icon><div class="ev-empty-t">${T('qr_empty')}</div></div>`;
+    } else {
+      const bloqueado = this._qrPlaying != null;
+      body = this._qrItems.map((it) => {
+        const enVuelo = this._qrPlaying === it.id;
+        const icon = enVuelo ? 'mdi:loading' : 'mdi:message-reply-text-outline';
+        return `<button type="button" class="ev-row qr-row" data-id="${it.id}"${bloqueado ? ' disabled' : ''}>` +
+          `<span class="ev-ic c-blue"><ha-icon icon="${icon}"${enVuelo ? ' class="qr-spin"' : ''}></ha-icon></span>` +
+          `<div class="ev-txt"><div class="ev-t">${esc(it.label)}</div></div></button>`;
+      }).join('');
+    }
+    p.innerHTML = `
+      <div class="ev-head">
+        <button type="button" class="ev-back" id="qr-back" title="${E('back')}"><ha-icon icon="mdi:chevron-left"></ha-icon></button>
+        <div class="ev-title">${T('quick_reply_title')}</div>
+      </div>
+      ${this._qrNotice ? `<div class="qr-notice">${esc(this._qrNotice)}</div>` : ''}
+      <div class="ev-list">${body}</div>
+    `;
+    p.querySelector('#qr-back').addEventListener('click', (ev) => { ev.stopPropagation(); this._closeQuickReplies(); });
+    p.querySelectorAll('.qr-row').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        this._playQuickReply(parseInt(btn.getAttribute('data-id'), 10));
+      });
+    });
+  }
+
+  // Dispara la secuencia con el MISMO servicio que ya existia (islautopia_doorbell.play_sequence,
+  // services.py de la integracion) -- no hay ruta HTTP propia de esta card, igual que REC/Grabaciones
+  // ("la card enseña, la integracion expone"). Si hay un timbrazo sonando ahora mismo, el firmware
+  // (seq_engine_quick_reply(), §1.18.1) corta el anuncio y NO encadena la de no respuesta con este
+  // mismo mensaje: nada especial que hacer aqui para ese caso.
+  //
+  // Un fallo NO cierra el panel (mismo criterio que QuickRepliesSheet de iOS): quien esta esperando
+  // en la puerta necesita poder reintentar sin volver a abrir la lista, y cerrar dejaria el aviso
+  // flotando sobre otra pantalla sin nada que pulsar.
+  _playQuickReply(seqId) {
+    if (!Number.isFinite(seqId) || this._qrPlaying != null) return;
+    const deviceId = this.config && this.config.device_id;
+    if (!deviceId || !this._hass) return;
+    this._qrPlaying = seqId;
+    this._qrNotice = null;
+    this._renderQuickReplies();
+    Promise.resolve(
+      this._hass.callService('islautopia_doorbell', 'play_sequence', { device_id: deviceId, seq_id: seqId })
+    ).then(() => {
+      this._qrPlaying = null;
+      // El exito se cierra fuera de esta pantalla, igual que en las apps: quedarse aqui no aporta
+      // nada una vez que el portero ya esta hablando en la calle.
+      this._closeQuickReplies();
+    }).catch((err) => {
+      this._qrPlaying = null;
+      const detalle = err && err.message ? String(err.message) : '';
+      this._qrNotice = detalle || getLocalText(this._hass, 'qr_no_answer');
+      console.error('[islautopia-intercom-card] play_sequence', err);
+      if (this._qrOpen) this._renderQuickReplies();
+    });
   }
 
   // Un toggle sobre lo que dice la ENTIDAD, nunca sobre el último tap (mismo principio que
@@ -4091,19 +4260,36 @@ class IslautopiaIntercomCard extends HTMLElement {
                  Assistant contra el media_source que ya expone la integracion
                  (media_source.py/DoorbellMediaSource) - la card NO reimplementa un reproductor,
                  ver _openRecordings(). -->
+            <!-- Respuesta rapida (v1.9.8, Iñaki 2026-09-25): "para no ocupar mas espacio, partir
+                 la barra de Grabaciones en dos botones: Grabaciones y Respuestas rapidas" -- NO
+                 una fila nueva, la MISMA fila ancha de siempre partida en dos mitades (misma
+                 forma que iOS/Android le dan al boton, sin chevron: no cabe con dos botones en
+                 375-390px). Grabaciones sigue solo-admin (_updateRecordingsButton); Respuestas
+                 rapidas la ve cualquier usuario, igual que ?quick=1 en el propio portero
+                 (§1.18.8) -- ver _updateQuickReplyButton(). Si uno de los dos se oculta el otro
+                 ocupa la fila entera solo (flex:1 en .quick-btn.half), sin CSS aparte para ese
+                 caso. Abre #qr-panel (mismo patron que la campanita/#ev-panel): lista pedida a la
+                 integracion (islautopia_doorbell/get_quick_replies, LAN, sin credencial) y
+                 disparada con el servicio play_sequence que ya existe desde la Fase 0 -- ese
+                 servicio ya resuelve el caso del timbrazo (§1.18.1) sin nada especial aqui, ver
+                 _playQuickReply(). -->
             <!-- Botones en MODO PILA (1.9.7): en un movil en vertical la fila de botones sale del
                  video y vive aqui, bajo los chips, como en las apps. _fitToSpace() la mueve. -->
             <div class="stack-controls" id="stack-controls"></div>
 
             <div class="bottom-row" id="bottom-row" style="display:none;">
-              <button type="button" id="recordings-button" class="quick-btn">
+              <button type="button" id="recordings-button" class="quick-btn half">
                 <span class="quick-btn-icon"><ha-icon icon="mdi:play-box-multiple-outline"></ha-icon></span>
                 <span class="quick-btn-label">${getLocalText(this._hass, 'recordings_title')}</span>
-                <ha-icon class="quick-btn-chev" icon="mdi:chevron-right"></ha-icon>
+              </button>
+              <button type="button" id="qr-button" class="quick-btn half">
+                <span class="quick-btn-icon"><ha-icon icon="mdi:message-reply-text-outline"></ha-icon></span>
+                <span class="quick-btn-label">${getLocalText(this._hass, 'quick_reply_title')}</span>
               </button>
             </div>
 
             <div class="ev-panel" id="ev-panel" style="display:none;"></div>
+            <div class="ev-panel" id="qr-panel" style="display:none;"></div>
 
           </div>
         </ha-card>
@@ -4133,6 +4319,8 @@ class IslautopiaIntercomCard extends HTMLElement {
       this.recLabel = this.querySelector('#rec-lbl');
       this.recordingsAction = this.querySelector('#bottom-row');
       this.recordingsButton = this.querySelector('#recordings-button');
+      this.qrButton = this.querySelector('#qr-button');
+      this._qrPanel = this.querySelector('#qr-panel');
       this.topRow = this.querySelector('#top-row');
       this.stackControls = this.querySelector('#stack-controls');
       this.actionsRow = this.querySelector('.actions-row');
@@ -4170,6 +4358,8 @@ class IslautopiaIntercomCard extends HTMLElement {
       // convencion de navegacion SPA que usa el frontend entero (history.pushState +
       // 'location-changed') - _openRecordings() explica el formato exacto de la URL.
       this.recordingsButton.addEventListener('click', () => this._openRecordings());
+      // Respuesta rapida (v1.9.8): abre #qr-panel, mismo patron que la campanita (#ev-panel).
+      if (this.qrButton) this.qrButton.addEventListener('click', () => this._openQuickReplies());
       // El vigilante de vida solo mira cada 5s, y el chip de estado no deberia pasarse 5s
       // mintiendo. 'timeupdate' del propio <video> avisa varias veces por segundo en cuanto la
       // imagen avanza de verdad, que es exactamente la señal que debe mandar aqui. El coste es
@@ -4464,6 +4654,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       // `set hass()`, que podria tardar si el estado de HA esta tranquilo justo despues de conectar.
       this._updateRecButton();
       this._updateRecordingsButton();
+      this._updateQuickReplyButton();
       this._updateBell();
 
       // Espera nº2 (credenciales TURN: HTTPS a Alemania). ESTA es la larga, y la que abria la
@@ -5433,7 +5624,11 @@ class IslautopiaIntercomCard extends HTMLElement {
          cae de vuelta en ESTA regla: Grabaciones no se veia NUNCA, en ningun sitio, y se busco el
          fallo en el alto de la card y en el envoltorio de HA. Lo oculta el style="display:none"
          en linea del propio markup hasta que el rol lo permite. */
-      .bottom-row { display: block; }
+      /* v1.9.8: la fila ancha de siempre, ahora con DOS botones ("partir la barra de Grabaciones
+         en dos: Grabaciones y Respuestas rapidas, y asi no ocupamos mas espacio" -- Iñaki,
+         2026-09-25). display:flex en vez de block para ponerlos lado a lado; el alto no cambia
+         respecto a la 1.9.7 porque .quick-btn conserva su padding vertical. */
+      .bottom-row { display: flex; gap: 8px; }
       .quick-btn {
         display: flex; align-items: center; gap: 9px; width: 100%; box-sizing: border-box;
         padding: 10px 12px; border-radius: 16px; background: var(--ig-surf1);
@@ -5446,6 +5641,21 @@ class IslautopiaIntercomCard extends HTMLElement {
       }
       .quick-btn-icon ha-icon { --mdc-icon-size: 15px; color: var(--ig-blue); }
       .quick-btn-label { font-size: 12px; font-weight: 500; color: var(--ig-muted); }
+      /* Cada mitad se reparte el ancho a partes iguales -- y si el otro boton se oculta (Grabaciones
+         no-admin), este crece solo y ocupa la fila entera, gratis, por ser flex:1 (ver
+         _updateBottomRowVisibility()). min-width:0 es lo que deja que overflow/wrap del label
+         funcionen dentro de un hijo flex -- sin esto el texto empuja el boton en vez de ajustarse. */
+      .quick-btn.half { flex: 1 1 0; min-width: 0; padding: 10px 8px; gap: 6px; }
+      .quick-btn.half .quick-btn-icon { width: 28px; height: 28px; }
+      /* "Si no caben, que el texto se reduzca o pase a icono con etiqueta accesible, no que se
+         corte" (Iñaki, 2026-09-25): sin white-space:nowrap el label envuelve a una segunda linea en
+         vez de recortarse con ellipsis -- medido con Playwright a 375px de ancho (el caso mas
+         estrecho de los dos: movil vertical Y el carril de la tablet) que las dos etiquetas mas
+         largas del catalogo ("Respuestas rápidas", "Schnellantworten") caben en dos lineas sin
+         desbordar el boton. */
+      .quick-btn.half .quick-btn-label {
+        font-size: 11px; line-height: 1.15; white-space: normal; overflow-wrap: break-word;
+      }
 
       /* ---- marco de video redondeado + HUD superpuesto ---- */
       .feed-wrap {
@@ -5893,7 +6103,6 @@ class IslautopiaIntercomCard extends HTMLElement {
       .bell-btn.unread .bell-dot { display: block; }
       .mode-pill.pending { opacity: 0.7; }
       .mode-pill.pending .mode-pill-caret { animation: ig-breathe 1.1s ease-in-out infinite; }
-      .quick-btn-chev { --mdc-icon-size: 18px; color: var(--ig-dim); margin-left: auto; }
 
       /* ---- 1.9.7: MODO PILA (movil en vertical), copiado de la app de iOS: video arriba, chips
          debajo, botones fuera de la imagen, Grabaciones al final. _fitToSpace() pone la clase y
@@ -5926,6 +6135,12 @@ class IslautopiaIntercomCard extends HTMLElement {
       .intercom-container.ig-stack .action .lbl { color: var(--ig-muted); text-shadow: none; font-size: 12px; }
       .intercom-container.ig-stack .quick-btn { padding: 12px 14px; }
       .intercom-container.ig-stack .quick-btn-label { font-size: 14px; font-weight: 600; color: var(--ig-text); }
+      /* En PILA (movil vertical, el caso mas estrecho: 375-390px) los dos botones a 14px con el
+         padding de arriba no caben en dos mitades -- se hereda el tamaño mas compacto de .half en
+         vez del de pila general, y se deja que el label envuelva (regla de mas arriba) en vez de
+         cortarse. */
+      .intercom-container.ig-stack .quick-btn.half { padding: 10px 8px; }
+      .intercom-container.ig-stack .quick-btn.half .quick-btn-label { font-size: 12px; font-weight: 600; color: var(--ig-text); }
 
       /* ---- 1.9.7: panel de avisos (la campanita), encima de toda la card ---- */
       .ev-panel {
@@ -5968,6 +6183,18 @@ class IslautopiaIntercomCard extends HTMLElement {
       .ev-empty { margin: auto; text-align: center; color: var(--ig-muted); font-size: 13px; padding: 24px 12px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
       .ev-empty ha-icon { --mdc-icon-size: 32px; color: var(--ig-dim); }
       .ev-empty-t { color: var(--ig-text); font-weight: 600; }
+
+      /* Respuesta rapida (v1.9.8): filas de #qr-panel son <button>, a diferencia de las de
+         #ev-panel (<div>, solo lectura) -- reset de lo que el navegador le pone a un <button> por
+         defecto; el resto del aspecto (fondo, radio, icono) ya lo da .ev-row/.ev-ic reutilizados. */
+      .qr-row { border: none; width: 100%; text-align: left; font-family: inherit; cursor: pointer; }
+      .qr-row:hover:not(:disabled) { background: var(--ig-surf2); }
+      .qr-row:disabled { opacity: 0.55; cursor: default; }
+      .qr-spin { animation: ig-spin 1s linear infinite; }
+      .qr-notice {
+        font-size: 12px; color: var(--ig-red); background: rgba(239,83,80,0.12);
+        border-radius: 12px; padding: 8px 10px;
+      }
 
     `;
     this.appendChild(style);
