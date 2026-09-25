@@ -16,8 +16,8 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_VERSION = '1.9.2';
-const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-25-rec-altavoz-modo-fullscreen`;
+const CARD_VERSION = '1.9.3';
+const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-25-entidades-solas-zoom`;
 
 // ⚠️ ESTA MARCA VIVE EN EL MODULO Y NO EN EL ELEMENTO, Y ESA ES TODA LA GRACIA (2026-09-07).
 //
@@ -75,6 +75,9 @@ const IDLE_GRACE_MS = 15000;
 // (§1.4-quater regla 2), y pasado eso ya no queda llamada que conservar.
 const CALL_OCULTA_MAX_MS = 300000;
 const OFFSCREEN_PAUSA_MS = 1500;
+// Ampliacion maxima con los dedos (1.9.3). x5 sobre la imagen del portero ya enseña los pixeles
+// del sensor; mas alla solo se amplia el borron.
+const ZOOM_MAX = 5;
 const TIMBRE_RECIENTE_MS = 60000;
 const LIVE_ACK_MS = 3000;          // regla 1: sin live_state en 3 s, se reenvia...
 const LIVE_ACK_REINTENTOS = 3;     // ...hasta 3 veces
@@ -380,8 +383,23 @@ function nativeFullscreenAvailable() {
   return !!enabled && canRequest;
 }
 
+// ⚠️ LA CAUSA REAL DE LA «PANTALLA COMPLETA QUE NO LLENA» (medido 2026-09-25 en la tablet del
+// salon, con depuracion remota del WebView de la app de Home Assistant): la card vive DENTRO del
+// Shadow DOM de Home Assistant, y `document.fullscreenElement` no devuelve la card sino su
+// anfitrion mas externo (<home-assistant>) - es el retargeting estandar del Shadow DOM. La
+// comparacion `fsEl === this` daba siempre false, _syncFullscreenFromBrowser() concluia «no
+// estamos en pantalla completa» y deshacia el modo justo despues de entrar: el navegador SI ponia
+// la card a 1280x800, pero sin las reglas `.ig-fs` el contenido seguia midiendo lo que medía en el
+// panel (732 px de alto) y abajo quedaba una franja negra. No era el CSS del camino nativo (lo que
+// se supuso en la 1.9.2): era esta funcion. Hay que bajar por cada `shadowRoot.fullscreenElement`
+// hasta el elemento de verdad.
 function currentFullscreenElement() {
-  return document.fullscreenElement || document.webkitFullscreenElement || null;
+  let el = document.fullscreenElement || document.webkitFullscreenElement || null;
+  let guard = 0;
+  while (el && el.shadowRoot && el.shadowRoot.fullscreenElement && guard++ < 50) {
+    el = el.shadowRoot.fullscreenElement;
+  }
+  return el;
 }
 
 // ==============================================================================
@@ -764,6 +782,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     if (this._offscreenObserver || typeof IntersectionObserver === 'undefined') return;
     this._offscreenObserver = new IntersectionObserver((entries) => {
       const visible = entries.some((e) => e.isIntersecting);
+      this._offscreenVisible = visible;
       if (visible) {
         this._clearOffscreenTimer();
         // Solo levanta la pausa de "fuera de la vista". La de inactividad es de una persona o de
@@ -779,6 +798,11 @@ class IslautopiaIntercomCard extends HTMLElement {
       this._offscreenTimer = setTimeout(() => {
         this._offscreenTimer = null;
         if (this._fsActive) return;                   // en pantalla completa el observador miente
+        // Entrar o salir de pantalla completa (1.9.3): la card se recoloca y durante un instante el
+        // observador puede decir «fuera». Si al vencer el plazo ya vuelve a verse, o la transicion
+        // acaba de ocurrir, no es salir de la vista.
+        if (this._offscreenVisible) return;
+        if (this._fsTransitionUntil && Date.now() < this._fsTransitionUntil) return;
         console.info('[islautopia-intercom-card] la card ha salido de la vista: live_pause');
         this._pausar('oculta');
       }, OFFSCREEN_PAUSA_MS);
@@ -1141,6 +1165,72 @@ class IslautopiaIntercomCard extends HTMLElement {
     }
   }
 
+  // ==============================================================================
+  // ENTIDADES DEL PROPIO PORTERO, SIN CONFIGURAR NADA (1.9.3, Iñaki 2026-09-25: «no veo en la card
+  // el chip para grabar ni para cambiar el modo»). Hasta la 1.9.2 los chips de modo y el boton REC
+  // solo aparecian si el YAML del panel traia `mode_entity`/`rec_entity` - y ningun panel real los
+  // traia, asi que las dos funciones existian y nadie las veia. Obligar a escribir entity_ids a
+  // mano es un fallo de diseño: la card YA sabe a que portero esta ligada (`device_id`).
+  //
+  // Como se encuentran, y por que asi:
+  //  1. El DISPOSITIVO de Home Assistant cuyo `identifiers` contiene
+  //     ['islautopia_doorbell', config.device_id] - es exactamente como lo registra la integracion
+  //     (entity.py / __init__.py). `hass.devices` lo trae tambien para usuarios NO administradores
+  //     (medido en la tablet del salon, usuario Kiosko: 347 dispositivos con `identifiers`).
+  //  2. Si eso no diera nada (frontend antiguo sin `identifiers`), el ancla es la entidad de
+  //     eventos que devuelve get_connection_info (`events_entity`), cuyo `device_id` es el mismo.
+  //  3. De ese dispositivo, la entidad con `platform === 'islautopia_doorbell'` y la
+  //     `translation_key` que toca ('mode', 'rec', 'events'). NUNCA por el texto del entity_id:
+  //     el usuario puede renombrarlo (y el de Ermita ya lleva un prefijo de area, «calle_...»),
+  //     y un mismo dispositivo lleva ademas entidades MQTT del firmware con nombres parecidos
+  //     (`select.*_modo_videoportero`, con OTRAS opciones) que no son las de la integracion.
+  //
+  // Las opciones del YAML siguen mandando si estan puestas: son la anulacion manual.
+  // El resultado se cachea por identidad de `hass.entities`/`hass.devices` (HA solo sustituye esos
+  // objetos cuando cambia el registro), asi que el coste en cada tick de estado es una comparacion.
+  _autoEntity(translationKey) {
+    const hass = this._hass;
+    if (!hass || !hass.entities || !this.config) return null;
+    const ancla = this._connInfo && this._connInfo.events_entity;
+    if (this._autoCache && this._autoCache.entities === hass.entities
+        && this._autoCache.devices === hass.devices && this._autoCache.ancla === ancla
+        && this._autoCache.portero === this.config.device_id) {
+      return this._autoCache.map[translationKey] || null;
+    }
+    const map = {};
+    let haDevice = null;
+    const devices = hass.devices || {};
+    for (const id of Object.keys(devices)) {
+      const ids = devices[id] && devices[id].identifiers;
+      if (Array.isArray(ids) && ids.some((x) => x && x[0] === 'islautopia_doorbell' && x[1] === this.config.device_id)) { haDevice = id; break; }
+    }
+    if (!haDevice && ancla && hass.entities[ancla]) haDevice = hass.entities[ancla].device_id || null;
+    if (haDevice) {
+      for (const eid of Object.keys(hass.entities)) {
+        const e = hass.entities[eid];
+        if (e && e.device_id === haDevice && e.platform === 'islautopia_doorbell' && e.translation_key && !map[e.translation_key]) {
+          map[e.translation_key] = eid;
+        }
+      }
+    }
+    this._autoCache = { entities: hass.entities, devices: hass.devices, ancla, portero: this.config.device_id, map };
+    if (!this._autoLogged && haDevice) {
+      this._autoLogged = true;
+      console.info('[islautopia-intercom-card] entidades del portero encontradas solas:', JSON.stringify({ device: haDevice, mode: map.mode || null, rec: map.rec || null, events: map.events || null }));
+    }
+    return map[translationKey] || null;
+  }
+
+  // La entidad efectiva de cada funcion: la del YAML si esta puesta (anulacion manual), si no la
+  // que la integracion publica para este mismo portero.
+  _entityFor(kind) {
+    const cfg = this.config || {};
+    if (kind === 'mode') return cfg.mode_entity || this._autoEntity('mode');
+    if (kind === 'rec') return cfg.rec_entity || this._autoEntity('rec');
+    if (kind === 'ring') return cfg.ring_entity || (this._connInfo && this._connInfo.events_entity) || this._autoEntity('events');
+    return null;
+  }
+
   _modeKeyFor(label) {
     const l = (label || '').toLowerCase();
     if (l.includes('ausente') || l.includes('away') || l.includes('fuera')) return 'ausente';
@@ -1152,7 +1242,7 @@ class IslautopiaIntercomCard extends HTMLElement {
 
   _updateModeRow() {
     if (!this.modeRow) return;
-    const entityId = this.config.mode_entity;
+    const entityId = this._entityFor('mode');
     const stateObj = entityId && this._hass ? this._hass.states[entityId] : null;
     if (!stateObj) {
       this.modeRow.style.display = 'none';
@@ -1224,9 +1314,12 @@ class IslautopiaIntercomCard extends HTMLElement {
   // la integración habrá sincronizado desde el `rec_state` real del portero - la MISMA regla que ya
   // aplican las apps (RecordingButtonRule.blinks), aquí expresada contra una entidad de HA en vez
   // de contra el mensaje nativo.
+  // (1.9.3) Lo de arriba sobre `rec_entity` es historia: el switch existe desde la integracion
+  // 0.7.2 y la card lo encuentra sola por dispositivo + translation_key 'rec' (_autoEntity);
+  // `rec_entity` queda como anulacion manual.
   _updateRecButton() {
     if (!this.recAction || !this.recButton) return;
-    const entityId = this.config.rec_entity;
+    const entityId = this._entityFor('rec');
     const isAdmin = !!(this._hass && this._hass.user && this._hass.user.is_admin);
     const stateObj = entityId && this._hass ? this._hass.states[entityId] : null;
     const visible = isAdmin && !!stateObj;
@@ -1245,8 +1338,8 @@ class IslautopiaIntercomCard extends HTMLElement {
   // (tope de 10 min, una llamada que se lleva la ranura), el próximo toque pide lo contrario de lo
   // que hay AHORA, no lo contrario de lo último que pedimos nosotros.
   toggleRec() {
-    if (!this._hass || !this.config.rec_entity) return;
-    const entityId = this.config.rec_entity;
+    const entityId = this._entityFor('rec');
+    if (!this._hass || !entityId) return;
     const domain = entityId.split('.')[0];
     const stateObj = this._hass.states[entityId];
     const recording = !!stateObj && stateObj.state === 'on';
@@ -2116,6 +2209,8 @@ class IslautopiaIntercomCard extends HTMLElement {
       // respaldo CSS (nivel 2, `.ig-fs-pseudo`) SI fija `position:fixed;inset:0` explicito y no
       // tiene este problema - la clase de abajo hace lo mismo para el nativo, sin tocar el
       // respaldo. Redundante e inofensivo en un navegador donde `:fullscreen` ya lo hacia bien.
+      // CORRECCION 1.9.3, medida: esa explicacion era falsa. La causa era el Shadow DOM - ver el
+      // ⚠️ de currentFullscreenElement(). La clase se deja porque no estorba.
       this.classList.toggle('ig-fs-native-layout', this._fsNative);
       // Bloquear el scroll del documento por debajo solo tiene sentido en el respaldo (en nativo
       // el documento ya no se ve). Sin esto, un dedo sobre la card en el movil puede mover el
@@ -2131,11 +2226,178 @@ class IslautopiaIntercomCard extends HTMLElement {
       document.body.classList.remove('ig-fs-body-lock');
     }
     this._paintFullscreenButton();
+    // El zoom se reinicia al entrar y al salir: la geometria del marco cambia entera, y un recorte
+    // pensado para el panel no tiene sentido a pantalla completa (ni al reves).
+    this._zoomReset();
+    // Entrar/salir de pantalla completa recoloca la card, y el IntersectionObserver puede decir
+    // «no se ve» durante la transicion: eso NO es salir de la vista (ver el observador).
+    this._fsTransitionUntil = Date.now() + 2500;
     // El marco cambia de medida al entrar/salir, y con la imagen girada la caja del video se
     // calcula a partir de esa medida (§1.9). El ResizeObserver acabaria llegando, pero un frame
     // tarde: recalcular aqui evita el parpadeo. Ademas es aqui donde el carril lateral aparece o
     // desaparece, que solo depende del modo.
     this._layoutRotation();
+  }
+
+  // ==============================================================================
+  // AMPLIAR CON LOS DEDOS (1.9.3, Iñaki 2026-09-25: «donde se llene por completo la pantalla y
+  // puedas usar los dedos para ampliar una zona»). Pellizco con dos dedos, arrastre con uno cuando
+  // ya esta ampliado, y doble toque: si esta ampliado vuelve a encajar; si no, amplia x2.5 en ese
+  // punto. Funciona en pantalla completa y tambien con la card embebida.
+  //
+  // Pointer Events sobre el MARCO (.feed-wrap) y transform sobre .video-wrapper, con origen 0 0:
+  // el giro por software (§1.9) vive en el propio <video> (su `style.transform`), asi que los dos
+  // transforms se componen sin pisarse. Los limites: escala 1..ZOOM_MAX y un desplazamiento que
+  // nunca deja ver fuera de la imagen ampliada (el marco siempre queda cubierto).
+  //
+  // Lo que no se toca: los botones. Un dedo que empieza sobre un control (HUD, fila de acciones,
+  // menu de calidad) no es un gesto de zoom - se ignora aqui y el boton recibe su click normal.
+  //
+  // ⚠️ `touch-action` es la mitad del mecanismo y no un detalle de estilo. Sin `none`, el WebView
+  // de la app de Home Assistant se queda el gesto (desplaza el panel o amplia la pagina entera) y
+  // nos manda `pointercancel` a mitad del pellizco. En pantalla completa, o ya ampliado, es `none`.
+  // Embebida y SIN ampliar es `pan-x pan-y`: un dedo sobre el video tiene que seguir desplazando el
+  // panel, o la card se convierte en un agujero donde no se puede hacer scroll. Para que el
+  // pellizco siga siendo nuestro en ese caso, el `touchmove` con dos dedos se cancela (listener no
+  // pasivo): eso impide que el navegador empiece a desplazar, y por tanto que cancele los punteros.
+  // ==============================================================================
+  _setupZoom() {
+    if (this._zoomReady || !this.feedWrap) return;
+    this._zoomReady = true;
+    this._zoomEl = this.querySelector('.video-wrapper');
+    this._zoom = { s: 1, x: 0, y: 0 };
+    this._zPtrs = new Map();
+    this._zGesture = null;
+    this._zLastTap = null;
+    const fw = this.feedWrap;
+    const esControl = (t) => !!(t && t.closest && t.closest('button, a, input, select, .hud-top, .hud-bottom, .actions-row, .status-line'));
+    const punto = (ev) => { const r = fw.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; };
+
+    fw.addEventListener('pointerdown', (ev) => {
+      if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+      if (esControl(ev.target)) return;
+      this._zPtrs.set(ev.pointerId, punto(ev));
+      try { fw.setPointerCapture(ev.pointerId); } catch (err) { /* puntero ya liberado */ }
+      this._zStartGesture();
+      if (this._zPtrs.size === 1) this._zDown = { ...punto(ev), t: Date.now(), moved: false };
+    });
+    fw.addEventListener('pointermove', (ev) => {
+      if (!this._zPtrs.has(ev.pointerId)) return;
+      this._zPtrs.set(ev.pointerId, punto(ev));
+      if (this._zDown) {
+        const p = punto(ev);
+        if (Math.hypot(p.x - this._zDown.x, p.y - this._zDown.y) > 10) this._zDown.moved = true;
+      }
+      this._zApplyGesture();
+    });
+    const fin = (ev) => {
+      if (!this._zPtrs.has(ev.pointerId)) return;
+      this._zPtrs.delete(ev.pointerId);
+      if (ev.type === 'pointerup' && this._zPtrs.size === 0 && this._zDown && !this._zDown.moved
+          && (Date.now() - this._zDown.t) < 300 && !this._zWasMulti) {
+        const p = punto(ev);
+        const prev = this._zLastTap;
+        if (prev && (Date.now() - prev.t) < 350 && Math.hypot(p.x - prev.x, p.y - prev.y) < 40) {
+          this._zLastTap = null;
+          this._zDoubleTap(p);
+        } else {
+          this._zLastTap = { x: p.x, y: p.y, t: Date.now() };
+        }
+      }
+      if (this._zPtrs.size === 0) { this._zDown = null; this._zWasMulti = false; }
+      this._zStartGesture();
+    };
+    fw.addEventListener('pointerup', fin);
+    fw.addEventListener('pointercancel', fin);
+    // Ver el ⚠️ de arriba: con dos dedos el gesto es nuestro aunque la card este embebida.
+    fw.addEventListener('touchmove', (ev) => {
+      if (ev.touches && ev.touches.length >= 2 && ev.cancelable) ev.preventDefault();
+    }, { passive: false });
+    // Rueda con Ctrl (el pellizco de un trackpad en escritorio): mismo zoom, centrado en el cursor.
+    fw.addEventListener('wheel', (ev) => {
+      if (!ev.ctrlKey) return;
+      ev.preventDefault();
+      const p = punto(ev);
+      this._zZoomAt(this._zoom.s * Math.exp(-ev.deltaY / 200), p.x, p.y);
+    }, { passive: false });
+    this._zPaint();
+  }
+
+  // Cada vez que cambia el numero de dedos se toma una foto nueva del gesto: asi soltar uno de los
+  // dos a mitad de pellizco no da un salto.
+  _zStartGesture() {
+    const pts = [...this._zPtrs.values()];
+    if (pts.length >= 2) this._zWasMulti = true;
+    if (pts.length === 0) { this._zGesture = null; this._zPaint(); return; }
+    const a = pts[0], b = pts[1] || null;
+    const c = b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : { x: a.x, y: a.y };
+    this._zGesture = {
+      c, d: b ? Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)) : 0,
+      s: this._zoom.s, x: this._zoom.x, y: this._zoom.y,
+    };
+    this._zPaint();
+  }
+
+  _zApplyGesture() {
+    const g = this._zGesture;
+    if (!g) return;
+    const pts = [...this._zPtrs.values()];
+    if (pts.length === 0) return;
+    const a = pts[0], b = pts[1] || null;
+    const c = b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : { x: a.x, y: a.y };
+    // Un dedo sin ampliar no mueve nada (embebida, el navegador esta desplazando el panel).
+    if (!b && g.s <= 1.001) return;
+    let s = g.s;
+    if (b && g.d) s = g.s * (Math.hypot(a.x - b.x, a.y - b.y) / g.d);
+    s = Math.min(ZOOM_MAX, Math.max(1, s));
+    // El punto de la imagen que estaba bajo el centro del gesto sigue bajo el centro actual.
+    const ix = (g.c.x - g.x) / g.s, iy = (g.c.y - g.y) / g.s;
+    this._zoom = { s, x: c.x - ix * s, y: c.y - iy * s };
+    this._zoomClamp();
+  }
+
+  _zZoomAt(s, px, py) {
+    s = Math.min(ZOOM_MAX, Math.max(1, s));
+    const z = this._zoom;
+    const ix = (px - z.x) / z.s, iy = (py - z.y) / z.s;
+    this._zoom = { s, x: px - ix * s, y: py - iy * s };
+    this._zoomClamp();
+  }
+
+  _zDoubleTap(p) {
+    if (this._zoom.s > 1.01) this._zoomReset();
+    else this._zZoomAt(2.5, p.x, p.y);
+  }
+
+  _zoomReset() {
+    if (!this._zoom) return;
+    this._zoom = { s: 1, x: 0, y: 0 };
+    this._zPaint();
+  }
+
+  // El marco siempre cubierto: con origen 0 0 y escala s, x va de w*(1-s) a 0 (igual en y).
+  _zoomClamp() {
+    if (!this._zoom || !this.feedWrap) return;
+    const w = this.feedWrap.clientWidth, h = this.feedWrap.clientHeight;
+    const z = this._zoom;
+    if (z.s <= 1.001) {
+      this._zoom = { s: 1, x: 0, y: 0 };
+    } else {
+      z.x = Math.min(0, Math.max(w * (1 - z.s), z.x));
+      z.y = Math.min(0, Math.max(h * (1 - z.s), z.y));
+    }
+    this._zPaint();
+  }
+
+  _zPaint() {
+    if (!this._zoomEl || !this._zoom) return;
+    const z = this._zoom;
+    const ampliado = z.s > 1.001;
+    this._zoomEl.style.transform = ampliado ? `translate(${z.x}px, ${z.y}px) scale(${z.s})` : '';
+    // Ver el ⚠️ de _setupZoom: ampliado o en pantalla completa, el gesto es entero nuestro.
+    const nuestro = ampliado || this._fsActive || (this._zPtrs && this._zPtrs.size >= 2);
+    this.feedWrap.style.touchAction = nuestro ? 'none' : 'pan-x pan-y';
+    this.feedWrap.classList.toggle('ig-zoomed', ampliado);
   }
 
   _paintFullscreenButton() {
@@ -2625,7 +2887,7 @@ class IslautopiaIntercomCard extends HTMLElement {
   _updateRingState() {
     // Por defecto, la entidad de eventos de la integracion (la da get_connection_info): asi un
     // timbrazo despierta una card en pausa sin configurar nada.
-    const entityId = this.config.ring_entity || (this._connInfo && this._connInfo.events_entity);
+    const entityId = this._entityFor('ring');
     if (!entityId || !this._hass) { this._ringMarker = null; return; }
     const stateObj = this._hass.states[entityId];
     if (!stateObj) { this._ringMarker = null; return; }
@@ -3087,13 +3349,14 @@ class IslautopiaIntercomCard extends HTMLElement {
       this.feedWrap.setAttribute('data-rot', String(this._rot));
       this._applyFeedAspect();
       this._layoutRotation();
+      this._setupZoom();
 
       // El giro con 90/270 intercambia ancho y alto, y eso no se puede escribir en CSS sin conocer
       // la medida real del marco - de ahi el observador. Dispara solo cuando el layout cambia de
       // verdad (redimensionar la ventana, cambiar de vista, entrar en pantalla completa), no en
       // cada frame de video.
       if (typeof ResizeObserver === 'function') {
-        this._feedRO = new ResizeObserver(() => this._layoutRotation());
+        this._feedRO = new ResizeObserver(() => { this._layoutRotation(); this._zoomClamp(); });
         this._feedRO.observe(this.feedWrap);
       } else {
         this._onWindowResizeForRot = () => this._layoutRotation();
@@ -4258,7 +4521,11 @@ class IslautopiaIntercomCard extends HTMLElement {
         background: radial-gradient(ellipse at 30% 20%, rgba(60,80,110,0.35), transparent 60%),
                     linear-gradient(180deg, #1b2536 0%, #0d1420 55%, #070a12 100%);
       }
-      .video-wrapper { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+      .video-wrapper { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform-origin: 0 0; }
+      /* Zoom con los dedos (1.9.3): el transform y el touch-action los escribe _zPaint() (ver el
+         ⚠️ de _setupZoom); aqui solo el valor de partida. */
+      .feed-wrap { touch-action: pan-x pan-y; -webkit-user-select: none; user-select: none; }
+      .feed-wrap.ig-zoomed { cursor: grab; }
       .video-wrapper video { width: 100%; height: 100%; object-fit: contain; }
 
       /* pointer-events:none desde el principio (2026-07-29). El velo de carga cubre el marco

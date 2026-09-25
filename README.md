@@ -19,8 +19,8 @@ network, and not from outside.
 ## ✨ Features
 
 * **Native visual language:** same color palette, rounded video frame with an in-video HUD ("LIVE" tag, "Audio active"/"Motion detected" pills), asymmetric action buttons (speaker, large mic, door, REC — same order as the mobile apps) and a door-status line, matching the official Islautopia apps.
-* **Mode chips (optional):** point `mode_entity` at the doorbell's mode `select.*` entity to show Normal/Away/Night/Custom chips, tinted by mode, tap to switch modes without leaving the card.
-* **REC button (optional, admins only, since 1.9.2):** point `rec_entity` at the manual-recording `switch.*` published by the `islautopia_doorbell` integration to start/stop a recording from the live view. The card never talks recording protocol to the doorbell directly — "the card shows, the integration exposes" — it only calls the entity's own service, and the blinking state always reflects what the *entity* says, never the last tap. Hidden for non-admin Home Assistant users and while the entity isn't configured.
+* **Mode chips (automatic since 1.9.3):** Normal/Away/Do not disturb/Custom chips, tinted by mode, tap to switch modes without leaving the card. The card finds the doorbell's own mode `select` by itself (see *Entities found automatically* below); `mode_entity` is only a manual override.
+* **REC button (admins only, since 1.9.2; automatic since 1.9.3):** starts/stops a manual recording through the manual-recording `switch` published by the `islautopia_doorbell` integration (>= 0.7.2), found automatically for the card's own doorbell. The card never talks recording protocol to the doorbell directly — "the card shows, the integration exposes" — it only calls the entity's own service, and the blinking state always reflects what the *entity* says, never the last tap. Hidden for non-admin Home Assistant users. `rec_entity` is only a manual override.
 * **Motion badge (optional):** point `motion_entity` at a presence/motion `binary_sensor.*` to show an amber "Motion detected" badge over the video — automatically hidden whenever the mic is active, so it never competes with the audio indicator.
 * **Ultra-Fast Video Loading:** Uses `recvonly` initialization and a dummy audio track to load video streams in ~1 second without waiting for microphone permissions.
 * **Flawless 2-Way Audio (Hot-Swap):** Replaces tracks on the fly. No SDP renegotiation, no ICE restarts, and no dropped connections when you toggle the microphone.
@@ -37,7 +37,8 @@ network, and not from outside.
 
   So where the API isn't granted, the card falls back to its own CSS fullscreen filling the whole app window. It can't hide the phone's system bars — only the real API can — but it **keeps the card's own mic and door buttons**, which is what you lose with the usual fallback of handing the `<video>` to the native iOS player. On a video intercom that difference is not cosmetic: it's the difference between talking to whoever rang and just watching them. The icon therefore never does nothing — only the path behind it changes. And in the rare case where even the fallback can't fill the window (an ancestor with `transform`/`filter`/`contain` traps any `position: fixed` inside it — a theme or card-mod can introduce one), the card measures the result, undoes it, and hides the icon rather than offering a mode that doesn't work.
 
-  **Measured on a real device (2026-09-25):** even with the API *granted* (system status/nav bars hidden, confirmed with `uiautomator dump` — the WebView's own Android view already covers the full physical screen), the Home Assistant Android app's WebView left a real, stable ~210px black gap at the bottom and ~15px at the top — the browser's own `:fullscreen` sizing wasn't enough here. Since 1.9.2 the native path also sets `position: fixed; inset: 0` explicitly instead of relying on that implicit sizing, the same way the CSS fallback always did — harmless on a browser where it already worked, and it closed the gap on this one.
+  **Measured on a real device (2026-09-25, HA Android app on a wall tablet, with WebView remote debugging):** the API *was* granted, but `document.fullscreenElement` returns the outermost shadow host (`<home-assistant>`), not the card — standard Shadow DOM retargeting. Up to 1.9.2 the card compared it with itself, concluded it was *not* fullscreen and undid its fullscreen layout right after entering: the element was 1280×800 but its content kept its dashboard height, leaving a black band at the bottom. Since 1.9.3 the card walks down each `shadowRoot.fullscreenElement`; measured afterwards, card, video frame and video all fill 1280×800 CSS px (the full 1920×1200 screen, no system or Home Assistant bars).
+* **Pinch to zoom (since 1.9.3):** two fingers zoom into the picture (up to ×5), one finger pans once zoomed, a double tap zooms ×2.5 at that point or, if already zoomed, fits the picture back. Works in fullscreen and embedded in the dashboard (where one finger still scrolls the dashboard until you zoom). Ctrl + mouse wheel / trackpad pinch does the same on a desktop. Zoom resets when entering or leaving fullscreen.
 * **No door button when there's no door:** if the doorbell has no lock configured, the open button isn't drawn at all instead of being offered and failing. The doorbell reports its lock type over the signaling channel every few seconds, so the button is correct from the first frame — and if you change the lock type from the doorbell's own dashboard while the card is open, the button appears or disappears within seconds, with nothing to reload. Against older doorbell firmware that doesn't report it, the card falls back to hiding the button after a genuine "no lock configured" reply.
 * **Upright picture, wherever the camera is mounted:** the camera module inside the doorbell is fitted rotated 90° on purpose — vertically it fits a whole person *and* a parcel on the ground, which landscape does not. Rotating on the doorbell itself was measured at 65–71 ms per frame against a 66.7 ms budget at 15 fps, so it is the client that straightens the picture, which is free. The doorbell reports the angle on the signaling channel and the card applies it, switching the frame to 9:16 so a portrait video is *big* on a phone. It never crops to fill: zooming until the width is covered throws away the top and the bottom, which is exactly what the rotated sensor was for. In fullscreen on a landscape screen — a wall tablet — the two buttons move to a narrow side rail and the video keeps the full height. The last known angle for that doorbell is remembered, so the card reserves the right shape before the first frame instead of visibly jumping on every start.
 * **Watching is not listening:** the speaker starts **muted**. A wall panel showing the street 24/7 must not pipe the street into your living room 24/7. Sound turns on when *you* turn it on, or by itself when somebody rings — by default the card listens to the integration's events entity (only `ring` counts); `ring_entity` overrides it. Listening and talking are independent: you can hear the visitor without taking the voice turn, and closing the mic puts the sound back the way it was. The speaker toggle lives in the main action row now (since 1.9.2, same place as the mobile apps); the volume slider that used to sit next to it was removed — volume is the device's own, no client in this product has one in its live view.
@@ -84,6 +85,14 @@ network, and not from outside.
 
 The easiest way to configure the card is using the **Visual Editor** in your Lovelace dashboard. Just click "Add Card", search for "Islautopia Intercom", and fill in the fields.
 
+### Entities found automatically (since 1.9.3)
+
+Only `device_id` is needed. From it the card finds the Home Assistant device registered by the
+`islautopia_doorbell` integration for that doorbell, and takes the integration's own entities of
+that device by their **translation key** (never by entity_id, which you may rename): the mode
+`select` (`mode`), the manual-recording `switch` (`rec`) and the events entity (`events`, for the
+ring). `mode_entity`, `rec_entity` and `ring_entity` still work, as manual overrides.
+
 ### YAML Configuration Example
 
 ```yaml
@@ -124,8 +133,8 @@ unlock_entity: switch.front_door_relay
 # OPTIONAL: auto-turn off unlock_entity after X seconds, only used if unlock_entity is set
 unlock_duration: 3
 
-# OPTIONAL: a select.* entity (e.g. the doorbell's own mode selector) to show Normal/Away/
-# Night/Custom mode chips above the video. Leave blank to hide the row entirely.
+# OPTIONAL OVERRIDE: since 1.9.3 the card finds the doorbell's own mode select.* by itself.
+# Set this only to show the chips of a different select.* entity.
 mode_entity: select.front_door_mode
 
 # OPTIONAL: a binary_sensor.* entity (e.g. presence/motion detection) to show an amber
@@ -137,9 +146,9 @@ motion_entity: binary_sensor.front_door_motion
 # Works with a binary_sensor.* (transition to "on") or an event.* entity.
 ring_entity: binary_sensor.front_door_chime
 
-# OPTIONAL, since 1.9.2: the manual-recording switch.* published by the islautopia_doorbell
-# integration (>= 0.7.2). Adds a REC button to the action row that starts/stops a recording --
-# visible only to Home Assistant administrators, and only once this entity exists. The card
+# OPTIONAL OVERRIDE: since 1.9.3 the card finds the manual-recording switch.* of the
+# islautopia_doorbell integration (>= 0.7.2) by itself. The REC button is visible only to
+# Home Assistant administrators. The card
 # never talks recording protocol to the doorbell itself: it calls this entity's own service, and
 # the blinking state always reflects what the ENTITY says, never the last tap (so two admins
 # watching the same door see the same state, and an automatic recording blinks too).
