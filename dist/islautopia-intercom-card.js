@@ -16,8 +16,8 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_VERSION = '1.9.5';
-const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-25-aspecto-de-las-apps`;
+const CARD_VERSION = '1.9.6';
+const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-25-grabaciones-alcanzable`;
 
 // ⚠️ ESTA MARCA VIVE EN EL MODULO Y NO EN EL ELEMENTO, Y ESA ES TODA LA GRACIA (2026-09-07).
 //
@@ -4633,7 +4633,17 @@ class IslautopiaIntercomCard extends HTMLElement {
         padding: 10px; display: flex; flex-direction: column; gap: 10px;
       }
 
-      ha-card { display: block; width: 100%; box-sizing: border-box; overflow: hidden; border-radius: var(--ha-card-border-radius, 12px); box-shadow: var(--ha-card-box-shadow, 0px 2px 4px -1px rgba(0,0,0,0.2)); background: #070D1A; }
+      /* overflow-y:auto, NO "hidden" a secas (v1.9.5) - hasta ahora nada anadia altura real al
+         documento: .actions-row/.status-line viven DENTRO de .feed-wrap como capas superpuestas
+         (position:absolute), asi que "hidden" nunca recortaba nada real, solo el sangrado
+         decorativo (pulsering, sombras). #bottom-row (Grabaciones) es la primera pieza que SI sale
+         del flujo normal, DESPUES de .feed-wrap - en un dashboard "panel" con el video a su altura
+         maxima (medido en la tablet real: el video de la card de Iñaki llena la pantalla entera de
+         borde a borde) no queda hueco debajo y "hidden" se comia el boton entero, sin scroll
+         posible para alcanzarlo. overflow-x sigue en hidden (nada crece a lo ancho). En pantalla
+         completa no cambia nada: top-row/bottom-row se ocultan del todo (ver .ig-fs mas abajo) y
+         el unico contenido que queda (el video) ya encaja exacto en el 100% de alto. */
+      ha-card { display: block; width: 100%; box-sizing: border-box; overflow: hidden auto; border-radius: var(--ha-card-border-radius, 12px); box-shadow: var(--ha-card-box-shadow, 0px 2px 4px -1px rgba(0,0,0,0.2)); background: #070D1A; }
 
       /* ---- cabecera: chip de modo desplegable + REC (v1.9.5, reemplaza la fila de 4 chips
          segmentados) ---- */

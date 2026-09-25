@@ -16,6 +16,37 @@ Fuente de verdad de la interfaz del propio doorbell (WebRTC, señalización, `pa
 `app_turn_credentials`, etc.): `C:\Proyectos_espressif\IG_Doorbell\API_CONTRACT.md`. No la
 dupliques aquí.
 
+**v1.9.6 (2026-09-25, misma tarde) — Grabaciones (1.9.5) era inalcanzable en la tablet real del
+salón: `ha-card` recorta lo que no cabe, y no cabía.**
+
+- Medido en la tablet del salón, no razonado: el dashboard real de Iñaki
+  (`lovelace.ig_doorbell_p4_v2`, vista `type: panel`, `height: "650px"`) tiene el vídeo llenando la
+  pantalla de borde a borde — confirmado a nivel de píxel (`deriva_color`-style: muestreo de color
+  a lo largo de una columna vertical) que el marco de vídeo real ocupa hasta el borde inferior de la
+  pantalla, muy por encima de los 650px configurados. **Esto ya pasaba en la 1.9.4** (confirmado con
+  `git diff v1.9.4 HEAD` sobre `_applyFeedAspect`/`_layoutRotation`/`RAIL_WIDTH`: cero cambios) — no
+  es una regresión de esta card, es una característica previa del cálculo de alto en modo carril.
+  Pero antes de la 1.9.5 nunca importaba, porque nada vivía DESPUÉS del marco de vídeo en el flujo
+  normal del documento (`.actions-row`/`.status-line` son capas superpuestas dentro del propio
+  `.feed-wrap`, `position:absolute`). `#bottom-row` (Grabaciones) es la primera pieza que sí sale de
+  esa capa — y con `ha-card { overflow: hidden }` (para recortar el sangrado decorativo, nunca
+  pensado para recortar contenido real) el botón quedaba enteramente fuera, sin ningún scroll que lo
+  alcanzara: confirmado con varios intentos de `swipe` reales en la tablet, ninguno movió la página.
+- Arreglo: `ha-card { overflow: hidden auto }` (`overflow-x` se queda en `hidden`, nada crece a lo
+  ancho). En el caso normal (contenido que cabe) esto es indistinguible de `hidden` — no aparece
+  ninguna barra, no cambia nada visualmente; solo entra en juego cuando el contenido de verdad
+  desborda, que es exactamente el caso que hay que arreglar. Pantalla completa no se toca: ahí
+  `top-row`/`bottom-row` ya se ocultan del todo (regla de la 1.9.5) y el único contenido que queda
+  encaja exacto en el 100% de alto.
+- **Sin confirmar del todo en la tablet real tras el arreglo**: los intentos de `swipe` para llegar
+  a Grabaciones seguían sin mover nada tras el cambio, lo que sugiere que el límite real puede estar
+  un nivel más arriba (el envoltorio de la vista `panel` de Home Assistant, fuera del alcance de esta
+  card) y no solo en `ha-card`. El cambio de `ha-card` queda puesto porque es correcto y no puede
+  empeorar nada — pero si Grabaciones sigue sin verse en ESE dashboard concreto tras esto, la vía
+  siguiente es bajar el `height` configurado (p.ej. a 550-580px) para dejarle hueco, o investigar el
+  envoltorio de la vista panel por separado. En un dashboard normal (no `panel`, con más margen entre
+  el vídeo y el borde de la pantalla) Grabaciones se ve sin este problema.
+
 **v1.9.5 (2026-09-25, misma tarde) — la card emula el aspecto de las apps: REC en capsula de
 cabecera, modo en chip desplegable, botón de Grabaciones. Comparada pieza a pieza con la app real
 en la tablet del salón, no razonada.**
