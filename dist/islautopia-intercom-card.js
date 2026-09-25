@@ -16,7 +16,8 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_BUILD_ID = '2026-09-07-carril-por-contenido-pegado-a-la-imagen';
+const CARD_VERSION = '1.9.0';
+const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-25-fase0-solo-lan-y-tiempo-de-espera`;
 
 // ⚠️ ESTA MARCA VIVE EN EL MODULO Y NO EN EL ELEMENTO, Y ESA ES TODA LA GRACIA (2026-09-07).
 //
@@ -52,6 +53,19 @@ let ULTIMA_INTERACCION_MS = Date.now();
 // respetarlo.
 const ARRANQUE_EN_VUELO_MAX_MS = 12000;
 
+// ⚠️ LA PAUSA POR INACTIVIDAD ES LA DE LAS APPS, NO UNA NUEVA (2026-09-25, §1.4-bis "Live pause").
+// Al vencer el plazo la card hace lo que una app al irse a segundo plano: `live_pause` en el acto
+// (el portero deja de cifrar y mandar video, la sesion sigue viva) y, si nadie vuelve en
+// IDLE_GRACE_MS, `bye` -- la ranura se libera de verdad. Los 15 s son los de las apps
+// (SessionBackgroundRule.idleGrace). Volver dentro de la gracia es `live_resume` (video en < 1 s),
+// con el rescate acotado del contrato (regla 3): `live_resume` otra vez a 6 s y 12 s, sesion nueva
+// a 24 s, y nada mas. Volver despues es una sesion nueva.
+const IDLE_GRACE_MS = 15000;
+const LIVE_ACK_MS = 3000;          // regla 1: sin live_state en 3 s, se reenvia...
+const LIVE_ACK_REINTENTOS = 3;     // ...hasta 3 veces
+const RESCATE_RESUME_MS = [6000, 12000];
+const RESCATE_SESION_NUEVA_MS = 24000;
+
 console.log(`[islautopia-intercom-card] modulo cargado - build=${CARD_BUILD_ID} (compara este valor contra CARD_BUILD_ID en el repo si tienes dudas de si el navegador esta sirviendo una copia cacheada vieja)`);
 
 // Diccionario global de traducciones para Tarjeta y Editor (Top 9 Idiomas + HA Community)
@@ -71,7 +85,7 @@ const islautopiaLocales = {
     door_confirm: "¿Abrir la puerta? Pulsa otra vez", lbl_door_confirm: "¿Abrir?",
     snd_on: "Silenciar", snd_off: "Escuchar", snd_ring: "Están llamando — sonido activado",
     door_opening: "Abriendo la puerta...", lbl_door_opening: "Abriendo", door_no_answer: "El portero no respondió — la puerta NO se ha abierto",
-    conn_relay: "El camino local no responde · conectando por la nube", retry_prefix: "Sin conexión · reintentando en",
+    conn_lan: "Home Assistant no llega al portero por la red local", paused: "En pausa", paused_tap: "En pausa para liberar el portero · toca para reanudar", retry_prefix: "Sin conexión · reintentando en",
     snd_blocked: "Toca el altavoz para oír", cred_revoked: "El portero rechazó el emparejamiento — vuelve a emparejarlo en Ajustes › Dispositivos y servicios",
     ed_device_id: "Device ID nativo IG Doorbell (recomendado - ver Ajustes > Dispositivos y servicios)",
     ed_mode_entity: "Entidad de Modo (Opcional - select.* para mostrar los chips Normal/Ausente/Noche/Custom)",
@@ -94,7 +108,7 @@ const islautopiaLocales = {
     door_confirm: "Open the door? Press again", lbl_door_confirm: "Open?",
     snd_on: "Mute", snd_off: "Listen", snd_ring: "Someone is calling — sound on",
     door_opening: "Opening the door...", lbl_door_opening: "Opening", door_no_answer: "No answer from the doorbell — the door did NOT open",
-    conn_relay: "Local path not answering · connecting via the cloud", retry_prefix: "No connection · retrying in",
+    conn_lan: "Home Assistant can't reach the doorbell on the local network", paused: "Paused", paused_tap: "Paused to free the doorbell · tap to resume", retry_prefix: "No connection · retrying in",
     snd_blocked: "Tap the speaker to listen", cred_revoked: "The doorbell rejected this pairing — re-pair it in Settings › Devices & services",
     ed_device_id: "Native IG Doorbell Device ID (recommended - see Settings > Devices & services)",
     ed_mode_entity: "Mode Entity (Optional - select.* to show the Normal/Away/Night/Custom chips)",
@@ -117,7 +131,7 @@ const islautopiaLocales = {
     door_confirm: "Abrir a porta? Prima outra vez", lbl_door_confirm: "Abrir?",
     snd_on: "Silenciar", snd_off: "Ouvir", snd_ring: "Estão a chamar — som ligado",
     door_opening: "A abrir a porta...", lbl_door_opening: "A abrir", door_no_answer: "O porteiro não respondeu — a porta NÃO foi aberta",
-    conn_relay: "O caminho local não responde · a ligar pela nuvem", retry_prefix: "Sem ligação · a tentar de novo em",
+    conn_lan: "O Home Assistant não chega ao porteiro pela rede local", paused: "Em pausa", paused_tap: "Em pausa para libertar o porteiro · toque para retomar", retry_prefix: "Sem ligação · a tentar de novo em",
     snd_blocked: "Toque no altifalante para ouvir", cred_revoked: "O porteiro rejeitou este emparelhamento — volte a emparelhá-lo em Definições › Dispositivos e serviços",
     ed_device_id: "Device ID nativo do IG Doorbell (recomendado)",
     ed_mode_entity: "Entidade de Modo (Opcional - select.* para mostrar os chips Normal/Ausente/Noite/Custom)",
@@ -140,7 +154,7 @@ const islautopiaLocales = {
     door_confirm: "Tür öffnen? Nochmal drücken", lbl_door_confirm: "Öffnen?",
     snd_on: "Stummschalten", snd_off: "Mithören", snd_ring: "Es klingelt — Ton an",
     door_opening: "Tür wird geöffnet...", lbl_door_opening: "Öffnet", door_no_answer: "Keine Antwort der Türsprechanlage — die Tür wurde NICHT geöffnet",
-    conn_relay: "Lokaler Weg antwortet nicht · Verbindung über die Cloud", retry_prefix: "Keine Verbindung · neuer Versuch in",
+    conn_lan: "Home Assistant erreicht die Türsprechanlage im lokalen Netz nicht", paused: "Pausiert", paused_tap: "Pausiert, um die Türsprechanlage freizugeben · tippen zum Fortsetzen", retry_prefix: "Keine Verbindung · neuer Versuch in",
     snd_blocked: "Auf den Lautsprecher tippen, um zu hören", cred_revoked: "Die Türsprechanlage hat diese Kopplung abgelehnt — in Einstellungen › Geräte & Dienste neu koppeln",
     ed_device_id: "Native IG Doorbell Device ID (empfohlen)",
     ed_mode_entity: "Modus-Entität (Optional - select.* für die Chips Normal/Abwesend/Nacht/Custom)",
@@ -163,7 +177,7 @@ const islautopiaLocales = {
     door_confirm: "Ouvrir la porte ? Appuyez encore", lbl_door_confirm: "Ouvrir ?",
     snd_on: "Couper le son", snd_off: "Écouter", snd_ring: "On sonne — son activé",
     door_opening: "Ouverture de la porte...", lbl_door_opening: "Ouverture", door_no_answer: "Pas de réponse du portier — la porte n'a PAS été ouverte",
-    conn_relay: "Le chemin local ne répond pas · connexion via le cloud", retry_prefix: "Pas de connexion · nouvel essai dans",
+    conn_lan: "Home Assistant n'atteint pas l'interphone sur le réseau local", paused: "En pause", paused_tap: "En pause pour libérer l'interphone · touchez pour reprendre", retry_prefix: "Pas de connexion · nouvel essai dans",
     snd_blocked: "Touchez le haut-parleur pour écouter", cred_revoked: "Le portier a refusé cet appairage — réappairez-le dans Paramètres › Appareils et services",
     ed_device_id: "Device ID natif IG Doorbell (recommandé)",
     ed_mode_entity: "Entité de Mode (Optionnel - select.* pour afficher les puces Normal/Absent/Nuit/Custom)",
@@ -186,7 +200,7 @@ const islautopiaLocales = {
     door_confirm: "Открыть дверь? Нажмите ещё раз", lbl_door_confirm: "Открыть?",
     snd_on: "Выключить звук", snd_off: "Слушать", snd_ring: "Звонят — звук включён",
     door_opening: "Открывание двери...", lbl_door_opening: "Открывание", door_no_answer: "Домофон не ответил — дверь НЕ открыта",
-    conn_relay: "Локальный путь не отвечает · подключение через облако", retry_prefix: "Нет связи · повтор через",
+    conn_lan: "Home Assistant не может связаться с домофоном в локальной сети", paused: "Пауза", paused_tap: "Пауза, чтобы освободить домофон · коснитесь, чтобы продолжить", retry_prefix: "Нет связи · повтор через",
     snd_blocked: "Коснитесь динамика, чтобы слышать", cred_revoked: "Домофон отклонил эту привязку — выполните привязку заново в Настройки › Устройства и службы",
     ed_device_id: "Собственный Device ID IG Doorbell (рекомендуется)",
     ed_mode_entity: "Объект режима (Необязательно - select.* для чипов Обычный/Отсутствие/Ночь/Custom)",
@@ -209,7 +223,7 @@ const islautopiaLocales = {
     door_confirm: "确定开门？再按一次", lbl_door_confirm: "开门？",
     snd_on: "静音", snd_off: "收听", snd_ring: "有人按门铃 — 已开启声音",
     door_opening: "正在开门...", lbl_door_opening: "开门中", door_no_answer: "门口机没有响应 — 门并未打开",
-    conn_relay: "本地通道无响应 · 正在通过云端连接", retry_prefix: "无连接 · 重试倒计时",
+    conn_lan: "Home Assistant 无法通过局域网连接门铃", paused: "已暂停", paused_tap: "已暂停以释放门铃 · 轻触继续", retry_prefix: "无连接 · 重试倒计时",
     snd_blocked: "点击扬声器以收听", cred_revoked: "门口机拒绝了此配对 — 请在 设置 › 设备与服务 中重新配对",
     ed_device_id: "原生 IG Doorbell 设备 ID (推荐)",
     ed_mode_entity: "模式实体 (可选 - select.* 用于显示 正常/离开/夜间/自定义 标签)",
@@ -232,7 +246,7 @@ const islautopiaLocales = {
     door_confirm: "दरवाज़ा खोलें? फिर से दबाएँ", lbl_door_confirm: "खोलें?",
     snd_on: "म्यूट करें", snd_off: "सुनें", snd_ring: "कोई घंटी बजा रहा है — ध्वनि चालू",
     door_opening: "दरवाज़ा खोला जा रहा है...", lbl_door_opening: "खुल रहा है", door_no_answer: "डोरबेल ने जवाब नहीं दिया — दरवाज़ा नहीं खुला",
-    conn_relay: "लोकल रास्ता जवाब नहीं दे रहा · क्लाउड से जुड़ रहे हैं", retry_prefix: "कनेक्शन नहीं · फिर कोशिश",
+    conn_lan: "Home Assistant लोकल नेटवर्क पर डोरबेल तक नहीं पहुँच पा रहा", paused: "रुका हुआ", paused_tap: "डोरबेल खाली करने के लिए रुका · फिर शुरू करने के लिए छुएँ", retry_prefix: "कनेक्शन नहीं · फिर कोशिश",
     snd_blocked: "सुनने के लिए स्पीकर पर टैप करें", cred_revoked: "डोरबेल ने यह पेयरिंग अस्वीकार कर दी — सेटिंग्स › डिवाइस और सेवाएँ में दोबारा पेयर करें",
     ed_device_id: "नेटिव IG Doorbell डिवाइस ID (अनुशंसित)",
     ed_mode_entity: "मोड एंटिटी (वैकल्पिक - select.* सामान्य/अनुपस्थित/रात/कस्टम चिप्स दिखाने के लिए)",
@@ -255,7 +269,7 @@ const islautopiaLocales = {
     door_confirm: "هل تفتح الباب؟ اضغط مرة أخرى", lbl_door_confirm: "فتح؟",
     snd_on: "كتم الصوت", snd_off: "استماع", snd_ring: "هناك من يطرق — تم تشغيل الصوت",
     door_opening: "جارٍ فتح الباب...", lbl_door_opening: "جارٍ الفتح", door_no_answer: "لا رد من الجهاز — لم يُفتح الباب",
-    conn_relay: "المسار المحلي لا يستجيب · الاتصال عبر السحابة", retry_prefix: "لا يوجد اتصال · إعادة المحاولة خلال",
+    conn_lan: "لا يصل Home Assistant إلى الجرس عبر الشبكة المحلية", paused: "متوقف مؤقتاً", paused_tap: "متوقف مؤقتاً لتحرير الجرس · المس للمتابعة", retry_prefix: "لا يوجد اتصال · إعادة المحاولة خلال",
     snd_blocked: "المس مكبر الصوت للاستماع", cred_revoked: "رفض الجهاز هذا الاقتران — أعد الاقتران من الإعدادات › الأجهزة والخدمات",
     ed_device_id: "معرّف الجهاز الأصلي IG Doorbell (موصى به)",
     ed_mode_entity: "كيان الوضع (اختياري - select.* لعرض رقائق عادي/غائب/ليلي/مخصص)",
@@ -434,7 +448,18 @@ class IslautopiaIntercomCard extends HTMLElement {
     // `0` lo desactiva -- para un telefono, donde este problema no existe y soltar la pantalla a
     // mitad de conversacion seria un fallo, no un ahorro.
     const idleCrudo = Number(config.idle_release_seconds);
-    this._idleReleaseMs = Number.isFinite(idleCrudo) && idleCrudo >= 0 ? idleCrudo * 1000 : 60000;
+    // ⚠️ DESDE LA 1.9.0 ESTO ES SOLO EL RESPALDO (2026-09-25). El plazo lo manda la entidad
+    // `number.<portero>_live_view_timeout` de la integracion (que una automatizacion puede cambiar),
+    // ver _plazoInactividadMs(). Esto vale solo si la integracion es anterior y no la ofrece.
+    // 120 s, el mismo valor por defecto que la entidad (su porque, en number.py de la integracion).
+    this._idleReleaseMs = Number.isFinite(idleCrudo) && idleCrudo >= 0 ? idleCrudo * 1000 : 120000;
+    // Pausa por inactividad: null | 'gracia' (live_pause enviado, sesion viva) | 'colgada' (bye).
+    this._pausaInactividad = null;
+    this._pausaGraciaTimer = null;
+    this._idleGraceMs = IDLE_GRACE_MS;
+    this._livePauseWanted = false;
+    this._livePauseAck = null;
+    this._rescateTimers = [];
 
     // Modo go2rtc/gateway legacy RETIRADO por completo (2026-07-10, decision explicita del
     // usuario - ver COORDINATION.md en ig_hassio_addons): el proyecto habla WebRTC nativo
@@ -445,7 +470,6 @@ class IslautopiaIntercomCard extends HTMLElement {
     this.intercomActive = false;
     this.pc = null;
     this.nativeSSE = null;
-    this.nativeWS = null;
     this._slot = null;
 
     // ══════════════════════════════════════════════════════════════════════════════════════════
@@ -640,6 +664,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     if (this._onVisibilityForStream) return;
     this._onVisibilityForStream = () => {
       if (document.visibilityState === 'hidden') {
+        this._cancelarPausaInactividad();              // ocultarse ya suelta todo: manda este camino
         if (!this.pc && !this._reconnecting) return;   // no habia nada que soltar
         // Se recuerda que habia stream para poder reponerlo: sin esto, volver a mirar la tablet
         // dejaria la card muda y con el video negro, que es peor que el problema que arregla.
@@ -746,6 +771,7 @@ class IslautopiaIntercomCard extends HTMLElement {
   }
 
   disconnectedCallback() {
+    this._cancelarPausaInactividad();
     this._unregisterUnloadHandler();
     this._unregisterVisibilityStreamHandler();
     this._unregisterOffscreenStreamHandler();
@@ -872,13 +898,6 @@ class IslautopiaIntercomCard extends HTMLElement {
       this.nativeSSE.close();
       this.nativeSSE = null;
     }
-    if (this.nativeWS) {
-      if (this._slot !== null || this.nativeWS.readyState === WebSocket.OPEN) {
-        try { this.sendNativeSignal({ type: 'bye' }); } catch (err) { /* best effort */ }
-      }
-      this.nativeWS.close();
-      this.nativeWS = null;
-    }
     this._slot = null;
   }
 
@@ -946,6 +965,8 @@ class IslautopiaIntercomCard extends HTMLElement {
 
   async _checkLifeWatchdog() {
     if (!this.pc) return;
+    // Regla 2 del contrato: una sesion que ESTE CLIENTE quiere en pausa esta viva por definicion.
+    if (this._livePauseWanted) { this._recordLifeSignal(); return; }
 
     try {
       const stats = await this.pc.getStats();
@@ -967,6 +988,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       });
       if (packetsReceived !== null) {
         if (this._prevPacketsReceived === null || packetsReceived > this._prevPacketsReceived) {
+          this._framesVistos = (this._framesVistos || 0) + 1;
           this._recordLifeSignal();
           this._confirmLiveFromMedia();
         }
@@ -1044,6 +1066,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._updateModeRow();
     this._updateMotionPill();
     this._updateRingState();
+    this._vigilarPlazoInactividad();
     this._repaintTextsIfLanguageChanged();
   }
 
@@ -1089,7 +1112,7 @@ class IslautopiaIntercomCard extends HTMLElement {
   _modeKeyFor(label) {
     const l = (label || '').toLowerCase();
     if (l.includes('ausente') || l.includes('away') || l.includes('fuera')) return 'ausente';
-    if (l.includes('noche') || l.includes('night')) return 'noche';
+    if (l.includes('noche') || l.includes('night') || l.includes('do_not_disturb') || l.includes('molestar')) return 'noche';
     if (l.includes('custom') || l.includes('personalizado')) return 'custom';
     if (l.includes('normal') || l.includes('home') || l.includes('casa')) return 'normal';
     return null;
@@ -1121,7 +1144,12 @@ class IslautopiaIntercomCard extends HTMLElement {
       const cls = ['chip', active ? 'active' : '', key ? `mode-${key}` : ''].filter(Boolean).join(' ');
       const icon = meta ? meta.icon : 'mdi:circle-outline';
       const safeOpt = String(opt).replace(/"/g, '&quot;');
-      return `<button type="button" class="${cls}" data-option="${safeOpt}"><ha-icon icon="${icon}"></ha-icon><span>${opt}</span></button>`;
+      // El estado es una CLAVE desde la integracion 0.7.0 ('do_not_disturb'): se enseña la
+      // traduccion de Home Assistant, en el idioma de quien mira.
+      let etiqueta = opt;
+      try { if (this._hass.formatEntityState) etiqueta = this._hass.formatEntityState(stateObj, opt) || opt; } catch (err) { /* frontend antiguo */ }
+      const safeLbl = String(etiqueta).replace(/</g, '&lt;');
+      return `<button type="button" class="${cls}" data-option="${safeOpt}"><ha-icon icon="${icon}"></ha-icon><span>${safeLbl}</span></button>`;
     }).join('');
 
     this.modeRow.querySelectorAll('.chip').forEach((btn) => {
@@ -1170,6 +1198,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       : stateKey === 'error_cam' ? 'error'
       : stateKey === 'open' ? 'open'
       : stateKey === 'no_lock' ? 'warn'
+      : stateKey === 'paused' ? 'warn'
       : 'connecting';
     if (this.liveTag) this.liveTag.dataset.state = dataState;
     // Tambien en .feed-wrap (no solo en .live-tag) para que las barras de señal del HUD
@@ -1276,6 +1305,12 @@ class IslautopiaIntercomCard extends HTMLElement {
       this.statusLine.textContent = getLocalText(this._hass, this._stickyStatusKey);
       this.statusLine.classList.remove('open');
       this.statusLine.classList.add('warn');
+      return;
+    }
+    if (this._pausaInactividad) {
+      this.statusLine.classList.remove('open');
+      this.statusLine.classList.add('warn');
+      this.statusLine.textContent = getLocalText(this._hass, 'paused_tap');
       return;
     }
     this.statusLine.classList.remove('open', 'warn');
@@ -2075,11 +2110,13 @@ class IslautopiaIntercomCard extends HTMLElement {
   _armIdleWakeLockTimer(reiniciar = false) {
     if (reiniciar) ULTIMA_INTERACCION_MS = Date.now();
     this._clearIdleWakeLockTimer();
-    if (!this._idleReleaseMs) return;                 // 0 = desactivado (telefonos)
+    const plazo = this._plazoInactividadMs();
+    this._plazoAplicadoMs = plazo;
+    if (!plazo) return;                               // 0 = desactivado (telefonos)
     this._registerIdleActivityListeners();
     // El plazo es ABSOLUTO desde la ultima interaccion real, no desde esta llamada. Rearmarlo no
     // regala tiempo, y una instancia recien creada hereda lo que de verdad queda.
-    const restante = this._idleReleaseMs - (Date.now() - ULTIMA_INTERACCION_MS);
+    const restante = plazo - (Date.now() - ULTIMA_INTERACCION_MS);
     this._idleWakeLockTimer = setTimeout(() => {
       this._idleWakeLockTimer = null;
       // ⚠️ EL CONTROL DE NO DISPARAR, Y VA AQUI DENTRO A PROPOSITO (2026-09-07).
@@ -2097,8 +2134,19 @@ class IslautopiaIntercomCard extends HTMLElement {
       // se suelta nada y se rearma con lo que de verdad falta. Un reloj que se arme de mas es
       // gratis; uno que dispare de mas, no. Esta comprobacion es la que hace que "armar la cuenta
       // en mas sitios" sea seguro.
-      const pendiente = this._idleReleaseMs - (Date.now() - ULTIMA_INTERACCION_MS);
-      if (this._idleReleaseMs && pendiente > 0) {
+      const plazoAhora = this._plazoInactividadMs();
+      const pendiente = plazoAhora - (Date.now() - ULTIMA_INTERACCION_MS);
+      if (!plazoAhora) return;                        // lo desactivaron mientras corria
+      if (pendiente > 0) {
+        this._armIdleWakeLockTimer();
+        return;
+      }
+      // ⚠️ NUNCA CON UNA LLAMADA EN CURSO (§1.4-bis "Live pause": "Never pause while a call is
+      // active"). Micro abierto, turno concedido o pedido: hablar con quien esta en la puerta sin
+      // tocar la pantalla es justo lo normal, y cortarlo seria el peor fallo posible de esta
+      // funcion. Se cuenta como interaccion y se vuelve a mirar dentro de un plazo entero.
+      if (this._llamadaActiva()) {
+        ULTIMA_INTERACCION_MS = Date.now();
         this._armIdleWakeLockTimer();
         return;
       }
@@ -2117,35 +2165,140 @@ class IslautopiaIntercomCard extends HTMLElement {
       // entero. Y ademas es lo que Inaki pidio de verdad -- «apagar la pantalla Y dejar de consumir
       // el stream», no solo lo primero.
       if (!this.pc && !this._reconnecting) return;
-      console.info('[islautopia-intercom-card] sin interacción: se suelta el vídeo para que la pantalla pueda apagarse');
-      this._streamPausedByHide = true;      // mismo camino de vuelta que al ocultarse
-      // ⚠️ CERRAR EL PEER NO BASTA: HAY QUE SOLTAR EL <video> (2026-09-07).
-      //
-      // Medido en la tablet con `dumpsys power`, y con una prueba que no deja lugar a dudas: al
-      // vencer la inactividad el `AudioMix` DESAPARECE —el peer se cierra bien— y aun asi el
-      // `SCREEN_BRIGHT_WAKE_LOCK 'WindowManager/displayId:0'` sigue retenido y la pantalla Awake
-      // pasados 100 s. Con el peer YA cerrado, navegar a otra vista lo tira **al instante**.
-      //
-      // O sea que ese bloqueo lo mantiene **el elemento `<video>`**, no la card ni la app. Cerrar la
-      // `RTCPeerConnection` termina las pistas, pero un `<video>` con su `srcObject` puesto **sigue
-      // contando como "reproduciendo"** para el navegador hasta que se desmonta o se le quita la
-      // fuente. Y este es justo el aparato donde no se puede desmontar: la vista sigue delante.
-      //
-      // Solo se hace AQUI, en el camino de inactividad. En `_teardownConnectionObjects()` seria un
-      // negro visible en cada reconexion -- hoy una reconexion conserva el ultimo fotograma, y
-      // perder eso para arreglar un panel de pared seria cambiar un fallo por otro.
-      if (this.videoEl) {
-        try { this.videoEl.pause(); } catch (err) { /* best effort */ }
-        this.videoEl.srcObject = null;
-      }
-      this._clearReconnectTimer();
-      this._reconnecting = false;
-      this._clearOffscreenTimer();
-      this._teardownConnectionObjects();
-      this._releaseWakeLock();
-      if (this.intercomButton) this._setLiveState('connecting');
-      if (this.loader) this.loader.style.opacity = '1';
+      this._pausarPorInactividad();
     }, Math.max(0, restante));
+  }
+
+  // El plazo vigente, en ms. Manda la entidad de la integracion (una automatizacion puede cambiarlo);
+  // `idle_release_seconds` del YAML solo si la integracion es anterior y no la ofrece.
+  _plazoInactividadMs() {
+    const ent = this._connInfo && this._connInfo.live_timeout_entity;
+    const st = ent && this._hass && this._hass.states ? this._hass.states[ent] : null;
+    const v = st ? Number(st.state) : NaN;
+    if (Number.isFinite(v) && v >= 0) return v * 1000;
+    return this._idleReleaseMs;
+  }
+
+  _llamadaActiva() {
+    return !!(this.intercomActive || this._talkHeld || this._talkPending);
+  }
+
+  // Si una automatizacion cambia el plazo con la card abierta, se aplica ya (rearmar es barato y
+  // el plazo es absoluto, asi que no regala tiempo).
+  _vigilarPlazoInactividad() {
+    if (!this.pc || this._pausaInactividad) return;
+    const plazo = this._plazoInactividadMs();
+    if (plazo !== this._plazoAplicadoMs) this._armIdleWakeLockTimer();
+  }
+
+  // Vence el plazo: `live_pause` YA y `bye` tras la gracia. Ver IDLE_GRACE_MS.
+  _pausarPorInactividad() {
+    if (this._pausaInactividad) return;
+    console.info('[islautopia-intercom-card] sin interacción: live_pause y, si nadie vuelve, se libera la ranura');
+    this._pausaInactividad = 'gracia';
+    this._enviarLivePause(true);
+    // Parar el <video> es lo que suelta el keep-awake implicito del navegador (medido en la tablet,
+    // 2026-09-07): la pantalla puede apagarse ya, sin esperar al `bye`.
+    if (this.videoEl) { try { this.videoEl.pause(); } catch (err) { /* best effort */ } }
+    this._releaseWakeLock();
+    this._pintarPausa();
+    if (this._pausaGraciaTimer) clearTimeout(this._pausaGraciaTimer);
+    this._pausaGraciaTimer = setTimeout(() => this._colgarPorInactividad(), this._idleGraceMs);
+  }
+
+  _colgarPorInactividad() {
+    this._pausaGraciaTimer = null;
+    if (this._pausaInactividad !== 'gracia') return;
+    this._pausaInactividad = 'colgada';
+    this._streamPausedByHide = true;      // mismo camino de vuelta que al ocultarse
+    // ⚠️ CERRAR EL PEER NO BASTA: HAY QUE SOLTAR EL <video> (medido 2026-09-07, dumpsys power).
+    if (this.videoEl) {
+      try { this.videoEl.pause(); } catch (err) { /* best effort */ }
+      this.videoEl.srcObject = null;
+    }
+    this._clearReconnectTimer();
+    this._reconnecting = false;
+    this._clearOffscreenTimer();
+    this._teardownConnectionObjects();    // manda `bye`: la ranura se libera AHORA, no a los 20 s
+    this._pintarPausa();
+  }
+
+  // Volver: un toque o un timbrazo. Dentro de la gracia, `live_resume` con rescate acotado; despues,
+  // una sesion nueva.
+  _reanudarTrasInactividad(motivo) {
+    const estado = this._pausaInactividad;
+    if (!estado) return;
+    this._pausaInactividad = null;
+    if (this._pausaGraciaTimer) { clearTimeout(this._pausaGraciaTimer); this._pausaGraciaTimer = null; }
+    ULTIMA_INTERACCION_MS = Date.now();
+    this._resetStatusLine();
+    if (estado === 'gracia' && this.pc) {
+      this._enviarLivePause(false);
+      if (this.videoEl) { try { const p = this.videoEl.play(); if (p && p.catch) p.catch(() => {}); } catch (err) { /* best effort */ } }
+      this._setLiveState(this.intercomActive ? 'open' : 'live');
+      this._rescateTrasReanudar();
+      this._armIdleWakeLockTimer();
+      return;
+    }
+    this._streamPausedByHide = false;
+    if (this.isConnected && this.content) this.startWebRTC(`reanudar tras inactividad (${motivo})`);
+  }
+
+  _cancelarPausaInactividad() {
+    if (this._pausaGraciaTimer) { clearTimeout(this._pausaGraciaTimer); this._pausaGraciaTimer = null; }
+    this._pausaInactividad = null;
+    this._pararRescate();
+  }
+
+  _pintarPausa() {
+    this._setLiveState('paused');
+    if (this.loader) this.loader.style.opacity = '0';
+    this._resetStatusLine();
+  }
+
+  // Regla 1 del contrato: un live_pause/live_resume sin su live_state es un mensaje que no se aplico.
+  _enviarLivePause(pausar) {
+    this._livePauseWanted = !!pausar;
+    if (this._livePauseAck) { clearTimeout(this._livePauseAck.timer); this._livePauseAck = null; }
+    const enviar = (intento) => {
+      if (!this.nativeSSE || this._livePauseWanted !== !!pausar) return;
+      this.sendNativeSignal({ type: pausar ? 'live_pause' : 'live_resume' });
+      const timer = setTimeout(() => {
+        if (this._livePauseAck && this._livePauseAck.timer === timer && intento < LIVE_ACK_REINTENTOS) enviar(intento + 1);
+      }, LIVE_ACK_MS);
+      this._livePauseAck = { pausar: !!pausar, timer };
+    };
+    enviar(0);
+  }
+
+  _onLiveState(msg) {
+    if (typeof msg.paused !== 'boolean') return;
+    if (this._livePauseAck && this._livePauseAck.pausar === msg.paused) {
+      clearTimeout(this._livePauseAck.timer);
+      this._livePauseAck = null;
+    }
+  }
+
+  // Regla 3 del contrato: rescate ACOTADO si tras reanudar no llega imagen.
+  _rescateTrasReanudar() {
+    this._pararRescate();
+    const pc = this.pc;
+    if (!pc) return;
+    const base = this._framesVistos;
+    const sinImagen = () => this.pc === pc && this._framesVistos === base;
+    RESCATE_RESUME_MS.forEach((ms) => {
+      this._rescateTimers.push(setTimeout(() => {
+        if (sinImagen() && !this._livePauseWanted) this._enviarLivePause(false);
+      }, ms));
+    });
+    this._rescateTimers.push(setTimeout(() => {
+      if (sinImagen() && !this._livePauseWanted) this._scheduleReconnect('rescate: sin imagen 24 s tras live_resume');
+    }, RESCATE_SESION_NUEVA_MS));
+  }
+
+  _pararRescate() {
+    (this._rescateTimers || []).forEach((t) => clearTimeout(t));
+    this._rescateTimers = [];
   }
 
   _clearIdleWakeLockTimer() {
@@ -2159,6 +2312,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       // puesto solo se reinicia la cuenta. Nunca se pide con la pagina oculta -- ahi el navegador
       // lo rechazaria, y ademas seria pedir pantalla para nadie.
       if (document.visibilityState !== 'visible') return;
+      if (this._pausaInactividad) { this._reanudarTrasInactividad('toque'); return; }
       // Si la espera ya se habia agotado y solto el video, tocar lo repone -- igual que volver a
       // ser visible. Sin esto, quien tocara la pantalla se encontraria la card en negro.
       if (this._streamPausedByHide && this.isConnected && this.content && !this.pc) {
@@ -2359,7 +2513,9 @@ class IslautopiaIntercomCard extends HTMLElement {
   // y un `event` (cuyo `state` es la marca de tiempo del ultimo evento, no 'on'/'off' - tratarlo
   // como binario no dispararia nunca).
   _updateRingState() {
-    const entityId = this.config.ring_entity;
+    // Por defecto, la entidad de eventos de la integracion (la da get_connection_info): asi un
+    // timbrazo despierta una card en pausa sin configurar nada.
+    const entityId = this.config.ring_entity || (this._connInfo && this._connInfo.events_entity);
     if (!entityId || !this._hass) { this._ringMarker = null; return; }
     const stateObj = this._hass.states[entityId];
     if (!stateObj) { this._ringMarker = null; return; }
@@ -2370,10 +2526,15 @@ class IslautopiaIntercomCard extends HTMLElement {
     // Primera lectura: NO dispara. Al abrir el dashboard, un binary_sensor que lleva rato en 'on'
     // (o un event con una marca vieja) no es una llamada de ahora.
     if (previa === null || previa === undefined) return;
+    // ⚠️ En la entidad de eventos solo cuenta `ring`: la misma entidad lleva paquetes, visitantes,
+    // modos... (§1.16), y tratarlos como timbrazo encenderia el sonido por un paquete.
     const hasonado = esEvento
-      ? (marca !== previa && marca !== 'unknown' && marca !== 'unavailable')
+      ? (marca !== previa && marca !== 'unknown' && marca !== 'unavailable'
+        && (!stateObj.attributes || !stateObj.attributes.event_type || stateObj.attributes.event_type === 'ring'))
       : (marca === 'on' && previa !== 'on');
     if (!hasonado) return;
+    // Un timbrazo nuevo despierta una card en pausa por inactividad, sola.
+    if (this._pausaInactividad && document.visibilityState === 'visible') this._reanudarTrasInactividad('timbre');
     if (this._audioOn) return; // ya se estaba oyendo: nada que anunciar
     this._setAudioOn(true, 'timbre');
     if (this._audioOn) this._flashStatusLine('snd_ring', 6000);
@@ -2918,6 +3079,8 @@ class IslautopiaIntercomCard extends HTMLElement {
     // Y ademas sube la generacion: a partir de esta linea, cualquier arranque anterior en vuelo
     // queda relevado y recogera lo suyo en vez de escribirlo encima de lo nuestro.
     this._teardownConnectionObjects();
+    this._cancelarPausaInactividad();
+    this._livePauseWanted = false;
     const gen = this._connGen;
     this._arranqueEnVueloGen = gen;
     this._arranqueEnVueloAt = Date.now();
@@ -3011,22 +3174,12 @@ class IslautopiaIntercomCard extends HTMLElement {
       // aceptara una firma en un POST, lo unico que se pierde es la liberacion inmediata del slot,
       // que el portero recupera solo a los 20s. Nunca hay que hacerlo bloqueante: la pagina ya se
       // esta cerrando.
-      const destino = (this._localVia === 'proxy')
-        ? this._localSignedUrl
-        : ((this._localBase && this._connInfo && this._connInfo.credential)
-          ? `${this._localBase}/webrtc/signal/post?token=${encodeURIComponent(this._connInfo.credential)}`
-          : null);
+      const destino = (this._localVia === 'proxy') ? this._localSignedUrl : null;
       if (destino) {
         try { navigator.sendBeacon(destino, blob); } catch (err) { /* best effort */ }
       }
     }
 
-    // Remoto (WS al relay): sendBeacon no aplica a WebSocket - un send() sincrono sobre una
-    // conexion ya abierta es lo mejor disponible aqui (mismo mecanismo que ya usa
-    // disconnectedCallback() para este mismo caso).
-    if (this.nativeWS && this.nativeWS.readyState === WebSocket.OPEN) {
-      try { this.nativeWS.send(JSON.stringify({ type: 'bye' })); } catch (err) { /* best effort */ }
-    }
   }
 
   async startNativeSession(gen) {
@@ -3098,6 +3251,9 @@ class IslautopiaIntercomCard extends HTMLElement {
       }
       this.pc = pc;
       this._mark('buildNativePeerConnection: RTCPeerConnection lista');
+      // El reloj se armo en startWebRTC() con el plazo de respaldo, antes de saber que entidad lo
+      // manda (llega en get_connection_info). Ahora que se sabe, se aplica el bueno.
+      this._vigilarPlazoInactividad();
 
       // Arranca el vigilante de vida DESDE AQUI - cubre tanto la fase de negociacion (via
       // señalización, ver tryLocalSignaling()/startRelaySignaling() mas abajo) como, una vez
@@ -3114,14 +3270,10 @@ class IslautopiaIntercomCard extends HTMLElement {
       // arranque bueno, que quedaba huerfano y sin nadie que lo cerrase jamas.
       if (this._relevado(gen)) return;
       if (!connectedLocally) {
-        this._mark('startRelaySignaling: empieza el intento remoto (fallback)');
-        // §1.0: este es el tramo que mas tarda y el que peor se explica solo. Caer al relay
-        // significa negociar contra un servidor en Alemania en vez de contra el portero de la
-        // habitacion de al lado, y son varios segundos mas de recuadro negro. Decirlo convierte
-        // una espera sospechosa en una espera entendida - y de paso avisa de que se esta usando
-        // el camino lento, que es informacion util para quien pueda arreglarlo.
-        this._flashStatusLine('conn_relay', 6000);
-        await this.startRelaySignaling(info, gen);
+        // Sin plan B por la nube, a proposito (fase 0). Se dice que Home Assistant no llega al
+        // portero por la LAN y se reintenta con el mismo backoff de siempre.
+        this._flashStatusLine('conn_lan', 6000);
+        this._scheduleReconnect('el proxy local de Home Assistant no entrega la oferta', gen);
       }
     } catch (err) {
       // Un fallo de un arranque ya relevado no es noticia: quien manda es otro, y programar una
@@ -3157,33 +3309,13 @@ class IslautopiaIntercomCard extends HTMLElement {
   // de construir nada, asi que en ese caso no hay ni RTCPeerConnection ni AudioContext que cerrar
   // -- la basura que no se genera no hay que recogerla.
   async buildNativePeerConnection(gen) {
-    // STUN propio por defecto (API_CONTRACT.md §3.1/B11) - sin credencial, siempre disponible.
-    let iceServers = [{ urls: 'stun:46.225.57.138:3478' }];
-    try {
-      const turn = await this._hass.connection.sendMessagePromise({
-        type: 'islautopia_doorbell/get_turn_credentials',
-        device_id: this.config.device_id,
-      });
-      this._mark('get_turn_credentials: respuesta recibida');
-      if (turn && Array.isArray(turn.urls)) {
-        iceServers = turn.urls.map((url) => (
-          url.startsWith('turn:')
-            ? { urls: url, username: turn.username, credential: turn.password }
-            : { urls: url }
-        ));
-      }
-    } catch (err) {
-      // No bloqueante: sin TURN propio, ICE puede seguir funcionando salvo NAT simetrica en
-      // cualquiera de los dos extremos (API_CONTRACT.md §3.1-bis).
-      console.warn('[islautopia-intercom-card] no se pudieron obtener credenciales TURN, se continua solo con STUN', err);
-      // ...pero un 'unauthorized' aqui NO es un problema de TURN: es la nube diciendo que esta
-      // credencial de emparejamiento esta revocada. Es una de las tres señales fiables de
-      // "vuelve a emparejar" que tiene esta card (las otras dos: el cierre 4401 del relay y un 401
-      // del proxy local). Ver _reportPairingRejected().
-      if (err && err.code === 'unauthorized') this._reportPairingRejected('get_turn_credentials: unauthorized');
-      this._mark('get_turn_credentials: fallo, se sigue solo con STUN');
-    }
-
+    // ⚠️ SIN STUN NI TURN, A PROPOSITO (fase 0, 2026-09-25). Home Assistant es un cliente LOCAL: el
+    // portero ofrece su candidato host de la LAN y el navegador llega a el directo (medido el
+    // 2026-07-29: host <-> host, 2 ms). Hasta la 1.8.x habia un STUN fijo en el VPS y TURN pedido a
+    // la nube por la integracion; los dos eran caminos al VPS y se quitaron. No los repongas "para
+    // ver desde fuera": fuera de la LAN la card no conecta, y eso es la regla, no un fallo.
+    const iceServers = [];
+    await Promise.resolve();
     // ⚠️ EL CONTROL VA AQUI, ENTRE LA ULTIMA ESPERA Y LA PRIMERA CONSTRUCCION, y no es casualidad:
     // de esta linea hacia abajo no hay ni un `await`, asi que el resto se ejecuta entero sin que
     // nadie pueda colarse en medio (JavaScript es de un solo hilo). O construimos siendo los
@@ -3314,30 +3446,26 @@ class IslautopiaIntercomCard extends HTMLElement {
   async tryLocalSignaling(gen) {
     if (typeof EventSource === 'undefined') return false;
 
+    // ⚠️ SOLO EL PROXY DE HOME ASSISTANT (fase 0, 2026-09-25). El camino directo al hostname
+    // publico del portero (que el navegador resolvia por el DNS de nuestra nube, con la credencial
+    // en la URL) y el WebSocket del relay se QUITARON: Home Assistant es un cliente local y nada de
+    // el pasa por el VPS. Si la integracion no ofrece el proxy (version anterior a la 0.4.3), no hay
+    // camino, y se dice.
     const proxyUrl = await this._askLocalSignalUrl();
-    // Otra espera, otro control. `_localVia`/`_localBase`/`_localSignedUrl` gobiernan a DONDE
-    // manda sendNativeSignal(): escribirlos desde un arranque relevado desviaria la señalizacion
-    // de la sesion viva a la direccion de una muerta, y eso no se ve como una fuga sino como
-    // "el turno de palabra no funciona".
     if (this._relevado(gen)) return false;
-    if (proxyUrl) {
-      this._localVia = 'proxy';
-      this._localSignedUrl = proxyUrl;
-      const ok = await this._openLocalSse(proxyUrl, 'proxy', gen);
-      if (ok) return true;
-      // La SSE no distingue un 401 de un 502 (el navegador no expone el codigo de estado a
-      // EventSource), y esa diferencia es justo la que decide entre "vuelve a emparejar" y
-      // "esto no llega al portero ahora mismo". Se clasifica con una peticion aparte.
-      await this._classifyProxyFailure();
+    if (!proxyUrl) {
+      this._mark('get_local_signal_url: la integracion no ofrece el proxy - sin camino (se necesita islautopia_doorbell >= 0.7.0)');
       return false;
     }
-
-    this._localVia = 'directo';
-    if (!this._connInfo || !this._connInfo.credential) return false;
-    const hostname = `${this.config.device_id}.doorbell.islautopia.com`;
-    this._localBase = `https://${hostname}:8443`;
-    const token = encodeURIComponent(this._connInfo.credential);
-    return this._openLocalSse(`${this._localBase}/webrtc/signal?token=${token}`, 'directo', gen);
+    this._localVia = 'proxy';
+    this._localSignedUrl = proxyUrl;
+    const ok = await this._openLocalSse(proxyUrl, 'proxy', gen);
+    if (ok) return true;
+    // La SSE no distingue un 401 de un 502 (el navegador no expone el codigo de estado a
+    // EventSource), y esa diferencia es justo la que decide entre "vuelve a emparejar" y
+    // "esto no llega al portero ahora mismo". Se clasifica con una peticion aparte.
+    await this._classifyProxyFailure();
+    return false;
   }
 
   // `null` = esta integracion no ofrece el proxy (version anterior) o no sabe de este portero.
@@ -3458,83 +3586,6 @@ class IslautopiaIntercomCard extends HTMLElement {
         return;
       }
 
-      // ==========================================================================================
-      // SONDA DE ALCANCE, en paralelo con la SSE (2026-07-29). Resuelve un problema real medido:
-      // cuando el camino local no cuaja, se pagaban los 3000ms COMPLETOS del timeout de arriba
-      // antes de que el camino remoto empezara siquiera, y el reloj de ICE/DTLS arranca despues de
-      // eso. Con un iPhone en la MISMA red que el portero, que es el mejor caso posible, la
-      // conexion tardaba de mas por esta espera a ciegas.
-      //
-      // La sonda no acorta el timeout: lo sustituye por una respuesta. Pregunta exactamente lo que
-      // el camino local necesita -- DNS + TLS + ruta hasta el portero -- contra la unica ruta que
-      // se puede tocar sin coste: `/api/device_id` existe en el 8443, no exige sesion y NO reserva
-      // ningun slot de sesion WebRTC. Si algo bloquea el camino local, la sonda falla igual que
-      // fallaria la SSE, pero en 1200ms en vez de 3000.
-      //
-      // `mode:'no-cors'` es OBLIGATORIO: esa ruta no lleva cabeceras CORS (solo las llevan
-      // /webrtc/signal y /webrtc/signal/post). No hace falta leer la respuesta -- solo saber si la
-      // peticion llega. Una respuesta opaca ya significa "alcanzable"; un rechazo, "no".
-      // `cache:'no-store'` para que una respuesta cacheada no de un veredicto rancio.
-      //
-      // Las TRES reglas. La tercera se aprendio midiendo contra el portero real (2026-08-03) y
-      // corrige un fallo que estaba tirando el camino local en la mejor situacion posible:
-      //  1. La sonda falla de verdad (error de red/DNS) -> se abandona el local YA, sin esperar el
-      //     resto del timeout.
-      //  2. La sonda responde -> el portero es alcanzable, asi que se SIGUE esperando la oferta
-      //     hasta los 3000ms de siempre. Que responda la sonda no garantiza que la SSE entregue
-      //     rapido, y cortar aqui cambiaria un fallo lento por un fallo prematuro.
-      //  3. La sonda EXPIRA -> no se abandona nada. Una expiracion no es un veredicto: dice que el
-      //     portero es lento, no que no este. Medido con curl contra el aparato real en la misma
-      //     red: el handshake TLS del ESP32 solo tarda entre 0,40s y 0,90s, y la peticion completa
-      //     entre 0,46s y 1,06s. Con el presupuesto anterior de 1200ms, una conexion perfecta en la
-      //     propia casa se declaraba "inalcanzable" por unas decenas de milisegundos y se salia por
-      //     el relay -- a Alemania, para ver una camara del pasillo. Visto en dos ejecuciones
-      //     seguidas: una dio 1094ms (paso por los pelos) y la siguiente 1202ms (fallo). El
-      //     presupuesto sube ademas a 2000ms, pero lo que de verdad arregla esto es que expirar ya
-      //     no mata el camino: se deja decidir al timeout de 3000ms, que es quien tiene el dato
-      //     bueno -- si llego la oferta o no.
-      //
-      // Sospechoso principal de este caso concreto, y por eso la sonda es del mismo tipo que la
-      // peticion real: iCloud Private Relay bloquea a proposito un hostname publico que resuelve a
-      // una IP privada, que es exactamente lo que hace el hostname del portero dentro de casa.
-      //
-      // Descartado a proposito: recordar que camino gano la ultima vez. Se queda rancio en cuanto
-      // el movil cambia de red -- que es lo que hace un movil todo el rato -- y para volver al
-      // local habria que re-sondear abriendo la SSE, que eso SI gasta un slot. La sonda no guarda
-      // estado y por eso no puede quedarse desactualizada.
-      // ==========================================================================================
-      //
-      // Solo aplica al camino DIRECTO. Por el proxy no hay nada que sondear: el origen es el
-      // propio Home Assistant, que el navegador ya resolvio, y quien no alcance al portero es
-      // Home Assistant - cosa que contesta el mismo con un 502 inmediato en vez de con silencio.
-      if (via === 'directo' && typeof fetch === 'function' && probeCtl) {
-        const probeT0 = performance.now();
-        let probeExpirada = false;
-        probeTimer = setTimeout(() => {
-          probeExpirada = true;
-          try { probeCtl.abort(); } catch (err) { /* noop */ }
-        }, 2000);
-        fetch(`${this._localBase}/api/device_id`, { mode: 'no-cors', cache: 'no-store', signal: probeCtl.signal })
-          .then(() => {
-            if (settled) return;
-            if (probeTimer) { clearTimeout(probeTimer); probeTimer = null; }
-            this._mark(`sonda de alcance: el portero SI responde (${Math.round(performance.now() - probeT0)}ms) - se sigue esperando la oferta`);
-          })
-          .catch(() => {
-            if (settled) return; // abortada por nosotros al terminar: no es un veredicto
-            if (probeExpirada) {
-              // Regla 3: lento no es ausente. Se deja seguir a la SSE con su propio plazo.
-              this._mark(`sonda de alcance: expiro a los ${Math.round(performance.now() - probeT0)}ms sin veredicto - NO se abandona el local, decide el timeout de 3000ms`);
-              return;
-            }
-            this._mark(`sonda de alcance: el portero NO es alcanzable (${Math.round(performance.now() - probeT0)}ms) - al relay sin esperar el resto de los 3000ms`);
-            abandonarLocal();
-            finish(false);
-          });
-      } else if (via === 'directo') {
-        this._mark('sonda de alcance: no disponible en este navegador (sin fetch/AbortController) - se espera el timeout completo');
-      }
-
       // No hay forma fiable de distinguir desde JS "bloqueado por CORS" de "red inalcanzable"
       // u "otro fallo de red" - EventSource.onerror (igual que fetch()) no expone el motivo real
       // por diseño del navegador, ni siquiera cuando la causa es CORS.
@@ -3551,25 +3602,10 @@ class IslautopiaIntercomCard extends HTMLElement {
       es.onerror = () => {
         if (this._relevado(gen)) { abandonarLocal(); finish(false); return; }
         abandonarLocal();
-        if (via === 'proxy') {
-          console.warn(
-            '[islautopia-intercom-card] la senalizacion local via el proxy de Home Assistant fallo - cayendo al relay remoto. ' +
-            'El navegador NO expone el codigo de estado a EventSource, asi que se clasifica aparte (ver _classifyProxyFailure): ' +
-            'un 401 significa credencial de emparejamiento rechazada, un 502 que Home Assistant no alcanza al portero.'
-          );
-          finish(false);
-          return;
-        }
         console.warn(
-          '[islautopia-intercom-card] señalización local (%s) fallo o no respondió a tiempo - cayendo al relay remoto. ' +
-          'El navegador NO expone a este script el motivo exacto (revisa la pestaña Network/Console de las DevTools). ' +
-          'Causas realistas, en orden: (1) el doorbell no es alcanzable desde la red de HA (VLAN/subred distinta, o ' +
-          'HA visto desde fuera de casa via Nabu Casa) - es el caso normal y el fallback remoto lo cubre; ' +
-          '(2) el hostname <device_id>.doorbell.islautopia.com no resuelve o resuelve a una IP que este resolutor ' +
-          'bloquea (iCloud Private Relay bloquea hostnames publicos que apuntan a IPs privadas); ' +
-          '(3) token de pair_app invalido/revocado (401); (4) certificado del doorbell caducado. ' +
-          'CORS ya NO es sospechoso desde 2026-07-10: el firmware manda Access-Control-Allow-Origin en estas rutas.',
-          `${this._localBase}/webrtc/signal`
+          '[islautopia-intercom-card] la senalizacion por el proxy de Home Assistant fallo. ' +
+          'El navegador NO expone el codigo de estado a EventSource, asi que se clasifica aparte (ver _classifyProxyFailure): ' +
+          'un 401 significa credencial de emparejamiento rechazada, un 502 que Home Assistant no alcanza al portero por la LAN.'
         );
         finish(false);
       };
@@ -3594,107 +3630,24 @@ class IslautopiaIntercomCard extends HTMLElement {
     });
   }
 
-  // ⚠️ ESTE ES EL WEBSOCKET QUE SE QUEDABA HUERFANO (medido 2026-09-07). Tres arranques a la vez
-  // tras un timbrazo abrian tres WS contra el relay en 0,3 s; `this.nativeWS` se quedaba con el
-  // ultimo y los otros dos seguian abiertos 87 minutos despues, ocupando cliente en el relay y
-  // plaza en el portero. De ahi la firma "de N se cierra exactamente UNA".
-  async startRelaySignaling(info, gen) {
-    // Control ANTES de abrir: lo mas barato es no abrirlo.
-    if (this._relevado(gen)) {
-      this._mark('startRelaySignaling: relevados antes de abrir el WS - no se abre');
-      return;
-    }
-    return new Promise((resolve, reject) => {
-      const url = `${info.relay_ws_url}?token=${encodeURIComponent(info.credential)}`;
-      let opened = false;
-      this._mark(`startRelaySignaling: abriendo WS contra ${info.relay_ws_url}`);
-      // Referencia propia, por el mismo motivo que la SSE: un WS abierto por un arranque relevado
-      // tiene que cerrarse SOLO, sin tocar `this.nativeWS`, que ya es de otro.
-      const ws = new WebSocket(url);
-      this.nativeWS = ws;
-
-      // La apertura de un WebSocket no tiene plazo propio: puede tardar lo que tarde el TCP en
-      // rendirse. Si en ese rato nos relevan, este manejador es el unico sitio donde queda una
-      // referencia a este socket -- si no cierra aqui, no cierra nunca.
-      ws.onopen = () => {
-        opened = true;
-        if (this._relevado(gen)) {
-          this._mark('startRelaySignaling: el WS abrio ya relevados - se cierra en el acto');
-          try { ws.close(); } catch (err) { /* best effort */ }
-          if (this.nativeWS === ws) this.nativeWS = null;
-          resolve();
-          return;
-        }
-        this._mark('startRelaySignaling: WS abierto, enviando request_offer');
-        this.sendNativeSignal({ type: 'request_offer' });
-        resolve();
-      };
-      ws.onerror = (err) => {
-        if (!opened) reject(err);
-      };
-      ws.onmessage = (ev) => {
-        if (this._relevado(gen)) {
-          try { ws.close(); } catch (e) { /* best effort */ }
-          return;
-        }
-        let msg;
-        try { msg = JSON.parse(ev.data); } catch (err) { return; }
-        // Cualquier mensaje del relay es una señal de vida real del canal de señalización -
-        // vigilante de vida, ver COORDINATION.md Q19.
-        this._recordLifeSignal();
-        this.handleNativeSignal(msg);
-      };
-      ws.onclose = (ev) => {
-        // El cierre de un socket relevado es normal (lo cerramos nosotros): ni avisa de
-        // emparejamiento ni pinta "Error" encima de la sesion que SI esta conectando.
-        if (this._relevado(gen)) return;
-        // 4401 es el codigo con el que el relay cierra una conexion de cliente cuya credencial de
-        // pair_app no es valida o esta revocada, ANTES de unirse a ninguna sesion (§3.2). Es la
-        // señal mas precisa que existe de "vuelve a emparejar": el resto de cierres son de red.
-        if (ev && ev.code === 4401) this._reportPairingRejected('relay: cierre 4401 (credencial invalida o revocada)');
-        if (this.badge && this.videoEl && !this.videoEl.srcObject) {
-          this._setLiveState('error_cam');
-        }
-      };
-    });
-  }
-
   sendNativeSignal(msg) {
     const payload = Object.assign({}, msg);
-    if (this.nativeSSE) {
-      // Local (SSE/POST): el "slot" recibido en la oferta es obligatorio en cada mensaje
-      // saliente (API_CONTRACT.md §1.4/§3.3). "?token=" obligatorio desde 2026-07-09 (misma
-      // credencial que abrio el EventSource en tryLocalSignaling) - sin el, 401.
-      if (this._slot !== null) payload.slot = this._slot;
-      else if (msg.type !== 'bye') {
-        // El firmware DESCARTA en silencio (solo un log en el puerto serie del portero, invisible
-        // desde aqui) cualquier POST de señalización local sin un "slot" valido - verificado en
-        // el codigo real, no asumido. Sin este aviso, un mensaje perdido asi se manifestaria como
-        // "el turno de palabra/la calidad no funcionan" sin ninguna pista en el navegador.
-        console.warn(`[islautopia-intercom-card] mensaje local "${msg.type}" enviado sin slot asignado todavia - el dispositivo lo descartara`);
-      }
-      if (this._localVia === 'proxy') {
-        // Por el proxy la peticion va autenticada como cualquier llamada del frontend a su propio
-        // Home Assistant (callApi pone la cabecera Authorization). La URL FIRMADA existe solo para
-        // el EventSource, que no puede llevar cabeceras propias - aqui no hace falta.
-        this._hass.callApi('POST', `islautopia_doorbell/signal/${this.config.device_id}`, payload)
-          .catch((err) => {
-            const status = err && (err.status_code || err.status);
-            if (status === 401) this._reportPairingRejected('proxy local de Home Assistant: 401 al enviar senalizacion');
-            console.warn('[islautopia-intercom-card] fallo enviando senal local via el proxy de Home Assistant', err);
-          });
-        return;
-      }
-      const token = this._connInfo ? encodeURIComponent(this._connInfo.credential) : '';
-      fetch(`${this._localBase}/webrtc/signal/post?token=${token}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      }).catch((err) => console.warn('[islautopia-intercom-card] fallo enviando senal local', err));
-    } else if (this.nativeWS && this.nativeWS.readyState === WebSocket.OPEN) {
-      // Remoto (WS relay): sin "slot", el relay ya enruta 1:1 por device_id.
-      this.nativeWS.send(JSON.stringify(payload));
+    if (!this.nativeSSE) return;
+    // El "slot" recibido en la oferta es obligatorio en cada mensaje saliente (§1.4/§3.3).
+    if (this._slot !== null) payload.slot = this._slot;
+    else if (msg.type !== 'bye') {
+      // El firmware DESCARTA en silencio cualquier POST de señalización local sin "slot" valido.
+      console.warn(`[islautopia-intercom-card] mensaje local "${msg.type}" enviado sin slot asignado todavia - el dispositivo lo descartara`);
     }
+    // Por el proxy la peticion va autenticada como cualquier llamada del frontend a su propio
+    // Home Assistant (callApi pone la cabecera Authorization). La credencial de emparejamiento la
+    // añade la integracion en el servidor: nunca pasa por este navegador.
+    this._hass.callApi('POST', `islautopia_doorbell/signal/${this.config.device_id}`, payload)
+      .catch((err) => {
+        const status = err && (err.status_code || err.status);
+        if (status === 401) this._reportPairingRejected('proxy local de Home Assistant: 401 al enviar senalizacion');
+        console.warn('[islautopia-intercom-card] fallo enviando senal local via el proxy de Home Assistant', err);
+      });
   }
 
   async handleNativeSignal(msg) {
@@ -3751,6 +3704,9 @@ class IslautopiaIntercomCard extends HTMLElement {
         break;
       case 'open_result':
         this.handleNativeOpenResult(msg);
+        break;
+      case 'live_state':
+        this._onLiveState(msg);
         break;
       // ---- Multicliente / calidad (API_CONTRACT.md §1.4-ter, 2026-07-26) --------------------
       case 'talk_granted':

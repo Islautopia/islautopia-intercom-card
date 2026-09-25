@@ -4,12 +4,12 @@ A lightning-fast, custom WebRTC 2-way audio intercom card for Home Assistant, pu
 Islautopia Doorbell hardware. Visual language (colors, video frame, HUD, action buttons) matches
 the official Islautopia mobile apps.
 
-Set `device_id` and this card talks the doorbell's own WebRTC protocol directly (ICE-Lite +
-DTLS-SRTP + RTP) — local signaling over the doorbell's real HTTPS certificate, with automatic
-fallback to the relay/TURN when viewed remotely. Requires the
-[`islautopia-doorbell-integration`](https://github.com/Islautopia/islautopia-doorbell-integration)
-to be installed and the doorbell paired — the integration hands this card everything it needs
-(host, credentials, TURN) with nothing pasted into YAML by hand.
+Set `device_id` and this card talks the doorbell's own WebRTC protocol (ICE-Lite + DTLS-SRTP +
+RTP) straight to the doorbell on your local network. Signalling goes through your own Home
+Assistant (the `islautopia_doorbell` integration, >= 0.7.0), which adds the pairing credential on
+the server side: **the credential never reaches the browser.** **Local only (since 1.9.0):** no
+cloud relay, no STUN/TURN — the live view works wherever the browser can reach the doorbell on your
+network, and not from outside.
 
 > **Breaking change (2026-07-10):** the legacy `go2rtc`/`stream`/`go2rtc_url` configuration mode
 > (for third-party RTSP intercoms served through `go2rtc`) has been removed entirely. This card
@@ -37,10 +37,10 @@ to be installed and the doorbell paired — the integration hands this card ever
   So where the API isn't granted, the card falls back to its own CSS fullscreen filling the whole app window. It can't hide the phone's system bars — only the real API can — but it **keeps the card's own mic and door buttons**, which is what you lose with the usual fallback of handing the `<video>` to the native iOS player. On a video intercom that difference is not cosmetic: it's the difference between talking to whoever rang and just watching them. The icon therefore never does nothing — only the path behind it changes. And in the rare case where even the fallback can't fill the window (an ancestor with `transform`/`filter`/`contain` traps any `position: fixed` inside it — a theme or card-mod can introduce one), the card measures the result, undoes it, and hides the icon rather than offering a mode that doesn't work.
 * **No door button when there's no door:** if the doorbell has no lock configured, the open button isn't drawn at all instead of being offered and failing. The doorbell reports its lock type over the signaling channel every few seconds, so the button is correct from the first frame — and if you change the lock type from the doorbell's own dashboard while the card is open, the button appears or disappears within seconds, with nothing to reload. Against older doorbell firmware that doesn't report it, the card falls back to hiding the button after a genuine "no lock configured" reply.
 * **Upright picture, wherever the camera is mounted:** the camera module inside the doorbell is fitted rotated 90° on purpose — vertically it fits a whole person *and* a parcel on the ground, which landscape does not. Rotating on the doorbell itself was measured at 65–71 ms per frame against a 66.7 ms budget at 15 fps, so it is the client that straightens the picture, which is free. The doorbell reports the angle on the signaling channel and the card applies it, switching the frame to 9:16 so a portrait video is *big* on a phone. It never crops to fill: zooming until the width is covered throws away the top and the bottom, which is exactly what the rotated sensor was for. In fullscreen on a landscape screen — a wall tablet — the two buttons move to a narrow side rail and the video keeps the full height. The last known angle for that doorbell is remembered, so the card reserves the right shape before the first frame instead of visibly jumping on every start.
-* **Watching is not listening:** the speaker starts **muted**. A wall panel showing the street 24/7 must not pipe the street into your living room 24/7. Sound turns on when *you* turn it on, or by itself when somebody rings — point the optional `ring_entity` at the doorbell's chime `binary_sensor.*`. Listening and talking are independent: you can hear the visitor without taking the voice turn, and closing the mic puts the sound back the way it was. This also fixes a control that used to lie: the volume slider changed the volume of an element that stayed muted, so turning it up made nothing audible.
+* **Watching is not listening:** the speaker starts **muted**. A wall panel showing the street 24/7 must not pipe the street into your living room 24/7. Sound turns on when *you* turn it on, or by itself when somebody rings — by default the card listens to the integration's events entity (only `ring` counts); `ring_entity` overrides it. Listening and talking are independent: you can hear the visitor without taking the voice turn, and closing the mic puts the sound back the way it was. This also fixes a control that used to lie: the volume slider changed the volume of an element that stayed muted, so turning it up made nothing audible.
 * **Door-open asks twice:** the open button arms on the first press and only opens on the second, with an inline message and a countdown ring — no modal to dismiss with somebody waiting at the door. The confirmation **expires after ~3 s** (otherwise an accidental press leaves the door armed and the next accidental press opens it) and a fast double-tap under ~300 ms doesn't count (a phone in a pocket, or a bouncing finger, produces exactly that). Not configurable, on purpose: a safety mechanism you can switch off stops being one.
-* **Nothing happens in silence:** anything that isn't instant shows that it's running, from the first moment, and always ends. Opening the door shows **Opening…** while the doorbell is asked, and only turns green and says **Open** once the doorbell has actually confirmed it — a timeout is a timeout, never an "opened". (Until now the button went green the instant you pressed it, so a reply that never arrived left you looking at a button reading "Open" with the door shut. On a video intercom that isn't a UI detail: it's somebody walking away believing they let the visitor in.) Falling back to the cloud relay says so instead of leaving a black rectangle, and a reconnection shows the countdown to the next attempt rather than a spinner that turns forever with no explanation.
-* **Tells you when it needs re-pairing:** if the doorbell or the relay rejects the pairing credential — after a factory reset, or a revoked app instance — the card says so in plain language instead of retrying in silence behind a permanent "Connecting…". It keeps retrying anyway, and clears the notice by itself the moment video comes back.
+* **Nothing happens in silence:** anything that isn't instant shows that it's running, from the first moment, and always ends. Opening the door shows **Opening…** while the doorbell is asked, and only turns green and says **Open** once the doorbell has actually confirmed it — a timeout is a timeout, never an "opened". (Until now the button went green the instant you pressed it, so a reply that never arrived left you looking at a button reading "Open" with the door shut. On a video intercom that isn't a UI detail: it's somebody walking away believing they let the visitor in.) When Home Assistant cannot reach the doorbell on the network the card says so instead of leaving a black rectangle, and a reconnection shows the countdown to the next attempt rather than a spinner that turns forever with no explanation.
+* **Tells you when it needs re-pairing:** if the doorbell rejects the pairing credential — after a factory reset, or a revoked app instance — the card says so in plain language instead of retrying in silence behind a permanent "Connecting…". It keeps retrying anyway, and clears the notice by itself the moment video comes back.
 * **Smart Volume Memory:** Native volume slider that remembers your preferred listening level via `localStorage`. The level is remembered; whether sound is *on* deliberately is not.
 * **Multi-Language Support (i18n):** Automatically translates the UI based on your Home Assistant language (Supports EN, ES, PT, DE, FR, RU, ZH, HI, AR).
 
@@ -90,8 +90,16 @@ type: custom:islautopia-intercom-card
 # Settings > Devices & services > Islautopia Doorbell after pairing it.
 device_id: a1b2c3d4e5f60718
 
+# LIVE VIEW TIMEOUT (1.9.0): set it with the integration's entity
+# `number.<doorbell>_live_view_timeout` (default 120 s, 0 = never) — an automation or any dashboard
+# can change it. When it expires with nobody touching the card, the card does what the apps do in
+# the background: `live_pause` at once, and after 15 s it hangs up and FREES THE DOORBELL'S SLOT.
+# It never expires with the microphone open, a tap resumes, and a new ring wakes it by itself.
+#
+# `idle_release_seconds` below is only the fallback for an integration older than 0.7.0.
+#
 # OPTIONAL: seconds without any interaction (touch, pointer or keyboard) before the card releases
-# the video stream, letting the screen turn off. Default 60. Set to 0 to disable.
+# the video stream, letting the screen turn off. Default 120. Set to 0 to disable.
 #
 # WHY THIS EXISTS: while video is playing the card holds a screen wake lock so the display does
 # not dim mid-conversation. On a phone that lasts as long as the call. On a WALL PANEL it does
@@ -101,7 +109,7 @@ device_id: a1b2c3d4e5f60718
 #
 # With this, an untouched panel lets go after a minute, the OS turns the screen off on its own
 # timeout, the card becomes hidden and the stream is released. A touch brings it all back.
-idle_release_seconds: 60
+idle_release_seconds: 120
 
 # OPTIONAL: a switch/light/lock/cover/button entity to trigger door-open through Home
 # Assistant instead of the doorbell's own native open/open_result signaling message.
@@ -132,8 +140,8 @@ height: auto
 
 1. It creates a silent software audio track on load so video starts immediately without waiting for microphone permissions.
 2. When you click the microphone button, it performs a native `replaceTrack()` to swap the silent track with your actual physical microphone — no SDP renegotiation.
-3. Connection info (device host, relay URL, pairing credential) and fresh TURN credentials come from the `islautopia_doorbell` integration over `hass.connection.sendMessagePromise(...)` — nothing is ever pasted into this card's config by hand.
-4. It always tries local signaling first, against the doorbell's own real HTTPS hostname (`https://<device_id>.doorbell.islautopia.com:8443`, never a raw local IP — required both to avoid mixed-content blocking when your Home Assistant dashboard itself is served over HTTPS, and for the doorbell's Let's Encrypt certificate to validate correctly), with a short timeout. If that's unreachable (e.g. you're viewing the dashboard remotely), it falls back to the relay over `wss://`.
+3. The card asks the `islautopia_doorbell` integration (over `hass.connection.sendMessagePromise(...)`) for a short-lived signed URL of its signalling proxy and for the entities it reads (live view timeout, events). No credential, host or relay URL ever reaches the browser.
+4. Signalling goes through Home Assistant only; media goes peer-to-peer over UDP between the browser and the doorbell's LAN address (host candidates, no STUN/TURN). If Home Assistant cannot reach the doorbell on the network, the card says so and retries — it never falls back to the cloud.
 5. Note: if your own Home Assistant dashboard is served over plain HTTP, the browser will still block microphone access for the whole page regardless of what this card does — that's a property of your HA instance's own origin, not something this card (or the doorbell's own HTTPS certificate) can work around. See the [Islautopia Intercom Engine](https://github.com/Islautopia/ig_hassio_addons) add-on if you need to put your whole HA dashboard behind HTTPS locally.
 
 ---

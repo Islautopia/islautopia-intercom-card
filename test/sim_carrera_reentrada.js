@@ -19,6 +19,13 @@
 //  EventSource, fetch, RTCPeerConnection, AudioContext, el WebSocket de HA) y las hojas de UI que
 //  no tienen nada que ver con esto (pintar pildoras, el estado del microfono, la puerta).
 //
+//  ⚠️ FASE 0 (2026-09-25): la card ya no tiene relay ni STUN/TURN. La señalizacion va SOLO por el
+//  proxy de Home Assistant (EventSource sobre la URL firmada), asi que lo que se cuenta ahora son
+//  EventSources y no WebSockets. El doble del EventSource entrega la oferta; la ventana de la
+//  carrera la abre la espera de `get_local_signal_url` (antes: las credenciales TURN). Los casos
+//  8-13 son las reglas nuevas: plazo desde la entidad, veto de llamada, live_pause -> gracia -> bye,
+//  toque y timbrazo que reanudan, y ningun camino fuera de Home Assistant.
+//
 //  ⚠️ LO QUE ESTO NO ES: no habla con un portero, ni negocia ICE/DTLS, ni prueba que en Chromium
 //  un IntersectionObserver vea lo que se espera. Un verde aqui NO es "funciona en el panel de
 //  pared". Es "la maquina de estados de reentrada hace lo que dice hacer".
@@ -59,7 +66,7 @@ const { execFileSync } = require('child_process');
 //  cuantos se cierran, que es exactamente la firma del fallo real ("de N se cierra una").
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 function construirEntorno(reloj) {
-  const censo = { ws: [], pc: [], es: [] };
+  const censo = { ws: [], pc: [], es: [], iceServers: [], fetch: [] };
 
   class FakeWebSocket {
     constructor(url) {
@@ -80,7 +87,11 @@ function construirEntorno(reloj) {
   FakeWebSocket.OPEN = 1;
 
   class FakePeerConnection {
-    constructor() { this.cerrado = false; this.connectionState = 'new'; censo.pc.push(this); }
+    constructor(cfg) { this.cfg = cfg; this.cerrado = false; this.connectionState = 'new'; censo.pc.push(this); censo.iceServers.push(cfg && cfg.iceServers); }
+    async setRemoteDescription() {}
+    async createAnswer() { return { type: 'answer', sdp: 'v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=sendrecv' }; }
+    async setLocalDescription() {}
+    get remoteDescription() { return {}; }
     addTransceiver() { return { direction: 'recvonly', sender: {} }; }
     addTrack(t) { const s = { track: t, replaceTrack: async () => {} }; this._sender = s; return s; }
     getTransceivers() { return [{ sender: this._sender, direction: 'sendrecv' }]; }
@@ -89,7 +100,14 @@ function construirEntorno(reloj) {
   }
 
   class FakeEventSource {
-    constructor(url) { this.url = url; this.cerrado = false; censo.es.push(this); }
+    constructor(url) {
+      this.url = url; this.cerrado = false; censo.es.push(this);
+      // El portero asigna ranura y manda la oferta nada mas aceptar la SSE (§1.4).
+      setTimeout(() => {
+        if (this.cerrado || !this.onmessage) return;
+        this.onmessage({ data: JSON.stringify({ type: 'offer', slot: 0, sdp: 'v=0' }) });
+      }, reloj.esOfertaMs || 5);
+    }
     close() { this.cerrado = true; }
   }
 
@@ -118,7 +136,7 @@ function cargarClase(src, entorno, oyentesDoc) {
     // La sonda de alcance del camino local: se rechaza, asi que el camino local se abandona en el
     // acto y toda la ventana de la carrera queda gobernada por `reloj.turnMs`, que es lo que se
     // quiere controlar. (En el aparato real esa ventana la abre la peticion TURN a Alemania.)
-    fetch: () => Promise.reject(new Error('sin ruta local en la simulacion')),
+    fetch: (url) => { entorno.censo.fetch.push(url); return Promise.reject(new Error('sin red en la simulacion')); },
     AbortController: class { constructor() { this.signal = {}; } abort() {} },
     localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     navigator: {},                       // SIN wakeLock, como la webview del panel de pared
@@ -150,16 +168,26 @@ function nuevaCard(CardClass, opciones) {
     connection: {
       sendMessagePromise: (msg) => {
         if (msg.type === 'islautopia_doorbell/get_connection_info') {
-          return new Promise((r) => setTimeout(() => r({ relay_ws_url: 'wss://relay/ws', credential: 'X' }), o.infoMs || 0));
+          // Fase 0: sin credencial ni relay; las entidades que la card lee.
+          const info = { device_id: 'abc', live_timeout_entity: o.plazoEntidad === undefined ? null : 'number.x_live_view_timeout', events_entity: 'event.x_events' };
+          // El codigo de ANTES (control negativo) leia estos dos: se le dan para que siga su camino.
+          info.relay_ws_url = 'wss://relay/ws'; info.credential = 'X';
+          return new Promise((r) => setTimeout(() => r(info), o.infoMs || 0));
         }
-        if (msg.type === 'islautopia_doorbell/get_turn_credentials') {
+        // La ventana de la carrera: antes la abria la peticion TURN, hoy la de la URL firmada.
+        if (msg.type === 'islautopia_doorbell/get_turn_credentials' || msg.type === 'islautopia_doorbell/get_local_signal_url') {
           if (o.turnColgado) return new Promise(() => {});   // no resuelve NUNCA: caso del fusible
-          return new Promise((r) => setTimeout(() => r({ urls: [] }), o.turnMs || 0));
+          const r0 = msg.type === 'islautopia_doorbell/get_turn_credentials' ? { urls: [] } : { signal_url: '/api/islautopia_doorbell/signal/abc?authSig=x' };
+          return new Promise((r) => setTimeout(() => r(r0), o.turnMs || 0));
         }
-        return Promise.reject(new Error('sin proxy local'));  // get_local_signal_url
+        return Promise.reject(new Error('desconocido'));
       },
     },
+    states: o.estados || {},
+    callApi: (metodo, ruta, cuerpo) => { c._enviados.push(cuerpo); return Promise.resolve({}); },
   };
+  c._enviados = [];
+  if (o.plazoEntidad !== undefined) c._hass.states['number.x_live_view_timeout'] = { state: String(o.plazoEntidad) };
   Object.assign(c, {
     pc: null, nativeSSE: null, nativeWS: null, _slot: null,
     _connGen: 0, _arranqueEnVueloGen: null, _arranqueEnVueloAt: 0,
@@ -167,6 +195,9 @@ function nuevaCard(CardClass, opciones) {
     _lastLifeSignalAt: null, _prevPacketsReceived: null,
     _idleReleaseMs: o.idleMs === undefined ? 0 : o.idleMs,
     _idleWakeLockTimer: null, _wakeLock: null, _fsActive: false,
+    _pausaInactividad: null, _pausaGraciaTimer: null, _idleGraceMs: o.graciaMs === undefined ? 15000 : o.graciaMs,
+    _livePauseWanted: false, _livePauseAck: null, _rescateTimers: [],
+    _talkHeld: false, _talkPending: false,
     intercomActive: false, localAudioStream: null, dummyAudioTrack: null,
     _audioOn: false, _audioOnBeforeMic: false, _listenOnly: false,
     isConnected: true, content: true,
@@ -186,6 +217,8 @@ function nuevaCard(CardClass, opciones) {
   c._startRetryCountdown = () => {};
   c._stopRetryCountdown = () => {};
   c._reportPairingRejected = () => {};
+  c._probeQualitySupport = () => {};
+  c._setDoorLabel = () => {};
   c._acquireWakeLock = async () => {};        // no hay navigator.wakeLock, igual que en la tablet
   c._releaseWakeLock = () => {};
   // _registerIdleActivityListeners NO se sustituye: el caso 7 depende de que exista el manejador
@@ -198,6 +231,21 @@ function nuevaCard(CardClass, opciones) {
 }
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Recoge una card al final de un caso SIN suponer que existen las funciones nuevas: los controles
+// ejecutan tambien el codigo de antes, y ahi un metodo que falta debe verse como un caso en rojo,
+// no tumbar el banco.
+function limpiar(c) {
+  for (const f of ['_cancelarPausaInactividad', '_teardownConnectionObjects', '_clearIdleWakeLockTimer']) {
+    if (typeof c[f] === 'function') { try { c[f](); } catch (err) { /* recogida */ } }
+  }
+}
+
+// El codigo de ANTES (control negativo) atiende ofertas de sesiones ya relevadas sobre un `pc` nulo
+// y rechaza promesas que nadie espera. Eso es parte del fallo que el control debe VER por su efecto
+// (conexiones acumuladas), no un motivo para que el banco entero se caiga sin informar.
+let rechazosSinAtender = 0;
+process.on('unhandledRejection', () => { rechazosSinAtender += 1; });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 //  Los casos
@@ -233,10 +281,9 @@ async function ejecutar(src, mostrar) {
     await esperar(160);
     c.startWebRTC('connectedCallback');
     await esperar(900);
-    comp(`WebSockets contra el relay VIVOS = 1 (abiertos ${e.censo.ws.length}, vivos ${vivos(e.censo.ws)})`, vivos(e.censo.ws) === 1);
+    comp(`EventSources VIVOS = 1 (abiertos ${e.censo.es.length}, vivos ${vivos(e.censo.es)})`, vivos(e.censo.es) === 1);
     comp(`RTCPeerConnection VIVAS = 1 (creadas ${e.censo.pc.length}, vivas ${vivos(e.censo.pc)})`, vivos(e.censo.pc) === 1);
-    comp('  -> y la que queda viva es la que la card tiene en this.nativeWS', c.nativeWS && !c.nativeWS.cerrado);
-    comp('  -> ningun EventSource local huerfano', vivos(e.censo.es) === 0);
+    comp('  -> y el que queda vivo es el que la card tiene en this.nativeSSE', c.nativeSSE && !c.nativeSSE.cerrado);
     c._teardownConnectionObjects();
   }
 
@@ -250,8 +297,8 @@ async function ejecutar(src, mostrar) {
     await c.startWebRTC('unico');
     await esperar(200);
     comp('hay sesion viva: pc asignada y sin cerrar', !!c.pc && !c.pc.cerrado);
-    comp('hay WebSocket contra el relay, abierto', !!c.nativeWS && !c.nativeWS.cerrado);
-    comp('  -> y se pidio la oferta por el', !!c.nativeWS && c.nativeWS.enviados.some((m) => m.includes('request_offer')));
+    comp('hay EventSource por el proxy de Home Assistant, abierto', !!c.nativeSSE && !c.nativeSSE.cerrado && c.nativeSSE.url.startsWith('/api/islautopia_doorbell/signal/'));
+    comp('  -> y se contesto a la oferta por el proxy', c._slot === 0 && c._enviados.some((m) => m.type === 'answer' && m.slot === 0));
     c._teardownConnectionObjects();
   }
 
@@ -269,9 +316,9 @@ async function ejecutar(src, mostrar) {
     c._teardownConnectionObjects();          // exactamente lo que hace _scheduleReconnect()
     c.startWebRTC('el relevo');
     await esperar(900);
-    comp(`WebSockets VIVOS = 1 (abiertos ${e.censo.ws.length}, vivos ${vivos(e.censo.ws)})`, vivos(e.censo.ws) === 1);
+    comp(`EventSources VIVOS = 1 (abiertos ${e.censo.es.length}, vivos ${vivos(e.censo.es)})`, vivos(e.censo.es) === 1);
     comp(`RTCPeerConnection VIVAS = 1 (creadas ${e.censo.pc.length}, vivas ${vivos(e.censo.pc)})`, vivos(e.censo.pc) === 1);
-    comp('  -> el relevo SI quedo conectado (no se le comio el guardia)', !!c.nativeWS && !c.nativeWS.cerrado);
+    comp('  -> el relevo SI quedo conectado (no se le comio el guardia)', !!c.nativeSSE && !c.nativeSSE.cerrado);
     c._teardownConnectionObjects();
   }
 
@@ -287,7 +334,7 @@ async function ejecutar(src, mostrar) {
     comp('mientras es joven, un segundo disparo se descarta', c._arranqueEnVueloGen !== null);
     c.startWebRTC('demasiado pronto');
     await esperar(50);
-    comp('  -> y no ha abierto ninguna conexion de mas', e.censo.ws.length === 0);
+    comp('  -> y no ha abierto ninguna conexion de mas', e.censo.es.length === 0);
     // Se envejece el marcador en vez de esperar 12 s de reloj real: lo que se prueba es la regla
     // del fusible, no la puntualidad de setTimeout.
     c._arranqueEnVueloAt = Date.now() - 60000;
@@ -296,7 +343,7 @@ async function ejecutar(src, mostrar) {
     opciones.turnColgado = false;
     c.startWebRTC('tras el fusible');
     await esperar(200);
-    comp('pasado el fusible, un disparo nuevo SI arranca', !!c.nativeWS && !c.nativeWS.cerrado);
+    comp('pasado el fusible, un disparo nuevo SI arranca', !!c.nativeSSE && !c.nativeSSE.cerrado);
     c._teardownConnectionObjects();
   }
 
@@ -320,11 +367,11 @@ async function ejecutar(src, mostrar) {
   {
     const e = construirEntorno({ wsOpenMs: 5 });
     const C = cargarClase(src, e, {});
-    const c = nuevaCard(C, { turnMs: 10, idleMs: 250 });
+    const c = nuevaCard(C, { turnMs: 10, idleMs: 250, graciaMs: 50 });
     await c.startWebRTC('unico');
     await esperar(600);
     comp('la sesion se ha soltado sola', c.pc === null);
-    comp('  -> el WebSocket del relay esta cerrado', e.censo.ws.every((w) => w.cerrado));
+    comp('  -> el EventSource esta cerrado', e.censo.es.every((w) => w.cerrado));
     comp('  -> y queda marcado para reponerse al volver', c._streamPausedByHide === true);
   }
 
@@ -355,11 +402,119 @@ async function ejecutar(src, mostrar) {
     // comprobacion sale verde, y el usuario ha visto un recuadro negro igual. Contando cuantas
     // sesiones se han llegado a construir, "se solto y volvio" ya no se puede disfrazar de "nunca
     // se solto". (Encontrado precisamente porque el mutante de mas abajo pasaba este caso.)
-    comp(`tras 1,2s de toques con plazo de 0,25s NO se solto ni una vez (sesiones construidas: ${e.censo.pc.length})`, e.censo.pc.length === 1 && e.censo.ws.length === 1);
+    comp(`tras 1,2s de toques con plazo de 0,25s NO se solto ni una vez (sesiones construidas: ${e.censo.pc.length})`, e.censo.pc.length === 1 && e.censo.es.length === 1);
     comp('  -> la sesion sigue viva', !!c.pc && !c.pc.cerrado);
     comp('  -> y no se marco como soltada', !c._streamPausedByHide);
+    // Fase 0: vencer ya no cuelga en el acto (live_pause + gracia), asi que "se pauso y el toque
+    // siguiente la reanudo" no deja rastro en pc/sesiones. Lo deja en lo que se mando al portero.
+    comp('  -> y no se mando ni un live_pause', !(c._enviados || []).some((m) => m.type === 'live_pause'));
     c._teardownConnectionObjects();
     if (c._idleWakeLockTimer) clearTimeout(c._idleWakeLockTimer);
+  }
+
+  // ══ FASE 0 ════════════════════════════════════════════════════════════════════════════════
+  // ── 8. El plazo lo manda la entidad de la integracion ─────────────────────────────────────
+  seccion('8. El plazo sale de number.*_live_view_timeout (y 0 lo desactiva)');
+  {
+    const e = construirEntorno({});
+    const C = cargarClase(src, e, {});
+    const c = nuevaCard(C, { turnMs: 10, idleMs: 999000, plazoEntidad: 0.25, graciaMs: 20000 });
+    await c.startWebRTC('unico');
+    await esperar(500);
+    comp('con la entidad a 0,25 s vence aunque el respaldo sea 999 s', c._pausaInactividad === 'gracia');
+    limpiar(c);
+    const c2 = nuevaCard(C, { turnMs: 10, idleMs: 250, plazoEntidad: 0 });
+    await c2.startWebRTC('unico');
+    await esperar(500);
+    comp('  -> y con la entidad a 0 no vence nunca', c2._pausaInactividad === null && !!c2.pc);
+    limpiar(c2);
+  }
+
+  // ── 9. Nunca con una llamada en curso ─────────────────────────────────────────────────────
+  seccion('9. Con el micro abierto NO vence (§1.4-bis: never pause during a call)');
+  {
+    const e = construirEntorno({});
+    const C = cargarClase(src, e, {});
+    const c = nuevaCard(C, { turnMs: 10, idleMs: 250, graciaMs: 50 });
+    await c.startWebRTC('unico');
+    c.intercomActive = true;
+    await esperar(800);
+    comp('con el micro abierto 0,8 s y plazo de 0,25 s: ni pausa ni bye', c._pausaInactividad === null && !!c.pc && !c.pc.cerrado);
+    comp('  -> y no se mando live_pause', !c._enviados.some((m) => m.type === 'live_pause'));
+    c.intercomActive = false;
+    limpiar(c);
+  }
+
+  // ── 10. Al vencer: live_pause YA, bye tras la gracia (la ranura se libera) ─────────────────
+  seccion('10. Vence: live_pause en el acto y bye tras la gracia');
+  {
+    const e = construirEntorno({});
+    const C = cargarClase(src, e, {});
+    const c = nuevaCard(C, { turnMs: 10, idleMs: 200, graciaMs: 300 });
+    await c.startWebRTC('unico');
+    const pc = c.pc;
+    await esperar(350);
+    comp('dentro de la gracia: live_pause enviado y la sesion sigue viva', c._enviados.some((m) => m.type === 'live_pause' && m.slot === 0) && c.pc === pc && !pc.cerrado);
+    comp('  -> todavia sin bye', !c._enviados.some((m) => m.type === 'bye'));
+    await esperar(400);
+    comp('pasada la gracia: bye enviado (la ranura se libera ya, no a los 20 s)', c._enviados.some((m) => m.type === 'bye' && m.slot === 0));
+    comp('  -> sesion cerrada y EventSource cerrado', c.pc === null && e.censo.es.every((x) => x.cerrado));
+    comp('  -> y la card queda en pausa, esperando un toque', c._pausaInactividad === 'colgada');
+  }
+
+  // ── 11. Un toque dentro de la gracia reanuda la MISMA sesion ──────────────────────────────
+  seccion('11. Toque dentro de la gracia: live_resume, sin sesion nueva');
+  {
+    const e = construirEntorno({});
+    const C = cargarClase(src, e, {});
+    const c = nuevaCard(C, { turnMs: 10, idleMs: 200, graciaMs: 2000 });
+    await c.startWebRTC('unico');
+    await esperar(350);
+    comp('esta en gracia', c._pausaInactividad === 'gracia');
+    if (c._onIdleActivity) c._onIdleActivity();
+    await esperar(50);
+    comp('tras el toque: live_resume enviado', c._enviados.some((m) => m.type === 'live_resume'));
+    comp('  -> la misma sesion, ninguna nueva', e.censo.pc.length === 1 && !!c.pc && !c.pc.cerrado);
+    comp('  -> y sin bye', !c._enviados.some((m) => m.type === 'bye'));
+    limpiar(c);
+  }
+
+  // ── 12. Un timbrazo despierta la card colgada; un paquete no ───────────────────────────────
+  seccion('12. Timbrazo (event_type ring) tras colgar: sesion nueva; un paquete no');
+  {
+    const e = construirEntorno({});
+    const C = cargarClase(src, e, {});
+    const c = nuevaCard(C, { turnMs: 10, idleMs: 150, graciaMs: 50 });
+    c.config.ring_entity = undefined;
+    c._hass.states['event.x_events'] = { state: 't0', attributes: { event_type: 'ring' } };
+    await c.startWebRTC('unico');
+    c._updateRingState();                       // primera lectura: no dispara
+    await esperar(500);
+    comp('colgada por inactividad', c._pausaInactividad === 'colgada' && c.pc === null);
+    c._hass.states['event.x_events'] = { state: 't1', attributes: { event_type: 'package' } };
+    c._updateRingState();
+    await esperar(100);
+    comp('un paquete NO la despierta', c._pausaInactividad === 'colgada' && e.censo.pc.length === 1);
+    c._hass.states['event.x_events'] = { state: 't2', attributes: { event_type: 'ring' } };
+    c._updateRingState();
+    await esperar(60);
+    comp('un timbrazo SI: sesion nueva', c._pausaInactividad === null && e.censo.pc.length === 2 && !!c.pc);
+    limpiar(c);
+  }
+
+  // ── 13. Ningun camino fuera de Home Assistant ─────────────────────────────────────────────
+  seccion('13. Sin STUN/TURN, sin relay, sin fetch al portero: solo Home Assistant');
+  {
+    const e = construirEntorno({});
+    const C = cargarClase(src, e, {});
+    const c = nuevaCard(C, { turnMs: 10 });
+    await c.startWebRTC('unico');
+    await esperar(100);
+    comp('RTCPeerConnection sin iceServers', e.censo.iceServers.length === 1 && Array.isArray(e.censo.iceServers[0]) && e.censo.iceServers[0].length === 0);
+    comp('  -> ningun WebSocket', e.censo.ws.length === 0);
+    comp('  -> ningun fetch directo', e.censo.fetch.length === 0);
+    comp('  -> y la SSE es la del proxy de HA', e.censo.es.every((x) => x.url.startsWith('/api/islautopia_doorbell/')));
+    limpiar(c);
   }
 
   return { fallos, total };
@@ -430,7 +585,7 @@ function mutar(src, ancla, reemplazo, nombre) {
     // Una excepcion es un fallo, nunca un aprobado por incomparecencia.
     let r;
     try { r = await ejecutar(previo, false); } catch (err) { r = { fallos: ['excepcion: ' + err.message], total: 0 }; }
-    const veLaFuga = r.fallos.some((f) => f.startsWith('WebSockets contra el relay VIVOS'));
+    const veLaFuga = r.fallos.some((f) => f.startsWith('EventSources VIVOS'));
     const veElReloj = r.fallos.some((f) => f.startsWith('hay cuenta atras armada'));
     console.log(`  ${veLaFuga ? 'OK   ' : 'FALLO'} control negativo: el codigo de antes del arreglo ACUMULA conexiones (caso 1)`);
     console.log(`  ${veElReloj ? 'OK   ' : 'FALLO'} control negativo: el codigo de antes del arreglo NO arma el reloj (caso 5)`);
@@ -456,7 +611,7 @@ function mutar(src, ancla, reemplazo, nombre) {
         '  _relevado(gen) { return gen !== this._connGen; }',
         '  _relevado(gen) { return false; }',
         'sin generacion'),
-      debeFallar: 'WebSockets VIVOS',
+      debeFallar: 'EventSources VIVOS',
     },
     {
       nombre: 'el toque no rearma (fallo de antes) Y sin re-verificacion del plazo',
@@ -472,11 +627,43 @@ function mutar(src, ancla, reemplazo, nombre) {
           '      /* mutante: el toque actualiza la marca pero NO rearma, como antes del arreglo */',
           'toque que no rearma');
         return mutar(m,
-          '      if (this._idleReleaseMs && pendiente > 0) {',
+          '      if (pendiente > 0) {',
           '      if (false) {',
           'sin re-verificacion');
       },
-      debeFallar: 'tras 1,2s de toques',
+      // Fase 0: vencer ya no suelta en el acto, pausa (live_pause) y el toque siguiente reanuda;
+      // el caso 7 lo ve en lo mandado al portero.
+      debeFallar: '  -> y no se mando ni un live_pause',
+    },
+    {
+      nombre: 'fase 0: el plazo ignora la entidad',
+      src: () => mutar(src, "    if (Number.isFinite(v) && v >= 0) return v * 1000;", "    if (false) return v * 1000;", 'sin entidad'),
+      debeFallar: 'con la entidad a 0,25 s',
+    },
+    {
+      nombre: 'fase 0: sin veto de llamada',
+      src: () => mutar(src, "    return !!(this.intercomActive || this._talkHeld || this._talkPending);", "    return false;", 'sin veto'),
+      debeFallar: 'con el micro abierto',
+    },
+    {
+      nombre: 'fase 0: al vencer se cuelga sin live_pause ni gracia',
+      src: () => mutar(src, "    this._pausaGraciaTimer = setTimeout(() => this._colgarPorInactividad(), this._idleGraceMs);", "    this._pausaGraciaTimer = null; this._colgarPorInactividad();", 'sin gracia'),
+      debeFallar: 'dentro de la gracia',
+    },
+    {
+      nombre: 'fase 0: la gracia nunca cuelga (la ranura no se libera)',
+      src: () => mutar(src, "    this._teardownConnectionObjects();    // manda `bye`", "    // mutante", 'sin bye'),
+      debeFallar: 'pasada la gracia',
+    },
+    {
+      nombre: 'fase 0: el timbrazo no despierta',
+      src: () => mutar(src, "    if (this._pausaInactividad && document.visibilityState === 'visible') this._reanudarTrasInactividad('timbre');", "", 'sin timbre'),
+      debeFallar: 'un timbrazo SI',
+    },
+    {
+      nombre: 'fase 0: vuelve el STUN del VPS',
+      src: () => mutar(src, "    const iceServers = [];", "    const iceServers = [{ urls: 'stun:46.225.57.138:3478' }];", 'con stun'),
+      debeFallar: 'RTCPeerConnection sin iceServers',
     },
   ];
 
