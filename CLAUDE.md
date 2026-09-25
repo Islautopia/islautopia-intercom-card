@@ -16,6 +16,46 @@ Fuente de verdad de la interfaz del propio doorbell (WebRTC, señalización, `pa
 `app_turn_credentials`, etc.): `C:\Proyectos_espressif\IG_Doorbell\API_CONTRACT.md`. No la
 dupliques aquí.
 
+**v1.9.2 (2026-09-25) — REC, altavoz reubicado, reloj/calidad retirados, pantalla completa
+reparada. Viendo la card en real (Iñaki), no un traspaso razonado.**
+
+- Reloj superpuesto (`.hud-time`/`_updateHudClock`) y selector de calidad (`.hud-quality`/`q-btn`/
+  `q-menu`) RETIRADOS de la UI: el vídeo ya trae su propio OSD de fecha/hora, y en HA la calidad es
+  siempre automática (nunca manual). El deslizador de volumen (`#vol-slider`,
+  `localStorage['islautopia-intercom-vol']`) también se retiró — decisión aparte el mismo día:
+  "ningún cliente lo tiene en su vista en directo, aquí tampoco", el volumen es el del aparato. Lo
+  interno de calidad (`_probeQualitySupport`/`_handleQualityState`/`_paintQuality`) SIGUE vivo y en
+  `auto` siempre — solo se quitó el control visual; los avisos de degradación automática
+  (`q_auto_loss`/`q_auto_bw`/`q_low_warn` en la línea de estado) se mantienen.
+- Fila de acciones reordenada **sonido, micro, abrir, REC** (orden real de `HomeView.swift`
+  `fullscreenControls`/`live_view_body.dart`, no inventado) — el botón de sonido (antes en el HUD
+  junto al volumen) es ahora un botón más de la fila, mismo tamaño que la puerta.
+- **REC nuevo, y usa la entidad de la integración, nunca protocolo propio** (regla del 31-08 "la
+  card enseña, la integración expone"): `rec_entity` (config nueva, mismo patrón que
+  `unlock_entity`/`mode_entity`) debe apuntar a un `switch.*` que la integración
+  `islautopia-doorbell-integration` todavía NO publica a fecha de este cambio — existe
+  `rec_session.py` en esa integración (mantiene la sesión de señalización abierta mientras dura la
+  grabación) pero falta `switch.py`. Hasta que exista, `rec_entity` se deja sin configurar y el
+  botón permanece oculto — nunca se apunta a un entity_id inventado. Visible solo con
+  `hass.user.is_admin` y la entidad presente; el estado (`recording`) es SIEMPRE el de la entidad,
+  nunca el del último toque (`_updateRecButton()`/`toggleRec()`).
+- **Pantalla completa nativa corregida con medida real** (no solo razonada): en la tablet del
+  salón (app oficial de Home Assistant Android, `io.homeassistant.companion.android` — no Chrome
+  aunque lo parezca por fuera) `requestFullscreen()` SÍ se concedía (confirmado con
+  `uiautomator dump`: el WebView ocupa los 1920×1200 físicos completos, barras de sistema
+  ocultas) pero dejaba un hueco negro estable de ~210px abajo / ~15px arriba — reproducible tres
+  veces, no un fotograma de transición. La hoja de estilos nunca fijaba `position:fixed;inset:0`
+  explícito para el camino NATIVO (solo el respaldo CSS `.ig-fs-pseudo` lo hacía) — se confiaba en
+  la hoja UA del navegador para `:fullscreen`, y en este WebView no bastaba. Añadida la clase
+  `ig-fs-native-layout` (solo en nativo, ver `_applyFullscreenUI()`) con esa regla explícita.
+  **Sin re-verificar en la tablet tras el cambio** (se corrigió y probó por lógica + Playwright
+  real en `test/ui_v1_9_2/`, pero no hubo tiempo de repetir la medida en vivo en esta sesión — el
+  siguiente que toque pantalla completa en Android debería confirmarlo antes de dar el hueco por
+  cerrado). Prueba nueva: `test/ui_v1_9_2/` (arnés + driver Playwright, mismo patrón que
+  `test/idle_release_network`) cubre REC/altavoz/modo/orden de botones/pantalla completa con
+  Chromium real, sin HA ni portero de verdad delante — ver cabecera de `driver.js` para cómo
+  arrancarlo (necesita `playwright-core`, no viene instalado en este repo).
+
 **Estado actual (2026-07-10): modo `native` es el ÚNICO modo — el modo `go2rtc` legacy se retiró
 por completo, ver entrada Q22-bis más abajo.** `dist/islautopia-intercom-card.js` sigue siendo un
 único fichero committeado (sin build tooling — se mantuvo así a propósito, ver `ARCHITECTURE.md`

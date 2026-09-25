@@ -16,8 +16,8 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_VERSION = '1.9.1';
-const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-25-pausa-al-salir-de-la-vista`;
+const CARD_VERSION = '1.9.2';
+const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-25-rec-altavoz-modo-fullscreen`;
 
 // ⚠️ ESTA MARCA VIVE EN EL MODULO Y NO EN EL ELEMENTO, Y ESA ES TODA LA GRACIA (2026-09-07).
 //
@@ -102,10 +102,12 @@ const islautopiaLocales = {
     door_opening: "Abriendo la puerta...", lbl_door_opening: "Abriendo", door_no_answer: "El portero no respondió — la puerta NO se ha abierto",
     conn_lan: "Home Assistant no llega al portero por la red local", paused: "En pausa", paused_tap: "En pausa para liberar el portero · toca para reanudar", retry_prefix: "Sin conexión · reintentando en",
     snd_blocked: "Toca el altavoz para oír", cred_revoked: "El portero rechazó el emparejamiento — vuelve a emparejarlo en Ajustes › Dispositivos y servicios",
+    lbl_rec_off: "REC", lbl_rec_on: "Grabando", rec_start_tip: "Empezar a grabar", rec_stop_tip: "Parar la grabación", rec_no_answer: "Home Assistant no aceptó la orden de grabar",
     ed_device_id: "Device ID nativo IG Doorbell (recomendado - ver Ajustes > Dispositivos y servicios)",
     ed_mode_entity: "Entidad de Modo (Opcional - select.* para mostrar los chips Normal/Ausente/Noche/Custom)",
     ed_motion_entity: "Entidad de Movimiento (Opcional - binary_sensor.* para el aviso de movimiento sobre el vídeo)",
     ed_ring_entity: "Entidad de Timbre (Opcional - binary_sensor.* del timbre: al sonar, la card enciende el sonido sola)",
+    ed_rec_entity: "Entidad de REC (Opcional - switch.* de grabación manual de la integración; solo la ven los administradores)",
     ed_entity: "Entidad de Apertura/Relé (Opcional - si se omite con Device ID, se usa la apertura nativa)", ed_duration: "Segundos de Auto-Cierre (1-20)", ed_height: "Altura de la tarjeta (Ej: 400px, 600px, auto)"
   },
   en: { // Inglés (Fallback global)
@@ -125,10 +127,12 @@ const islautopiaLocales = {
     door_opening: "Opening the door...", lbl_door_opening: "Opening", door_no_answer: "No answer from the doorbell — the door did NOT open",
     conn_lan: "Home Assistant can't reach the doorbell on the local network", paused: "Paused", paused_tap: "Paused to free the doorbell · tap to resume", retry_prefix: "No connection · retrying in",
     snd_blocked: "Tap the speaker to listen", cred_revoked: "The doorbell rejected this pairing — re-pair it in Settings › Devices & services",
+    lbl_rec_off: "REC", lbl_rec_on: "Recording", rec_start_tip: "Start recording", rec_stop_tip: "Stop recording", rec_no_answer: "Home Assistant did not accept the recording request",
     ed_device_id: "Native IG Doorbell Device ID (recommended - see Settings > Devices & services)",
     ed_mode_entity: "Mode Entity (Optional - select.* to show the Normal/Away/Night/Custom chips)",
     ed_motion_entity: "Motion Entity (Optional - binary_sensor.* for the motion badge over the video)",
     ed_ring_entity: "Doorbell/Ring Entity (Optional - binary_sensor.* of the chime: the card turns sound on by itself when it rings)",
+    ed_rec_entity: "REC Entity (Optional - switch.* for manual recording from the integration; admins only)",
     ed_entity: "Unlock/Relay Entity (Optional - if left blank with a Device ID, native door-open is used)", ed_duration: "Auto-Close Seconds (1-20)", ed_height: "Card Height (Ex: 400px, 600px, auto)"
   },
   pt: { // Portugués
@@ -148,10 +152,12 @@ const islautopiaLocales = {
     door_opening: "A abrir a porta...", lbl_door_opening: "A abrir", door_no_answer: "O porteiro não respondeu — a porta NÃO foi aberta",
     conn_lan: "O Home Assistant não chega ao porteiro pela rede local", paused: "Em pausa", paused_tap: "Em pausa para libertar o porteiro · toque para retomar", retry_prefix: "Sem ligação · a tentar de novo em",
     snd_blocked: "Toque no altifalante para ouvir", cred_revoked: "O porteiro rejeitou este emparelhamento — volte a emparelhá-lo em Definições › Dispositivos e serviços",
+    lbl_rec_off: "REC", lbl_rec_on: "A gravar", rec_start_tip: "Começar a gravar", rec_stop_tip: "Parar a gravação", rec_no_answer: "O Home Assistant não aceitou o pedido de gravação",
     ed_device_id: "Device ID nativo do IG Doorbell (recomendado)",
     ed_mode_entity: "Entidade de Modo (Opcional - select.* para mostrar os chips Normal/Ausente/Noite/Custom)",
     ed_motion_entity: "Entidade de Movimento (Opcional - binary_sensor.* para o aviso de movimento sobre o vídeo)",
     ed_ring_entity: "Entidade de Campainha (Opcional - binary_sensor.* da campainha: ao tocar, a card liga o som sozinha)",
+    ed_rec_entity: "Entidade de REC (Opcional - switch.* de gravação manual da integração; só para administradores)",
     ed_entity: "Entidade de Abertura/Relé (Opcional - se vazio com Device ID, usa-se a abertura nativa)", ed_duration: "Segundos para Fechar (1-20)", ed_height: "Altura do Cartão (Ex: 400px, 600px, auto)"
   },
   de: { // Alemán
@@ -171,10 +177,12 @@ const islautopiaLocales = {
     door_opening: "Tür wird geöffnet...", lbl_door_opening: "Öffnet", door_no_answer: "Keine Antwort der Türsprechanlage — die Tür wurde NICHT geöffnet",
     conn_lan: "Home Assistant erreicht die Türsprechanlage im lokalen Netz nicht", paused: "Pausiert", paused_tap: "Pausiert, um die Türsprechanlage freizugeben · tippen zum Fortsetzen", retry_prefix: "Keine Verbindung · neuer Versuch in",
     snd_blocked: "Auf den Lautsprecher tippen, um zu hören", cred_revoked: "Die Türsprechanlage hat diese Kopplung abgelehnt — in Einstellungen › Geräte & Dienste neu koppeln",
+    lbl_rec_off: "REC", lbl_rec_on: "Aufnahme läuft", rec_start_tip: "Aufnahme starten", rec_stop_tip: "Aufnahme stoppen", rec_no_answer: "Home Assistant hat die Aufnahme-Anfrage nicht angenommen",
     ed_device_id: "Native IG Doorbell Device ID (empfohlen)",
     ed_mode_entity: "Modus-Entität (Optional - select.* für die Chips Normal/Abwesend/Nacht/Custom)",
     ed_motion_entity: "Bewegungs-Entität (Optional - binary_sensor.* für den Bewegungshinweis über dem Video)",
     ed_ring_entity: "Klingel-Entität (Optional - binary_sensor.* der Klingel: beim Läuten schaltet die Karte den Ton selbst ein)",
+    ed_rec_entity: "REC-Entität (Optional - switch.* für manuelle Aufnahme der Integration; nur für Administratoren)",
     ed_entity: "Türöffner/Relais Entität (Optional - leer mit Device ID nutzt native Öffnung)", ed_duration: "Auto-Schließen Sekunden (1-20)", ed_height: "Kartenhöhe (Bsp: 400px, 600px, auto)"
   },
   fr: { // Francés
@@ -194,10 +202,12 @@ const islautopiaLocales = {
     door_opening: "Ouverture de la porte...", lbl_door_opening: "Ouverture", door_no_answer: "Pas de réponse du portier — la porte n'a PAS été ouverte",
     conn_lan: "Home Assistant n'atteint pas l'interphone sur le réseau local", paused: "En pause", paused_tap: "En pause pour libérer l'interphone · touchez pour reprendre", retry_prefix: "Pas de connexion · nouvel essai dans",
     snd_blocked: "Touchez le haut-parleur pour écouter", cred_revoked: "Le portier a refusé cet appairage — réappairez-le dans Paramètres › Appareils et services",
+    lbl_rec_off: "REC", lbl_rec_on: "Enregistrement", rec_start_tip: "Démarrer l'enregistrement", rec_stop_tip: "Arrêter l'enregistrement", rec_no_answer: "Home Assistant n'a pas accepté la demande d'enregistrement",
     ed_device_id: "Device ID natif IG Doorbell (recommandé)",
     ed_mode_entity: "Entité de Mode (Optionnel - select.* pour afficher les puces Normal/Absent/Nuit/Custom)",
     ed_motion_entity: "Entité de Mouvement (Optionnel - binary_sensor.* pour l'alerte de mouvement sur la vidéo)",
     ed_ring_entity: "Entité de Sonnette (Optionnel - binary_sensor.* de la sonnette : la carte active le son toute seule)",
+    ed_rec_entity: "Entité REC (Optionnel - switch.* d'enregistrement manuel de l'intégration ; réservé aux administrateurs)",
     ed_entity: "Entité de déverrouillage/relais (Optionnel - vide avec Device ID = ouverture native)", ed_duration: "Secondes de fermeture auto (1-20)", ed_height: "Hauteur de la carte (Ex: 400px, 600px, auto)"
   },
   ru: { // Ruso
@@ -217,10 +227,12 @@ const islautopiaLocales = {
     door_opening: "Открывание двери...", lbl_door_opening: "Открывание", door_no_answer: "Домофон не ответил — дверь НЕ открыта",
     conn_lan: "Home Assistant не может связаться с домофоном в локальной сети", paused: "Пауза", paused_tap: "Пауза, чтобы освободить домофон · коснитесь, чтобы продолжить", retry_prefix: "Нет связи · повтор через",
     snd_blocked: "Коснитесь динамика, чтобы слышать", cred_revoked: "Домофон отклонил эту привязку — выполните привязку заново в Настройки › Устройства и службы",
+    lbl_rec_off: "REC", lbl_rec_on: "Запись", rec_start_tip: "Начать запись", rec_stop_tip: "Остановить запись", rec_no_answer: "Home Assistant не принял запрос на запись",
     ed_device_id: "Собственный Device ID IG Doorbell (рекомендуется)",
     ed_mode_entity: "Объект режима (Необязательно - select.* для чипов Обычный/Отсутствие/Ночь/Custom)",
     ed_motion_entity: "Объект движения (Необязательно - binary_sensor.* для значка движения поверх видео)",
     ed_ring_entity: "Объект звонка (Необязательно - binary_sensor.* звонка: при звонке карточка сама включает звук)",
+    ed_rec_entity: "Объект REC (Необязательно - switch.* ручной записи интеграции; только для администраторов)",
     ed_entity: "Объект отпирания/реле (Необязательно - если пусто при Device ID, используется нативное открытие)", ed_duration: "Секунды авто-закрытия (1-20)", ed_height: "Высота карточки (Напр: 400px, 600px, auto)"
   },
   zh: { // Chino Mandarín
@@ -240,10 +252,12 @@ const islautopiaLocales = {
     door_opening: "正在开门...", lbl_door_opening: "开门中", door_no_answer: "门口机没有响应 — 门并未打开",
     conn_lan: "Home Assistant 无法通过局域网连接门铃", paused: "已暂停", paused_tap: "已暂停以释放门铃 · 轻触继续", retry_prefix: "无连接 · 重试倒计时",
     snd_blocked: "点击扬声器以收听", cred_revoked: "门口机拒绝了此配对 — 请在 设置 › 设备与服务 中重新配对",
+    lbl_rec_off: "REC", lbl_rec_on: "录制中", rec_start_tip: "开始录制", rec_stop_tip: "停止录制", rec_no_answer: "Home Assistant 未接受录制请求",
     ed_device_id: "原生 IG Doorbell 设备 ID (推荐)",
     ed_mode_entity: "模式实体 (可选 - select.* 用于显示 正常/离开/夜间/自定义 标签)",
     ed_motion_entity: "移动实体 (可选 - binary_sensor.* 用于视频上的移动提示)",
     ed_ring_entity: "门铃实体 (可选 - binary_sensor.* 门铃：响铃时卡片自动开启声音)",
+    ed_rec_entity: "REC 实体 (可选 - 集成提供的手动录制 switch.*；仅管理员可见)",
     ed_entity: "解锁/继电器实体 (可选 - 留空且有设备ID时使用原生开门)", ed_duration: "自动关闭秒数 (1-20)", ed_height: "卡片高度 (例: 400px, 600px, auto)"
   },
   hi: { // Hindi
@@ -263,10 +277,12 @@ const islautopiaLocales = {
     door_opening: "दरवाज़ा खोला जा रहा है...", lbl_door_opening: "खुल रहा है", door_no_answer: "डोरबेल ने जवाब नहीं दिया — दरवाज़ा नहीं खुला",
     conn_lan: "Home Assistant लोकल नेटवर्क पर डोरबेल तक नहीं पहुँच पा रहा", paused: "रुका हुआ", paused_tap: "डोरबेल खाली करने के लिए रुका · फिर शुरू करने के लिए छुएँ", retry_prefix: "कनेक्शन नहीं · फिर कोशिश",
     snd_blocked: "सुनने के लिए स्पीकर पर टैप करें", cred_revoked: "डोरबेल ने यह पेयरिंग अस्वीकार कर दी — सेटिंग्स › डिवाइस और सेवाएँ में दोबारा पेयर करें",
+    lbl_rec_off: "REC", lbl_rec_on: "रिकॉर्डिंग हो रही है", rec_start_tip: "रिकॉर्डिंग शुरू करें", rec_stop_tip: "रिकॉर्डिंग रोकें", rec_no_answer: "Home Assistant ने रिकॉर्डिंग का अनुरोध स्वीकार नहीं किया",
     ed_device_id: "नेटिव IG Doorbell डिवाइस ID (अनुशंसित)",
     ed_mode_entity: "मोड एंटिटी (वैकल्पिक - select.* सामान्य/अनुपस्थित/रात/कस्टम चिप्स दिखाने के लिए)",
     ed_motion_entity: "मोशन एंटिटी (वैकल्पिक - binary_sensor.* वीडियो पर मोशन बैज के लिए)",
     ed_ring_entity: "डोरबेल एंटिटी (वैकल्पिक - binary_sensor.* घंटी: बजने पर कार्ड स्वयं ध्वनि चालू करता है)",
+    ed_rec_entity: "REC एंटिटी (वैकल्पिक - इंटीग्रेशन की switch.* मैनुअल रिकॉर्डिंग; केवल एडमिन के लिए)",
     ed_entity: "अनलॉक/रिले एंटिटी (वैकल्पिक - खाली और Device ID होने पर नेटिव ओपन उपयोग होगा)", ed_duration: "ऑटो-क्लोज़ सेकंड (1-20)", ed_height: "कार्ड की ऊंचाई (उदा: 400px, 600px, auto)"
   },
   ar: { // Árabe
@@ -286,10 +302,12 @@ const islautopiaLocales = {
     door_opening: "جارٍ فتح الباب...", lbl_door_opening: "جارٍ الفتح", door_no_answer: "لا رد من الجهاز — لم يُفتح الباب",
     conn_lan: "لا يصل Home Assistant إلى الجرس عبر الشبكة المحلية", paused: "متوقف مؤقتاً", paused_tap: "متوقف مؤقتاً لتحرير الجرس · المس للمتابعة", retry_prefix: "لا يوجد اتصال · إعادة المحاولة خلال",
     snd_blocked: "المس مكبر الصوت للاستماع", cred_revoked: "رفض الجهاز هذا الاقتران — أعد الاقتران من الإعدادات › الأجهزة والخدمات",
+    lbl_rec_off: "REC", lbl_rec_on: "جارٍ التسجيل", rec_start_tip: "بدء التسجيل", rec_stop_tip: "إيقاف التسجيل", rec_no_answer: "لم يقبل Home Assistant طلب التسجيل",
     ed_device_id: "معرّف الجهاز الأصلي IG Doorbell (موصى به)",
     ed_mode_entity: "كيان الوضع (اختياري - select.* لعرض رقائق عادي/غائب/ليلي/مخصص)",
     ed_motion_entity: "كيان الحركة (اختياري - binary_sensor.* لشارة الحركة فوق الفيديو)",
     ed_ring_entity: "كيان الجرس (اختياري - binary_sensor.* للجرس: عند الرنين تشغّل البطاقة الصوت تلقائياً)",
+    ed_rec_entity: "كيان REC (اختياري - switch.* للتسجيل اليدوي من التكامل؛ للمسؤولين فقط)",
     ed_entity: "كيان الفتح/المُرحِّل (اختياري - إذا تُرك فارغاً مع Device ID يُستخدم الفتح الأصلي)", ed_duration: "ثواني الإغلاق التلقائي (1-20)", ed_height: "ارتفاع البطاقة (مثال: 400px، 600px، auto)"
   }
 };
@@ -796,7 +814,6 @@ class IslautopiaIntercomCard extends HTMLElement {
       this._setLiveState('connecting');
     }
     if (this.loader) this.loader.style.opacity = '1';
-    if (this._hudClockTimer) { clearInterval(this._hudClockTimer); this._hudClockTimer = null; }
     if (this._doorArmTimer) { clearTimeout(this._doorArmTimer); this._doorArmTimer = null; }
     this._doorArmedAt = 0;
     this._stopRetryCountdown();
@@ -1080,6 +1097,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._updateModeRow();
     this._updateMotionPill();
     this._updateRingState();
+    this._updateRecButton();
     this._vigilarPlazoInactividad();
     this._repaintTextsIfLanguageChanged();
   }
@@ -1183,6 +1201,64 @@ class IslautopiaIntercomCard extends HTMLElement {
   }
 
   // ==============================================================================
+  // REC (recordings v2, Iñaki 2026-09-25) - "la card ENSEÑA, la integración EXPONE" (decisión del
+  // 2026-08-31, ver hass_todo_en_la_integracion): a diferencia de las apps (que hablan rec_start/
+  // rec_stop directamente con el portero por la sesión de señalización, WebRTCSession.swift /
+  // live_session_wiring.dart), esta card NUNCA abre un canal propio para grabar - llama al
+  // servicio de la entidad `rec_entity` que el usuario configura, que debe apuntar al switch.* que
+  // publique la integración islautopia_doorbell (en camino, v0.7.2 a fecha de este cambio: existe
+  // ya `rec_session.py` en esa integración, que mantiene la sesión abierta mientras dura la
+  // grabación, pero la entidad `switch` que lo expone todavía no está creada - ver `switch.py`,
+  // ausente). Mientras esa entidad no exista, `rec_entity` se deja SIN configurar (oculto), nunca
+  // apuntando a un entity_id inventado - un botón que llama a un servicio que no existe fallaría en
+  // silencio salvo por el error en el registro de HA (§1.0 punto 5: un fallo se dice, no se finge).
+  //
+  // Visible solo para un administrador de Home Assistant (mismo criterio que RecordingButtonRule
+  // de las apps: "solo lo ve y lo usa un administrador", memoria grabacion_manual_boton_rec) y solo
+  // con `rec_entity` configurada y esa entidad presente en `hass.states` - igual que
+  // unlock_entity/mode_entity/motion_entity, oculto por completo si no aplica, nunca deshabilitado
+  // mintiendo que existe.
+  //
+  // El estado "está grabando" NUNCA se adivina localmente (ni por el último toque, ni por si el
+  // micro está abierto): se pinta tal cual lo diga `rec_entity.state` ('on'/'off'), que es lo que
+  // la integración habrá sincronizado desde el `rec_state` real del portero - la MISMA regla que ya
+  // aplican las apps (RecordingButtonRule.blinks), aquí expresada contra una entidad de HA en vez
+  // de contra el mensaje nativo.
+  _updateRecButton() {
+    if (!this.recAction || !this.recButton) return;
+    const entityId = this.config.rec_entity;
+    const isAdmin = !!(this._hass && this._hass.user && this._hass.user.is_admin);
+    const stateObj = entityId && this._hass ? this._hass.states[entityId] : null;
+    const visible = isAdmin && !!stateObj;
+    this.recAction.style.display = visible ? '' : 'none';
+    if (!visible) return;
+    const recording = stateObj.state === 'on';
+    this.recButton.classList.toggle('recording', recording);
+    if (this.recIcon) this.recIcon.setAttribute('icon', recording ? 'mdi:record-circle' : 'mdi:record-circle-outline');
+    if (this.recLabel) this.recLabel.textContent = getLocalText(this._hass, recording ? 'lbl_rec_on' : 'lbl_rec_off');
+    this.recButton.setAttribute('title', getLocalText(this._hass, recording ? 'rec_stop_tip' : 'rec_start_tip'));
+    this.recButton.setAttribute('aria-pressed', recording ? 'true' : 'false');
+  }
+
+  // Un toggle sobre lo que dice la ENTIDAD, nunca sobre el último tap (mismo principio que
+  // RecordingButtonRule.request en las apps): si otro admin ya la paró o el portero la cerró sola
+  // (tope de 10 min, una llamada que se lleva la ranura), el próximo toque pide lo contrario de lo
+  // que hay AHORA, no lo contrario de lo último que pedimos nosotros.
+  toggleRec() {
+    if (!this._hass || !this.config.rec_entity) return;
+    const entityId = this.config.rec_entity;
+    const domain = entityId.split('.')[0];
+    const stateObj = this._hass.states[entityId];
+    const recording = !!stateObj && stateObj.state === 'on';
+    const service = recording ? 'turn_off' : 'turn_on';
+    Promise.resolve(this._hass.callService(domain, service, { entity_id: entityId }))
+      .catch((err) => {
+        console.error(`[islautopia-intercom-card] Home Assistant rechazo ${domain}.${service} sobre ${entityId}`, err);
+        this._flashStatusLine('rec_no_answer', 6000);
+      });
+  }
+
+  // ==============================================================================
   // Estado visual del "live-tag" (pildora EN VIVO/Conectando/Error superpuesta al video, esquina
   // superior izquierda) y de las etiquetas bajo los botones de accion - centralizado para que
   // cada sitio que antes hacia `this.badge.textContent = ...` a mano tenga un unico punto que
@@ -1219,14 +1295,6 @@ class IslautopiaIntercomCard extends HTMLElement {
     // (esquina inferior-dcha, ver COORDINATION.md Q22-bis) reaccionen por CSS puro al mismo
     // estado, sin duplicar logica JS - mismo principio que ya usa .live-tag[data-state=...].
     if (this.feedWrap) this.feedWrap.dataset.state = dataState;
-  }
-
-  _updateHudClock() {
-    if (!this.hudTimeHm) return;
-    const now = new Date();
-    const pad = (n) => String(n).padStart(2, '0');
-    this.hudTimeHm.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-    this.hudTimeDate.textContent = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${String(now.getFullYear()).slice(-2)}`;
   }
 
   // NOTA (2026-07-26): el antiguo _setMicLabel(active) desaparecio al introducirse el turno de
@@ -2036,6 +2104,19 @@ class IslautopiaIntercomCard extends HTMLElement {
       this.setAttribute('data-fs', '1');
       this.content.classList.add('ig-fs');
       this.content.classList.toggle('ig-fs-pseudo', !this._fsNative);
+      // ⚠️ MEDIDO EN REAL (2026-09-25, tablet del salon, app oficial de Home Assistant Android -
+      // no Chrome, aunque por fuera lo parezca): `requestFullscreen()` SI se concede (desaparecen
+      // la barra de estado y la de navegacion del sistema, confirmado con `uiautomator dump`: el
+      // WebView ocupa los 1920x1200 fisicos completos) pero el contenido deja un hueco NEGRO real
+      // de ~210px abajo y ~15px arriba - reproducible, estable, no un fotograma de transicion
+      // (se mantiene igual pasados 3s). La unica explicacion que sobrevive: esta hoja de estilos
+      // nunca fija `position:fixed;inset:0` en el propio elemento para el camino NATIVO (linea de
+      // mas abajo) - se confiaba en que la hoja UA del navegador coloca `:fullscreen` a pantalla
+      // completa sola, y en este WebView concreto esa regla implicita no basta (o no esta). El
+      // respaldo CSS (nivel 2, `.ig-fs-pseudo`) SI fija `position:fixed;inset:0` explicito y no
+      // tiene este problema - la clase de abajo hace lo mismo para el nativo, sin tocar el
+      // respaldo. Redundante e inofensivo en un navegador donde `:fullscreen` ya lo hacia bien.
+      this.classList.toggle('ig-fs-native-layout', this._fsNative);
       // Bloquear el scroll del documento por debajo solo tiene sentido en el respaldo (en nativo
       // el documento ya no se ve). Sin esto, un dedo sobre la card en el movil puede mover el
       // dashboard entero por detras.
@@ -2045,6 +2126,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       // un fotograma con la card ya sin estilos de modo pero todavia colgando de <body>.
       this._deshacerPortal();
       this.removeAttribute('data-fs');
+      this.classList.remove('ig-fs-native-layout');
       this.content.classList.remove('ig-fs', 'ig-fs-pseudo');
       document.body.classList.remove('ig-fs-body-lock');
     }
@@ -2523,6 +2605,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       this.sndBtn.setAttribute('title', getLocalText(this._hass, this._audioOn ? 'snd_on' : 'snd_off'));
       this.sndBtn.setAttribute('aria-pressed', this._audioOn ? 'true' : 'false');
     }
+    if (this.sndLabel) this.sndLabel.textContent = getLocalText(this._hass, this._audioOn ? 'snd_on' : 'snd_off');
   }
 
   // El timbre es el unico motivo por el que el sonido se enciende SOLO (§1.10): es el momento para
@@ -2851,10 +2934,6 @@ class IslautopiaIntercomCard extends HTMLElement {
                     <span id="clients-count">1</span>
                   </div>
                 </div>
-                <div class="hud-time" id="hud-time">
-                  <div class="hm" id="hud-time-hm">--:--</div>
-                  <div class="ymd" id="hud-time-date">--/--/--</div>
-                </div>
               </div>
 
               <div class="motion-pill" id="motion-pill" style="display:none;">
@@ -2868,28 +2947,6 @@ class IslautopiaIntercomCard extends HTMLElement {
                   <span>${getLocalText(this._hass, 'audio_active')}</span>
                 </div>
                 <div class="hud-bottom-right">
-                  <!-- Selector de calidad por destinatario (API_CONTRACT.md §1.4-ter #3). Solo
-                       aparece cuando el dispositivo ha CONFIRMADO al menos un quality_state (ver
-                       _probeQualitySupport): un firmware anterior al contrato ignora el mensaje
-                       'quality' en silencio, y un selector que no hace nada seria un boton que
-                       miente. El menu se pinta desde QUALITY_MODES en _renderQualityMenu(). -->
-                  <div class="hud-quality" id="hud-quality" style="display:none;">
-                    <button type="button" class="q-btn" id="q-btn" title="${getLocalText(this._hass, 'q_label')}">
-                      <ha-icon id="q-icon" icon="mdi:auto-fix"></ha-icon>
-                      <span id="q-label">${getLocalText(this._hass, 'q_auto')}</span>
-                    </button>
-                    <div class="q-menu" id="q-menu" style="display:none;"></div>
-                  </div>
-                  <!-- Control de sonido (API_CONTRACT.md §1.10). El altavoz de este lado arranca
-                       MUDO: ver no es escuchar. El icono es un BOTON de verdad, no un adorno junto
-                       al deslizador - antes el deslizador cambiaba el volumen de un elemento que
-                       seguia mudo, o sea un control que mentia: subirlo no hacia sonar nada. -->
-                  <div class="hud-vol" id="hud-vol">
-                    <button type="button" class="snd-btn" id="snd-btn" aria-pressed="false" title="${getLocalText(this._hass, 'snd_off')}">
-                      <ha-icon icon="mdi:volume-off" id="vol-icon"></ha-icon>
-                    </button>
-                    <input type="range" id="vol-slider" min="0" max="1" step="0.05" value="1">
-                  </div>
                   <div class="hud-sig" id="hud-sig"><i></i><i></i><i></i><i></i></div>
                   <!-- Pantalla completa. Ultimo del cluster derecho, que es donde lo
                        espera cualquiera que haya usado un reproductor de video. Sigue visible
@@ -2918,6 +2975,19 @@ class IslautopiaIntercomCard extends HTMLElement {
 
               <div class="actions-row">
                 <div class="action">
+                  <!-- Altavoz de la calle (API_CONTRACT.md §1.10): reubicado desde el HUD
+                       (esquina inferior-dcha) a la fila de botones principal, junto a micro/
+                       abrir/REC, para parecerse a la disposicion de las apps (Iñaki, 2026-09-25:
+                       "sonido, micro, abrir, REC"). El deslizador de volumen SE RETIRA a la vez
+                       (decision aparte del mismo dia: "ningun cliente lo tiene en su vista en
+                       directo, aqui tampoco" - el volumen es el del propio aparato). Arranca
+                       MUDO, igual que siempre (ver no es escuchar). -->
+                  <button type="button" id="snd-btn" class="btn snd" aria-pressed="false" title="${getLocalText(this._hass, 'snd_off')}">
+                    <ha-icon icon="mdi:volume-off" id="vol-icon"></ha-icon>
+                  </button>
+                  <span class="lbl" id="snd-lbl">${getLocalText(this._hass, 'snd_off')}</span>
+                </div>
+                <div class="action">
                   <button id="intercom-button" class="btn mic" disabled>
                     <div class="pulsering"></div>
                     <ha-icon icon="mdi:microphone-off"></ha-icon>
@@ -2929,6 +2999,20 @@ class IslautopiaIntercomCard extends HTMLElement {
                     <ha-icon icon="mdi:key"></ha-icon>
                   </button>
                   <span class="lbl" id="unlock-lbl">${getLocalText(this._hass, 'lbl_door_idle')}</span>
+                </div>
+                <!-- REC (recordings v2, Iñaki 2026-09-25): la card ENSEÑA, la integración EXPONE
+                     (decision del 2026-08-31) - este boton nunca habla el protocolo rec_start/
+                     rec_stop directo con el portero (a diferencia de las apps): llama al servicio
+                     de la entidad rec_entity que configura el usuario, que debe apuntar al
+                     switch.* que publique islautopia_doorbell (en camino, v0.7.2 - ver
+                     _toggleRec()/_updateRecButton()). Oculto sin esa entidad y para quien no sea
+                     administrador de Home Assistant. -->
+                <div class="action" id="rec-action" style="display:none;">
+                  <button type="button" id="rec-button" class="btn rec">
+                    <div class="pulsering rec"></div>
+                    <ha-icon icon="mdi:record-circle-outline" id="rec-icon"></ha-icon>
+                  </button>
+                  <span class="lbl" id="rec-lbl">${getLocalText(this._hass, 'lbl_rec_off')}</span>
                 </div>
               </div>
             </div>
@@ -2952,12 +3036,14 @@ class IslautopiaIntercomCard extends HTMLElement {
       this.unlockButton = this.querySelector('#unlock-button');
       this.unlockIcon = this.querySelector('#unlock-button ha-icon');
       this.unlockLabel = this.querySelector('#unlock-lbl');
-      this.volSlider = this.querySelector('#vol-slider');
       this.volIcon = this.querySelector('#vol-icon');
       this.sndBtn = this.querySelector('#snd-btn');
+      this.sndLabel = this.querySelector('#snd-lbl');
+      this.recAction = this.querySelector('#rec-action');
+      this.recButton = this.querySelector('#rec-button');
+      this.recIcon = this.querySelector('#rec-icon');
+      this.recLabel = this.querySelector('#rec-lbl');
       this.loader = this.querySelector('#ig-loader');
-      this.hudTimeHm = this.querySelector('#hud-time-hm');
-      this.hudTimeDate = this.querySelector('#hud-time-date');
       this.clientsPill = this.querySelector('#clients-pill');
       this.clientsCount = this.querySelector('#clients-count');
       this.qualityCtl = this.querySelector('#hud-quality');
@@ -2994,23 +3080,6 @@ class IslautopiaIntercomCard extends HTMLElement {
       this._registerFullscreenListeners();
       this._applyDoorAvailability();
 
-      this._renderQualityMenu();
-      this.qualityBtn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        this._toggleQualityMenu();
-      });
-      // Cerrar el menu al tocar en cualquier otro sitio (incluido el propio video) - un popup
-      // sobre el video que no se cierra solo tapa la imagen, justo lo que el usuario quiere ver.
-      this._onDocClickForQuality = () => { if (this._qualityMenuOpen) this._toggleQualityMenu(false); };
-      document.addEventListener('click', this._onDocClickForQuality);
-
-      // Reloj superpuesto arriba-dcha (HH:MM + fecha, mono) - decorativo (hora del propio
-      // navegador, no del dispositivo), pero es parte real del HUD del mockup Figma (valores
-      // exactos confirmados 2026-07-10, ver COORDINATION.md Q22-bis). Corre siempre, independiente
-      // del estado de conexion - se para solo en disconnectedCallback() (la card sale del DOM).
-      this._updateHudClock();
-      this._hudClockTimer = setInterval(() => this._updateHudClock(), 1000);
-
       // El "alto configurable" aplica al MARCO DE VIDEO (.feed-wrap), no a la card entera - la
       // card ahora tiene ademas la fila de modo/linea de estado/botones fuera del video, que
       // deben conservar su alto natural en vez de comprimirse dentro de la medida pensada solo
@@ -3040,35 +3109,20 @@ class IslautopiaIntercomCard extends HTMLElement {
 
       this.intercomButton.addEventListener('click', () => this.toggleIntercom());
 
-      // El deslizador guarda el VOLUMEN; encender o apagar el sonido es el boton de al lado
-      // (§1.10). Son dos cosas distintas y hasta ahora estaban confundidas en una: el volumen se
-      // recordaba entre sesiones y el sonido nacia mudo, asi que el usuario veia el deslizador al
-      // maximo y no oia nada. El volumen se sigue recordando; el sonido, deliberadamente NO.
-      const savedVol = localStorage.getItem('islautopia-intercom-vol') || '1';
-      this.volSlider.value = savedVol;
+      // El control de volumen SE RETIRA de la card (Iñaki, 2026-09-25: "ningún cliente lo tiene
+      // en la card. Aquí tampoco" - ni iOS ni Android traen un deslizador en su vista en directo,
+      // el volumen es el del propio aparato). Lo que queda es solo el interruptor de sonido de
+      // §1.10 (oír o no la calle), ahora un boton mas de la fila de acciones. El <video> se deja
+      // siempre a volumen 1 (ver setupRemoteStream) y lo unico que cambia es `.muted`.
       this._paintAudioState();
-
       this.sndBtn.addEventListener('click', (ev) => {
         ev.stopPropagation();
-        // Subir el sonido con el volumen a cero no haria nada y pareceria una averia.
-        if (!this._audioOn && parseFloat(this.volSlider.value) === 0) {
-          this.volSlider.value = '1';
-          this.videoEl.volume = 1;
-          localStorage.setItem('islautopia-intercom-vol', '1');
-        }
         this._setAudioOn(!this._audioOn, 'usuario');
       });
 
-      this.volSlider.addEventListener('input', (e) => {
-        const val = parseFloat(e.target.value);
-        this.videoEl.volume = val;
-        localStorage.setItem('islautopia-intercom-vol', String(val));
-        // Mover el deslizador ES una accion explicita del usuario sobre el sonido, asi que vale
-        // como "abrir el audio" - y ademas es el gesto que el navegador exige para desmutear.
-        if (val > 0 && !this._audioOn) this._setAudioOn(true, 'deslizador');
-        else if (val === 0 && this._audioOn) this._setAudioOn(false, 'deslizador');
-        else this._paintAudioState();
-      });
+      // REC (recordings v2, §1.4-quater): boton opcional, solo con `rec_entity` configurada y
+      // usuario administrador de Home Assistant - ver _updateRecButton()/toggleRec().
+      this.recButton.addEventListener('click', () => this.toggleRec());
 
       this.injectStyles();
       this._updateHassBoundUI();
@@ -4067,7 +4121,9 @@ class IslautopiaIntercomCard extends HTMLElement {
       // una reconexion no debe dejar sordo a quien estaba escuchando, pero tampoco encender el
       // sonido de una sesion nueva por su cuenta.
       this.videoEl.muted = !this._audioOn;
-      this.videoEl.volume = parseFloat(this.volSlider.value);
+      // El volumen ya no lo gestiona la card (retirado el deslizador, 2026-09-25): siempre 1, el
+      // control real es el del propio aparato/altavoz.
+      this.videoEl.volume = 1;
       this.videoEl.play().catch(() => {});
       this._paintAudioState();
 
@@ -4248,65 +4304,7 @@ class IslautopiaIntercomCard extends HTMLElement {
         font-family: inherit; transition: all 0.3s ease;
       }
 
-      /* Reloj superpuesto arriba-dcha - mono, tal cual el mockup (hora grande + fecha pequeña). */
-      .hud-time { text-align: right; font-family: 'Consolas', 'Roboto Mono', monospace; font-variant-numeric: tabular-nums; }
-      .hud-time .hm { font-size: 15px; font-weight: 700; color: var(--ig-text); line-height: 1.1; text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
-      .hud-time .ymd { font-size: 10px; color: rgba(232,240,254,0.75); text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
-
       .hud-bottom-right { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-
-      /* Selector de calidad (§1.4-ter #3), en el mismo cluster de controles reales de la esquina
-         inferior-dcha que el volumen y las barras de señal. El menu se abre HACIA ARRIBA
-         (bottom:100%) para no salirse del marco de video en una card baja, y con
-         position:absolute para no empujar el resto del HUD al abrirse. */
-      .hud-quality { position: relative; pointer-events: auto; }
-      .q-btn {
-        display: flex; align-items: center; gap: 5px; cursor: pointer; font-family: inherit;
-        background: rgba(7,13,26,0.55); border: 1px solid rgba(255,255,255,0.12);
-        border-radius: 999px; padding: 5px 10px; color: var(--ig-text);
-        font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em;
-      }
-      .q-btn ha-icon { --mdc-icon-size: 14px; }
-      .q-btn:hover { border-color: rgba(0,196,212,0.5); }
-      .q-menu {
-        position: absolute; bottom: calc(100% + 6px); right: 0; z-index: 20;
-        display: flex; flex-direction: column; gap: 2px; padding: 5px;
-        background: rgba(13,27,46,0.96); backdrop-filter: blur(8px);
-        border: 1px solid rgba(255,255,255,0.12); border-radius: 12px;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.5); min-width: 132px;
-      }
-      .q-menu .q-opt {
-        display: flex; align-items: center; gap: 8px; width: 100%; cursor: pointer;
-        background: transparent; border: none; border-radius: 8px; padding: 7px 9px;
-        color: var(--ig-muted); font-size: 11.5px; font-weight: 600; font-family: inherit; text-align: left;
-      }
-      .q-menu .q-opt ha-icon { --mdc-icon-size: 15px; flex-shrink: 0; }
-      /* Segunda linea explicativa por opcion: "Baja" es ~1 imagen/s, no video fluido de menos
-         calidad - sin decirlo, se percibe como averia (ver QUALITY_MODES). */
-      .q-menu .q-txt { display: flex; flex-direction: column; line-height: 1.25; }
-      .q-menu .q-txt b { font-weight: 700; }
-      .q-menu .q-txt i { font-style: normal; font-size: 10px; font-weight: 500; color: var(--ig-dim); }
-      .q-menu .q-opt.sel .q-txt i { color: rgba(0,196,212,0.75); }
-      .q-menu .q-opt:hover { background: rgba(255,255,255,0.06); color: var(--ig-text); }
-      .q-menu .q-opt.sel { background: rgba(0,196,212,0.16); color: var(--ig-cyan); }
-      .hud-vol {
-        display: flex; align-items: center; gap: 6px; background: rgba(7,13,26,0.55);
-        border-radius: 999px; padding: 5px 10px; pointer-events: auto;
-      }
-      .hud-vol input[type=range] { width: 56px; accent-color: var(--ig-cyan); cursor: pointer; }
-      .hud-vol ha-icon { --mdc-icon-size: 16px; color: var(--ig-text); }
-      /* Control de sonido (§1.10). En reposo esta MUDO, y eso tiene que leerse de un vistazo: el
-         icono tachado en gris apagado, y en cian encendido cuando de verdad se oye. Un control de
-         sonido cuyo estado hay que adivinar es peor que no tenerlo, porque el usuario cree que
-         esta oyendo. */
-      .snd-btn {
-        display: flex; align-items: center; justify-content: center; cursor: pointer;
-        background: transparent; border: none; padding: 0; margin: 0;
-        color: var(--ig-dim); font-family: inherit;
-      }
-      .snd-btn ha-icon { --mdc-icon-size: 16px; color: inherit; }
-      .snd-btn.on { color: var(--ig-cyan); }
-      .snd-btn:hover { color: var(--ig-text); }
 
       /* Boton de pantalla completa, ultimo del cluster derecho. */
       .hud-fs {
@@ -4365,12 +4363,6 @@ class IslautopiaIntercomCard extends HTMLElement {
          forma de acceder a una funcion. */
       @container igfeed (max-width: 460px) {
         .hud-sig { display: none; }
-        .hud-vol input[type=range] { width: 40px; }
-      }
-      @container igfeed (max-width: 340px) {
-        .q-btn span { display: none; }
-        .hud-vol input[type=range] { width: 28px; }
-        .hud-time .ymd { display: none; }
       }
 
       /* ---- linea de estado + botones de accion: SOBRE el video, no debajo ----
@@ -4407,8 +4399,8 @@ class IslautopiaIntercomCard extends HTMLElement {
          boton, solo los circulos en si. */
       .actions-row {
         position: absolute; left: 0; right: 0; bottom: 10px; z-index: 8;
-        display: flex; justify-content: center; align-items: flex-end; gap: 24px;
-        padding: 0; pointer-events: none;
+        display: flex; justify-content: center; align-items: flex-end; gap: 16px;
+        padding: 0; pointer-events: none; flex-wrap: nowrap;
       }
       .actions-row .action { pointer-events: auto; }
       .action { display: flex; flex-direction: column; align-items: center; gap: 6px; }
@@ -4423,15 +4415,27 @@ class IslautopiaIntercomCard extends HTMLElement {
       }
       .action .btn:disabled { opacity: 0.5; cursor: not-allowed; }
       /* 80px/60px EXACTOS confirmados contra el codigo fuente real (2026-07-10, antes 76/56
-         aproximados de la reconstruccion visual) - ver COORDINATION.md Q22-bis. */
+         aproximados de la reconstruccion visual) - ver COORDINATION.md Q22-bis. Sonido y REC
+         (2026-09-25) se unen a la fila con el mismo tamaño "secundario" que la puerta, en el orden
+         que piden las apps (sonido, micro, abrir, REC) - ver COORDINATION.md. */
       .action .btn.mic { width: 80px; height: 80px; }
       .action .btn.mic ha-icon { --mdc-icon-size: 30px; }
-      .action .btn.door { width: 60px; height: 60px; }
-      .action .btn.door ha-icon { --mdc-icon-size: 24px; }
+      .action .btn.door, .action .btn.snd, .action .btn.rec { width: 60px; height: 60px; }
+      .action .btn.door ha-icon, .action .btn.snd ha-icon, .action .btn.rec ha-icon { --mdc-icon-size: 24px; }
       .action .btn.active-intercom { background: linear-gradient(135deg, var(--ig-cyan), var(--ig-blue)); border-color: transparent; box-shadow: 0 0 28px rgba(0,196,212,0.45), 0 8px 24px rgba(0,0,0,0.4); color: var(--ig-text); transform: scale(1.05); }
       .action .btn.active-unlock { background: linear-gradient(135deg, var(--ig-green), #388E3C); border-color: transparent; box-shadow: 0 0 22px rgba(76,175,80,0.5); color: var(--ig-text); transform: scale(1.05); }
+      /* Altavoz de la calle (§1.10): mismo criterio visual que el resto - gris apagado en reposo
+         (mudo), cian cuando de verdad se oye. Sustituye al antiguo boton pequeño sin fondo del
+         HUD (.snd-btn), que vivia junto al deslizador de volumen ya retirado. */
+      .action .btn.snd.on { color: var(--ig-cyan); border-color: rgba(0,196,212,0.5); box-shadow: 0 0 18px rgba(0,196,212,0.35), 0 6px 22px rgba(0,0,0,0.65); }
+      /* REC (recordings v2): rojo solo cuando el portero confirma que esta grabando - nunca al
+         pulsar, que seria adelantar un estado que no es nuestro (la integracion es la unica fuente
+         de verdad, §1.4-quater). */
+      .action .btn.rec.recording { color: var(--ig-red); border-color: rgba(239,83,80,0.5); background: linear-gradient(135deg, rgba(239,83,80,0.22), rgba(239,83,80,0.08)); box-shadow: 0 0 18px rgba(239,83,80,0.4), 0 6px 22px rgba(0,0,0,0.65); }
       .pulsering { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--ig-cyan); animation: ig-ring 1.2s infinite; pointer-events: none; display: none; }
+      .pulsering.rec { border-color: var(--ig-red); }
       .action .btn.active-intercom .pulsering { display: block; }
+      .action .btn.rec.recording .pulsering.rec { display: block; }
       @keyframes ig-ring { 0% { transform: scale(1); opacity: 0.55; } 100% { transform: scale(1.55); opacity: 0; } }
       /* Etiquetas claras + sombra, no el gris apagado de antes: tienen que leerse sobre CUALQUIER
          fondo de video, igual que ya resolvia pantalla completa. */
@@ -4449,6 +4453,22 @@ class IslautopiaIntercomCard extends HTMLElement {
          medido igual: hay que probarlo, no calcularlo de memoria. */
       @container igfeed (max-width: 520px) {
         .hud-bottom { bottom: 148px; }
+      }
+
+      /* Con sonido y REC sumados a la fila (2026-09-25) los cuatro botones no caben con su tamaño
+         normal en una card estrecha (movil en vertical, o una columna angosta de un dashboard de
+         escritorio) - se encogen un escalon en vez de desbordar o envolver la fila, que rompería
+         la disposicion fija que pide el contrato (sonido, micro, abrir, REC siempre en ese orden y
+         en una sola linea). */
+      @container igfeed (max-width: 380px) {
+        .actions-row { gap: 8px; }
+        .action .btn.mic { width: 68px; height: 68px; }
+        .action .btn.mic ha-icon { --mdc-icon-size: 26px; }
+        .action .btn.door, .action .btn.snd, .action .btn.rec { width: 52px; height: 52px; }
+        .action .btn.door ha-icon, .action .btn.snd ha-icon, .action .btn.rec ha-icon { --mdc-icon-size: 21px; }
+      }
+      @container igfeed (max-width: 300px) {
+        .action .lbl { display: none; }
       }
 
       /* ---- estados del boton de micro introducidos por el turno de palabra (§1.4-ter #1) ----
@@ -4498,6 +4518,17 @@ class IslautopiaIntercomCard extends HTMLElement {
          !important, no una pelea de especificidad inventada.
          ========================================================================== */
       islautopia-intercom-card[data-fs] { height: 100%; background: #000; }
+      /* Red de seguridad para pantalla completa NATIVA (2026-09-25, ver el porque medido en
+         _applyFullscreenUI()): fuerza el mismo position:fixed + inset:0 explicito que el respaldo
+         CSS ya se daba a si mismo, en vez de confiar en que la hoja UA del navegador coloque
+         :fullscreen a pantalla completa por su cuenta - en al menos un WebView real (app de
+         Home Assistant Android) no bastaba, y el sintoma era una franja negra estable de ~210px
+         abajo con la barra de estado/navegacion del sistema ya ocultas (o sea, el hueco esta
+         DENTRO del contenido web, no es del sistema operativo). Nunca se activa en el respaldo
+         (.ig-fs-pseudo), que no necesita esto y no debe tocarse. */
+      islautopia-intercom-card.ig-fs-native-layout {
+        position: fixed; inset: 0; width: 100%; height: 100%;
+      }
       /* Contenedor de emergencia al que se traslada la card cuando un ancestro atrapa el
          position:fixed. No lleva estilos propios a proposito: quien se posiciona es el
          contenedor de la card, y un host con caja propia solo podria estorbar. */
@@ -4691,6 +4722,10 @@ class IslautopiaIntercomCardEditor extends HTMLElement {
         <div style="display: flex; flex-direction: column;">
           <label style="font-size: 14px; margin-bottom: 4px; color: var(--primary-text-color);">${getLocalText(this._hass, 'ed_ring_entity')}</label>
           <input type="text" id="ring_entity" value="${this._config.ring_entity || ''}" style="padding: 10px; border: 1px solid var(--divider-color, #ccc); border-radius: 4px; background: var(--card-background-color, #fff); color: var(--primary-text-color);">
+        </div>
+        <div style="display: flex; flex-direction: column;">
+          <label style="font-size: 14px; margin-bottom: 4px; color: var(--primary-text-color);">${getLocalText(this._hass, 'ed_rec_entity')}</label>
+          <input type="text" id="rec_entity" value="${this._config.rec_entity || ''}" style="padding: 10px; border: 1px solid var(--divider-color, #ccc); border-radius: 4px; background: var(--card-background-color, #fff); color: var(--primary-text-color);">
         </div>
         <div style="display: flex; flex-direction: column;">
           <label style="font-size: 14px; margin-bottom: 4px; color: var(--primary-text-color);">${getLocalText(this._hass, 'ed_duration')}</label>
