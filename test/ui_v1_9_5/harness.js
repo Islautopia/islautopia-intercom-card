@@ -18,7 +18,7 @@ function log(msg) {
 }
 window.__t0 = performance.now();
 
-const CardClass = customElements.get('islautopia-intercom-card');
+const CardClass = customElements.get('islautopia-intercom-view');
 if (!CardClass) log('ERROR: islautopia-intercom-card no se registro');
 
 // ── Doble de red: falla rapido, sin bloquear cada test durante segundos ────────────────────────
@@ -58,8 +58,30 @@ window.__role = 'admin';
 window.tSetRole = function (v) { window.__role = v; };
 window.__calledServices = [];
 
+
+// (1.10.0) La card ya no acepta entidades en el YAML: las encuentra en los registros de HA
+// (hass.devices + hass.entities, plataforma islautopia_doorbell, por translation_key). Este
+// arnes traduce las opciones antiguas que siguen usando los drivers (rec_entity, mode_entity...)
+// a entradas de registro del portero de la card, que es exactamente lo que publica la integracion.
+window.__devices = {};
+window.__entities = {};
+window.tRegistry = function (deviceId, config) {
+  const ha = 'ha-' + deviceId;
+  const devices = Object.assign({}, window.__devices);
+  const entities = Object.assign({}, window.__entities);
+  devices[ha] = { id: ha, name: 'Portero ' + deviceId, identifiers: [['islautopia_doorbell', deviceId]] };
+  const map = { rec_entity: 'rec', mode_entity: 'mode', motion_entity: 'visitor', ring_entity: 'events' };
+  for (const k of Object.keys(map)) {
+    if (config && config[k]) entities[config[k]] = { entity_id: config[k], device_id: ha, platform: 'islautopia_doorbell', translation_key: map[k] };
+  }
+  window.__devices = devices;       // objetos NUEVOS: la card cachea por identidad
+  window.__entities = entities;
+};
+
 function makeHass() {
   return {
+    get devices() { return window.__devices; },
+    get entities() { return window.__entities; },
     language: 'es',
     callApi: async () => { throw { status_code: 404 }; },
     user: { is_admin: window.__isAdmin },
@@ -87,9 +109,10 @@ function makeHass() {
 
 window.__cards = {};
 window.tCreateCard = function (id, config) {
-  const card = document.createElement('islautopia-intercom-card');
+  const card = document.createElement('islautopia-intercom-view');
   card.__tid = id;
   card.hass = makeHass();
+  window.tRegistry((config && config.device_id) || ('test-device-' + id), config);
   card.setConfig(Object.assign({ device_id: 'test-device-' + id }, config));
   window.__cards[id] = card;
   log(`tCreateCard(${id}) config=${JSON.stringify(config)}`);

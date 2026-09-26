@@ -148,7 +148,7 @@ function cargarClase(src, entorno, oyentesDoc) {
       body: { classList: { add() {}, remove() {} } },
     },
     window: { addEventListener() {}, removeEventListener() {}, AudioContext: entorno.FakeAudioContext },
-    customElements: { get: () => undefined, define: (n, c) => { if (n === 'islautopia-intercom-card') CardClass = c; } },
+    customElements: { get: () => undefined, define: (n, c) => { if (n === 'islautopia-intercom-view') CardClass = c; } },
   };
   sandbox.window.customCards = [];
   vm.createContext(sandbox);

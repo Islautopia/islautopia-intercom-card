@@ -46,7 +46,7 @@ async function main() {
   console.log('\n########## 1. Sin rec_entity: el boton de REC no existe visible ##########');
   await page.evaluate(() => { window.tCreateCard('a', {}); window.tAttach('a'); });
   await sleep(150);
-  let recDisplay = await page.evaluate(() => document.getElementById('host').querySelector('islautopia-intercom-card').recAction.style.display);
+  let recDisplay = await page.evaluate(() => document.getElementById('host').querySelector('islautopia-intercom-view').recAction.style.display);
   check('rec-action display:none sin rec_entity configurada', recDisplay === 'none');
 
   console.log('\n########## 2. Con rec_entity + integracion admin del portero: aparece y hace toggle ##########');
@@ -162,7 +162,7 @@ async function main() {
   console.log('\n########## 7. Orden de la fila de botones: sonido, micro, abrir (REC ya no vive aqui, v1.9.5) ##########');
   const order = await page.evaluate(() => {
     window.tSetHassState('switch.rec_order', 'off', {});
-    const c = document.createElement('islautopia-intercom-card');
+    const c = document.createElement('islautopia-intercom-view');
     c.hass = { language: 'es', user: { is_admin: true }, states: window.__states, callService: () => Promise.resolve(), connection: { sendMessagePromise: async () => { throw { code: 'not_found' }; } } };
     c.setConfig({ device_id: 'order-test', rec_entity: 'switch.rec_order' });
     document.getElementById('host').appendChild(c);

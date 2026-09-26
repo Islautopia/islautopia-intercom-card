@@ -16,8 +16,17 @@
 // si el `build` que aparece aqui no coincide con el de este mismo fichero en el repo, el navegador
 // esta sirviendo una copia vieja cacheada - hace falta forzar recarga (Ctrl+Shift+R) o, mejor,
 // cambiar la URL del recurso (ver nota en README.md) para que esto no vuelva a pasar en el futuro.
-const CARD_VERSION = '1.9.8';
-const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-25-respuesta-rapida`;
+const CARD_VERSION = '1.10.0';
+const CARD_BUILD_ID = `${CARD_VERSION} 2026-09-26-selector-de-portero`;
+
+// Nombres que cambiaran en el renombrado previsto (card ig-doorbell-card 2.0.0, integracion
+// ig_doorbell 1.0.0): viven AQUI y solo aqui, para que ese cambio sea mecanico. El dominio es el
+// de la integracion de Home Assistant (WS, servicios, rutas del proxy, identificadores de
+// dispositivo, plataforma de las entidades, media_source).
+const IG_DOMAIN = 'islautopia_doorbell';
+const CARD_TAG = 'islautopia-intercom-card';
+const VIEW_TAG = 'islautopia-intercom-view';
+const EDITOR_TAG = 'islautopia-intercom-card-editor';
 
 // ⚠️ ESTA MARCA VIVE EN EL MODULO Y NO EN EL ELEMENTO, Y ESA ES TODA LA GRACIA (2026-09-07).
 //
@@ -79,6 +88,8 @@ const OFFSCREEN_PAUSA_MS = 1500;
 // del sensor; mas alla solo se amplia el borron.
 const ZOOM_MAX = 5;
 const TIMBRE_RECIENTE_MS = 60000;
+// Cuenta atras decorativa de "Puerta abierta · Cerrando en N s" (antes opcion `unlock_duration`).
+const DOOR_OPEN_DISPLAY_S = 3;
 const LIVE_ACK_MS = 3000;          // regla 1: sin live_state en 3 s, se reenvia...
 const LIVE_ACK_REINTENTOS = 3;     // ...hasta 3 veces
 const RESCATE_RESUME_MS = [6000, 12000];
@@ -107,12 +118,7 @@ const islautopiaLocales = {
     snd_blocked: "Toca el altavoz para oír", cred_revoked: "El portero rechazó el emparejamiento — vuelve a emparejarlo en Ajustes › Dispositivos y servicios",
     lbl_rec_off: "REC", lbl_rec_on: "Grabando", rec_start_tip: "Empezar a grabar", rec_stop_tip: "Parar la grabación", rec_no_answer: "Home Assistant no aceptó la orden de grabar", recordings_title: "Grabaciones",
     quick_reply_title: "Respuestas rápidas", qr_empty: "El portero no tiene respuestas rápidas configuradas", qr_load_error: "No se pudo obtener la lista del portero", qr_no_answer: "El portero no aceptó la respuesta rápida",
-    ed_device_id: "Device ID nativo IG Doorbell (recomendado - ver Ajustes > Dispositivos y servicios)",
-    ed_mode_entity: "Entidad de Modo (Opcional - select.* para mostrar los chips Normal/Ausente/Noche/Custom)",
-    ed_motion_entity: "Entidad de Movimiento (Opcional - binary_sensor.* para el aviso de movimiento sobre el vídeo)",
-    ed_ring_entity: "Entidad de Timbre (Opcional - binary_sensor.* del timbre: al sonar, la card enciende el sonido sola)",
-    ed_rec_entity: "Entidad de REC (Opcional - switch.* de grabación manual de la integración; solo la ven los administradores)",
-    ed_entity: "Entidad de Apertura/Relé (Opcional - si se omite con Device ID, se usa la apertura nativa)", ed_duration: "Segundos de Auto-Cierre (1-20)", ed_height: "Altura de la tarjeta (Ej: 400px, 600px, auto)"
+    db_switch: "Cambiar de portero", db_unnamed: "Portero sin nombre", no_doorbells: "No hay ningún portero. Añade la integración Islautopia Doorbell en Ajustes › Dispositivos y servicios.", ed_nothing: "Esta tarjeta no tiene nada que configurar: muestra todos tus porteros y se cambia de uno a otro desde la propia tarjeta. Los ajustes están en la integración: Ajustes › Dispositivos y servicios › Islautopia Doorbell › Configurar."
   },
   en: { // Inglés (Fallback global)
     connecting: "Connecting...", live: "Live", open: "Comms Open", error_cam: "Error", no_lock: "No lock configured",
@@ -133,12 +139,7 @@ const islautopiaLocales = {
     snd_blocked: "Tap the speaker to listen", cred_revoked: "The doorbell rejected this pairing — re-pair it in Settings › Devices & services",
     lbl_rec_off: "REC", lbl_rec_on: "Recording", rec_start_tip: "Start recording", rec_stop_tip: "Stop recording", rec_no_answer: "Home Assistant did not accept the recording request", recordings_title: "Recordings",
     quick_reply_title: "Quick replies", qr_empty: "The doorbell has no quick replies configured", qr_load_error: "Could not load the list from the doorbell", qr_no_answer: "The doorbell did not accept the quick reply",
-    ed_device_id: "Native IG Doorbell Device ID (recommended - see Settings > Devices & services)",
-    ed_mode_entity: "Mode Entity (Optional - select.* to show the Normal/Away/Night/Custom chips)",
-    ed_motion_entity: "Motion Entity (Optional - binary_sensor.* for the motion badge over the video)",
-    ed_ring_entity: "Doorbell/Ring Entity (Optional - binary_sensor.* of the chime: the card turns sound on by itself when it rings)",
-    ed_rec_entity: "REC Entity (Optional - switch.* for manual recording from the integration; admins only)",
-    ed_entity: "Unlock/Relay Entity (Optional - if left blank with a Device ID, native door-open is used)", ed_duration: "Auto-Close Seconds (1-20)", ed_height: "Card Height (Ex: 400px, 600px, auto)"
+    db_switch: "Switch doorbell", db_unnamed: "Unnamed doorbell", no_doorbells: "No doorbell found. Add the Islautopia Doorbell integration in Settings › Devices & services.", ed_nothing: "There is nothing to configure in this card: it shows all your doorbells and you switch between them from the card itself. Settings live in the integration: Settings › Devices & services › Islautopia Doorbell › Configure."
   },
   pt: { // Portugués
     connecting: "Conectando...", live: "Ao vivo", open: "Comms Abertas", error_cam: "Erro", no_lock: "Sem fechadura configurada",
@@ -159,12 +160,7 @@ const islautopiaLocales = {
     snd_blocked: "Toque no altifalante para ouvir", cred_revoked: "O porteiro rejeitou este emparelhamento — volte a emparelhá-lo em Definições › Dispositivos e serviços",
     lbl_rec_off: "REC", lbl_rec_on: "A gravar", rec_start_tip: "Começar a gravar", rec_stop_tip: "Parar a gravação", rec_no_answer: "O Home Assistant não aceitou o pedido de gravação", recordings_title: "Gravações",
     quick_reply_title: "Respostas rápidas", qr_empty: "A campainha não tem respostas rápidas configuradas", qr_load_error: "Não foi possível obter a lista da campainha", qr_no_answer: "A campainha não aceitou a resposta rápida",
-    ed_device_id: "Device ID nativo do IG Doorbell (recomendado)",
-    ed_mode_entity: "Entidade de Modo (Opcional - select.* para mostrar os chips Normal/Ausente/Noite/Custom)",
-    ed_motion_entity: "Entidade de Movimento (Opcional - binary_sensor.* para o aviso de movimento sobre o vídeo)",
-    ed_ring_entity: "Entidade de Campainha (Opcional - binary_sensor.* da campainha: ao tocar, a card liga o som sozinha)",
-    ed_rec_entity: "Entidade de REC (Opcional - switch.* de gravação manual da integração; só para administradores)",
-    ed_entity: "Entidade de Abertura/Relé (Opcional - se vazio com Device ID, usa-se a abertura nativa)", ed_duration: "Segundos para Fechar (1-20)", ed_height: "Altura do Cartão (Ex: 400px, 600px, auto)"
+    db_switch: "Mudar de campainha", db_unnamed: "Campainha sem nome", no_doorbells: "Nenhuma campainha encontrada. Adicione a integração Islautopia Doorbell em Definições › Dispositivos e serviços.", ed_nothing: "Este cartão não tem nada para configurar: mostra todas as suas campainhas e muda-se de uma para outra no próprio cartão. As definições estão na integração: Definições › Dispositivos e serviços › Islautopia Doorbell › Configurar."
   },
   de: { // Alemán
     connecting: "Verbinde...", live: "Live", open: "Komm. offen", error_cam: "Fehler", no_lock: "Kein Schloss konfiguriert",
@@ -185,12 +181,7 @@ const islautopiaLocales = {
     snd_blocked: "Auf den Lautsprecher tippen, um zu hören", cred_revoked: "Die Türsprechanlage hat diese Kopplung abgelehnt — in Einstellungen › Geräte & Dienste neu koppeln",
     lbl_rec_off: "REC", lbl_rec_on: "Aufnahme läuft", rec_start_tip: "Aufnahme starten", rec_stop_tip: "Aufnahme stoppen", rec_no_answer: "Home Assistant hat die Aufnahme-Anfrage nicht angenommen", recordings_title: "Aufnahmen",
     quick_reply_title: "Schnellantworten", qr_empty: "Für die Klingel sind keine Schnellantworten eingerichtet", qr_load_error: "Liste konnte nicht von der Klingel geladen werden", qr_no_answer: "Die Klingel hat die Schnellantwort nicht angenommen",
-    ed_device_id: "Native IG Doorbell Device ID (empfohlen)",
-    ed_mode_entity: "Modus-Entität (Optional - select.* für die Chips Normal/Abwesend/Nacht/Custom)",
-    ed_motion_entity: "Bewegungs-Entität (Optional - binary_sensor.* für den Bewegungshinweis über dem Video)",
-    ed_ring_entity: "Klingel-Entität (Optional - binary_sensor.* der Klingel: beim Läuten schaltet die Karte den Ton selbst ein)",
-    ed_rec_entity: "REC-Entität (Optional - switch.* für manuelle Aufnahme der Integration; nur für Administratoren)",
-    ed_entity: "Türöffner/Relais Entität (Optional - leer mit Device ID nutzt native Öffnung)", ed_duration: "Auto-Schließen Sekunden (1-20)", ed_height: "Kartenhöhe (Bsp: 400px, 600px, auto)"
+    db_switch: "Klingel wechseln", db_unnamed: "Klingel ohne Namen", no_doorbells: "Keine Klingel gefunden. Füge die Integration Islautopia Doorbell unter Einstellungen › Geräte & Dienste hinzu.", ed_nothing: "Diese Karte hat keine Einstellungen: Sie zeigt alle deine Klingeln, und du wechselst direkt in der Karte zwischen ihnen. Die Einstellungen liegen in der Integration: Einstellungen › Geräte & Dienste › Islautopia Doorbell › Konfigurieren."
   },
   fr: { // Francés
     connecting: "Connexion...", live: "En direct", open: "Comms Ouvertes", error_cam: "Erreur", no_lock: "Aucune serrure configurée",
@@ -211,12 +202,7 @@ const islautopiaLocales = {
     snd_blocked: "Touchez le haut-parleur pour écouter", cred_revoked: "Le portier a refusé cet appairage — réappairez-le dans Paramètres › Appareils et services",
     lbl_rec_off: "REC", lbl_rec_on: "Enregistrement", rec_start_tip: "Démarrer l'enregistrement", rec_stop_tip: "Arrêter l'enregistrement", rec_no_answer: "Home Assistant n'a pas accepté la demande d'enregistrement", recordings_title: "Enregistrements",
     quick_reply_title: "Réponses rapides", qr_empty: "Aucune réponse rapide configurée sur la sonnette", qr_load_error: "Impossible de récupérer la liste depuis la sonnette", qr_no_answer: "La sonnette n'a pas accepté la réponse rapide",
-    ed_device_id: "Device ID natif IG Doorbell (recommandé)",
-    ed_mode_entity: "Entité de Mode (Optionnel - select.* pour afficher les puces Normal/Absent/Nuit/Custom)",
-    ed_motion_entity: "Entité de Mouvement (Optionnel - binary_sensor.* pour l'alerte de mouvement sur la vidéo)",
-    ed_ring_entity: "Entité de Sonnette (Optionnel - binary_sensor.* de la sonnette : la carte active le son toute seule)",
-    ed_rec_entity: "Entité REC (Optionnel - switch.* d'enregistrement manuel de l'intégration ; réservé aux administrateurs)",
-    ed_entity: "Entité de déverrouillage/relais (Optionnel - vide avec Device ID = ouverture native)", ed_duration: "Secondes de fermeture auto (1-20)", ed_height: "Hauteur de la carte (Ex: 400px, 600px, auto)"
+    db_switch: "Changer de sonnette", db_unnamed: "Sonnette sans nom", no_doorbells: "Aucune sonnette trouvée. Ajoutez l'intégration Islautopia Doorbell dans Paramètres › Appareils et services.", ed_nothing: "Cette carte n'a rien à configurer : elle affiche toutes vos sonnettes et l'on passe de l'une à l'autre depuis la carte elle-même. Les réglages sont dans l'intégration : Paramètres › Appareils et services › Islautopia Doorbell › Configurer."
   },
   ru: { // Ruso
     connecting: "Подключение...", live: "В прямом эфире", open: "Связь открыта", error_cam: "Ошибка", no_lock: "Замок не настроен",
@@ -237,12 +223,7 @@ const islautopiaLocales = {
     snd_blocked: "Коснитесь динамика, чтобы слышать", cred_revoked: "Домофон отклонил эту привязку — выполните привязку заново в Настройки › Устройства и службы",
     lbl_rec_off: "REC", lbl_rec_on: "Запись", rec_start_tip: "Начать запись", rec_stop_tip: "Остановить запись", rec_no_answer: "Home Assistant не принял запрос на запись", recordings_title: "Записи",
     quick_reply_title: "Быстрые ответы", qr_empty: "На звонке не настроено ни одного быстрого ответа", qr_load_error: "Не удалось получить список со звонка", qr_no_answer: "Звонок не принял быстрый ответ",
-    ed_device_id: "Собственный Device ID IG Doorbell (рекомендуется)",
-    ed_mode_entity: "Объект режима (Необязательно - select.* для чипов Обычный/Отсутствие/Ночь/Custom)",
-    ed_motion_entity: "Объект движения (Необязательно - binary_sensor.* для значка движения поверх видео)",
-    ed_ring_entity: "Объект звонка (Необязательно - binary_sensor.* звонка: при звонке карточка сама включает звук)",
-    ed_rec_entity: "Объект REC (Необязательно - switch.* ручной записи интеграции; только для администраторов)",
-    ed_entity: "Объект отпирания/реле (Необязательно - если пусто при Device ID, используется нативное открытие)", ed_duration: "Секунды авто-закрытия (1-20)", ed_height: "Высота карточки (Напр: 400px, 600px, auto)"
+    db_switch: "Сменить звонок", db_unnamed: "Звонок без имени", no_doorbells: "Звонок не найден. Добавьте интеграцию Islautopia Doorbell в разделе Настройки › Устройства и службы.", ed_nothing: "В этой карточке нечего настраивать: она показывает все ваши звонки, а переключаться между ними можно прямо в карточке. Настройки находятся в интеграции: Настройки › Устройства и службы › Islautopia Doorbell › Настроить."
   },
   zh: { // Chino Mandarín
     connecting: "连接中...", live: "直播中", open: "通话中", error_cam: "错误", no_lock: "未配置门锁",
@@ -263,12 +244,7 @@ const islautopiaLocales = {
     snd_blocked: "点击扬声器以收听", cred_revoked: "门口机拒绝了此配对 — 请在 设置 › 设备与服务 中重新配对",
     lbl_rec_off: "REC", lbl_rec_on: "录制中", rec_start_tip: "开始录制", rec_stop_tip: "停止录制", rec_no_answer: "Home Assistant 未接受录制请求", recordings_title: "录像",
     quick_reply_title: "快捷回复", qr_empty: "门铃未配置任何快捷回复", qr_load_error: "无法从门铃获取列表", qr_no_answer: "门铃未接受该快捷回复",
-    ed_device_id: "原生 IG Doorbell 设备 ID (推荐)",
-    ed_mode_entity: "模式实体 (可选 - select.* 用于显示 正常/离开/夜间/自定义 标签)",
-    ed_motion_entity: "移动实体 (可选 - binary_sensor.* 用于视频上的移动提示)",
-    ed_ring_entity: "门铃实体 (可选 - binary_sensor.* 门铃：响铃时卡片自动开启声音)",
-    ed_rec_entity: "REC 实体 (可选 - 集成提供的手动录制 switch.*；仅管理员可见)",
-    ed_entity: "解锁/继电器实体 (可选 - 留空且有设备ID时使用原生开门)", ed_duration: "自动关闭秒数 (1-20)", ed_height: "卡片高度 (例: 400px, 600px, auto)"
+    db_switch: "切换门铃", db_unnamed: "未命名的门铃", no_doorbells: "未找到门铃。请在 设置 › 设备与服务 中添加 Islautopia Doorbell 集成。", ed_nothing: "此卡片无需任何配置：它会显示您的所有门铃，并可直接在卡片中切换。设置位于集成中：设置 › 设备与服务 › Islautopia Doorbell › 配置。"
   },
   hi: { // Hindi
     connecting: "कनेक्ट हो रहा है...", live: "लाइव", open: "संचार चालू", error_cam: "त्रुटि", no_lock: "कोई लॉक कॉन्फ़िगर नहीं",
@@ -289,12 +265,7 @@ const islautopiaLocales = {
     snd_blocked: "सुनने के लिए स्पीकर पर टैप करें", cred_revoked: "डोरबेल ने यह पेयरिंग अस्वीकार कर दी — सेटिंग्स › डिवाइस और सेवाएँ में दोबारा पेयर करें",
     lbl_rec_off: "REC", lbl_rec_on: "रिकॉर्डिंग हो रही है", rec_start_tip: "रिकॉर्डिंग शुरू करें", rec_stop_tip: "रिकॉर्डिंग रोकें", rec_no_answer: "Home Assistant ने रिकॉर्डिंग का अनुरोध स्वीकार नहीं किया", recordings_title: "रिकॉर्डिंग",
     quick_reply_title: "त्वरित उत्तर", qr_empty: "डोरबेल में कोई त्वरित उत्तर कॉन्फ़िगर नहीं है", qr_load_error: "डोरबेल से सूची प्राप्त नहीं हो सकी", qr_no_answer: "डोरबेल ने त्वरित उत्तर स्वीकार नहीं किया",
-    ed_device_id: "नेटिव IG Doorbell डिवाइस ID (अनुशंसित)",
-    ed_mode_entity: "मोड एंटिटी (वैकल्पिक - select.* सामान्य/अनुपस्थित/रात/कस्टम चिप्स दिखाने के लिए)",
-    ed_motion_entity: "मोशन एंटिटी (वैकल्पिक - binary_sensor.* वीडियो पर मोशन बैज के लिए)",
-    ed_ring_entity: "डोरबेल एंटिटी (वैकल्पिक - binary_sensor.* घंटी: बजने पर कार्ड स्वयं ध्वनि चालू करता है)",
-    ed_rec_entity: "REC एंटिटी (वैकल्पिक - इंटीग्रेशन की switch.* मैनुअल रिकॉर्डिंग; केवल एडमिन के लिए)",
-    ed_entity: "अनलॉक/रिले एंटिटी (वैकल्पिक - खाली और Device ID होने पर नेटिव ओपन उपयोग होगा)", ed_duration: "ऑटो-क्लोज़ सेकंड (1-20)", ed_height: "कार्ड की ऊंचाई (उदा: 400px, 600px, auto)"
+    db_switch: "डोरबेल बदलें", db_unnamed: "बिना नाम की डोरबेल", no_doorbells: "कोई डोरबेल नहीं मिली। सेटिंग्स › डिवाइस और सेवाएँ में Islautopia Doorbell इंटीग्रेशन जोड़ें।", ed_nothing: "इस कार्ड में कॉन्फ़िगर करने के लिए कुछ नहीं है: यह आपकी सभी डोरबेल दिखाता है और आप कार्ड से ही उनके बीच बदल सकते हैं। सेटिंग्स इंटीग्रेशन में हैं: सेटिंग्स › डिवाइस और सेवाएँ › Islautopia Doorbell › कॉन्फ़िगर करें।"
   },
   ar: { // Árabe
     connecting: "جارٍ الاتصال...", live: "مباشر", open: "اتصال مفتوح", error_cam: "خطأ", no_lock: "لا يوجد قفل مُهيأ",
@@ -315,12 +286,7 @@ const islautopiaLocales = {
     snd_blocked: "المس مكبر الصوت للاستماع", cred_revoked: "رفض الجهاز هذا الاقتران — أعد الاقتران من الإعدادات › الأجهزة والخدمات",
     lbl_rec_off: "REC", lbl_rec_on: "جارٍ التسجيل", rec_start_tip: "بدء التسجيل", rec_stop_tip: "إيقاف التسجيل", rec_no_answer: "لم يقبل Home Assistant طلب التسجيل", recordings_title: "التسجيلات",
     quick_reply_title: "الردود السريعة", qr_empty: "لا توجد ردود سريعة مُعدة على الجرس", qr_load_error: "تعذر جلب القائمة من الجرس", qr_no_answer: "لم يقبل الجرس الرد السريع",
-    ed_device_id: "معرّف الجهاز الأصلي IG Doorbell (موصى به)",
-    ed_mode_entity: "كيان الوضع (اختياري - select.* لعرض رقائق عادي/غائب/ليلي/مخصص)",
-    ed_motion_entity: "كيان الحركة (اختياري - binary_sensor.* لشارة الحركة فوق الفيديو)",
-    ed_ring_entity: "كيان الجرس (اختياري - binary_sensor.* للجرس: عند الرنين تشغّل البطاقة الصوت تلقائياً)",
-    ed_rec_entity: "كيان REC (اختياري - switch.* للتسجيل اليدوي من التكامل؛ للمسؤولين فقط)",
-    ed_entity: "كيان الفتح/المُرحِّل (اختياري - إذا تُرك فارغاً مع Device ID يُستخدم الفتح الأصلي)", ed_duration: "ثواني الإغلاق التلقائي (1-20)", ed_height: "ارتفاع البطاقة (مثال: 400px، 600px، auto)"
+    db_switch: "تبديل الجرس", db_unnamed: "جرس بدون اسم", no_doorbells: "لم يتم العثور على أي جرس. أضف تكامل Islautopia Doorbell من الإعدادات › الأجهزة والخدمات.", ed_nothing: "لا يوجد ما يمكن ضبطه في هذه البطاقة: فهي تعرض جميع أجراسك ويمكنك التبديل بينها من البطاقة نفسها. الإعدادات موجودة في التكامل: الإعدادات › الأجهزة والخدمات › Islautopia Doorbell › تكوين."
   }
 };
 
@@ -656,15 +622,7 @@ const MODE_META = {
   custom: { icon: 'mdi:tune', colorVar: '--ig-cyan' }, // mdi:tune-variant no existe en el set real de Material Design Icons
 };
 
-class IslautopiaIntercomCard extends HTMLElement {
-  static async getConfigElement() {
-    return document.createElement('islautopia-intercom-card-editor');
-  }
-
-  static getStubConfig() {
-    return { height: "auto", unlock_duration: 3 };
-  }
-
+class IslautopiaIntercomView extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     // Chips de modo / chip de movimiento (2026-07-10, ver COORDINATION.md Q22-bis) se leen de
@@ -674,9 +632,13 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._updateHassBoundUI();
   }
 
+  // ⚠️ DESDE LA 1.10.0 ESTE ELEMENTO YA NO LO CREA HOME ASSISTANT (2026-09-26). Lo crea la card
+  // (IslautopiaIntercomCard, mas abajo), UNA INSTANCIA POR PORTERO VISTO: `config` es interno y
+  // solo trae `device_id` (el del portero elegido en el selector). La card no tiene configuracion
+  // de usuario -- decision de Iñaki: se configura en UN sitio, la integracion.
   setConfig(config) {
-    if (!config.device_id) {
-      throw new Error('Debes definir "device_id" (ver Ajustes > Dispositivos y servicios > IG Doorbell)');
+    if (!config || !config.device_id) {
+      throw new Error('islautopia-intercom-view: internal config without device_id');
     }
     // Bug real encontrado y corregido (2026-07-10, ver COORDINATION.md - reporte del usuario: al
     // ajustar el ancho de la card, la card crece pero el video se queda al mismo tamaño de
@@ -710,12 +672,13 @@ class IslautopiaIntercomCard extends HTMLElement {
     //
     // `0` lo desactiva -- para un telefono, donde este problema no existe y soltar la pantalla a
     // mitad de conversacion seria un fallo, no un ahorro.
-    const idleCrudo = Number(config.idle_release_seconds);
     // ⚠️ DESDE LA 1.9.0 ESTO ES SOLO EL RESPALDO (2026-09-25). El plazo lo manda la entidad
     // `number.<portero>_live_view_timeout` de la integracion (que una automatizacion puede cambiar),
     // ver _plazoInactividadMs(). Esto vale solo si la integracion es anterior y no la ofrece.
     // 120 s, el mismo valor por defecto que la entidad (su porque, en number.py de la integracion).
-    this._idleReleaseMs = Number.isFinite(idleCrudo) && idleCrudo >= 0 ? idleCrudo * 1000 : 120000;
+    // (1.10.0) La opcion `idle_release_seconds` del YAML desaparece: el plazo se ajusta en la
+    // entidad de la integracion, que es el unico sitio donde se configura esta card.
+    this._idleReleaseMs = 120000;
     // La pausa (1.9.1): null | { motivo: 'oculta'|'inactividad', fase: 'gracia'|'colgada', micAbierto }.
     // 'gracia' = live_pause enviado, sesion viva; 'colgada' = bye, ranura liberada.
     this._pausa = null;
@@ -884,6 +847,7 @@ class IslautopiaIntercomCard extends HTMLElement {
   getCardSize() { return 4; }
 
   connectedCallback() {
+    if (this._destroyed) return;  // (1.10.0) instancia de un portero que ya no se mira: ver _destruir()
     // Vuelve a la vista el MISMO elemento que se saco (Home Assistant reutiliza sus vistas): se
     // reanuda la pausa de "fuera de la vista". La de inactividad NO: esa es de una persona.
     if (this._pausa && this._pausa.motivo === 'oculta') {
@@ -1041,7 +1005,18 @@ class IslautopiaIntercomCard extends HTMLElement {
     // `live_pause` ya, `bye` tras la gracia si no hay llamada; y si Home Assistant vuelve a meter
     // este mismo elemento, connectedCallback() la reanuda en el mismo estado. Si no lo vuelve a
     // meter nunca, la gracia cuelga igual (y con llamada, el tope de CALL_OCULTA_MAX_MS).
+    // (1.10.0) Una instancia destruida por un cambio de portero ya colgo y ya solto todo: que la
+    // card la saque del DOM despues no puede volver a pausar nada (y apuntaria la pausa del portero
+    // viejo en PAUSA_POR_PORTERO, que es de modulo).
+    if (this._destroyed) return;
     this._pausar('oculta');                     // salir del DOM = pausar, no desmontar
+    this._soltarListeners();
+  }
+
+  // Todo lo que esta instancia cuelga FUERA de si misma (documento, ventana, observadores,
+  // temporizadores de la UI, pantalla completa, wake lock). Compartido por disconnectedCallback()
+  // y _destruir() -- extraido en la 1.10.0 para que ninguno de los dos pueda olvidarse de uno.
+  _soltarListeners() {
     this._unregisterFitObservers();
     this._unregisterUnloadHandler();
     this._unregisterVisibilityStreamHandler();
@@ -1295,6 +1270,7 @@ class IslautopiaIntercomCard extends HTMLElement {
   // concretos -- lo pasan, y entonces un disparo de una sesion ya relevada se descarta: sin esto,
   // el `pc` moribundo de un arranque adelantado tumbaria la sesion del arranque bueno al cerrarse.
   _scheduleReconnect(reason, gen) {
+    if (this._destroyed) return;  // (1.10.0) instancia de un portero que ya no se mira: ver _destruir()
     if (gen !== undefined && this._relevado(gen)) return;
     // En pausa no se reconecta: si la sesion en gracia se cae, se da por colgada.
     if (this._pausa) { if (this._pausa.fase === 'gracia') this._colgarPausa(); return; }
@@ -1383,6 +1359,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     const qrLbl = this.qrButton && this.qrButton.querySelector('.quick-btn-label');
     if (qrLbl) qrLbl.textContent = getLocalText(this._hass, 'quick_reply_title');
     if (this._bellBtn) this._paintBell();
+    this._lastPickerSig = null; this._paintPicker();
     if (this._evOpen) this._renderEvents();
     if (this._qrOpen) this._renderQuickReplies();
     // El badge de estado y la linea inferior se repintan solos en cuanto la sesion cambia de
@@ -1435,13 +1412,13 @@ class IslautopiaIntercomCard extends HTMLElement {
     const devices = hass.devices || {};
     for (const id of Object.keys(devices)) {
       const ids = devices[id] && devices[id].identifiers;
-      if (Array.isArray(ids) && ids.some((x) => x && x[0] === 'islautopia_doorbell' && x[1] === this.config.device_id)) { haDevice = id; break; }
+      if (Array.isArray(ids) && ids.some((x) => x && x[0] === IG_DOMAIN && x[1] === this.config.device_id)) { haDevice = id; break; }
     }
     if (!haDevice && ancla && hass.entities[ancla]) haDevice = hass.entities[ancla].device_id || null;
     if (haDevice) {
       for (const eid of Object.keys(hass.entities)) {
         const e = hass.entities[eid];
-        if (e && e.device_id === haDevice && e.platform === 'islautopia_doorbell' && e.translation_key && !map[e.translation_key]) {
+        if (e && e.device_id === haDevice && e.platform === IG_DOMAIN && e.translation_key && !map[e.translation_key]) {
           map[e.translation_key] = eid;
         }
       }
@@ -1454,13 +1431,17 @@ class IslautopiaIntercomCard extends HTMLElement {
     return map[translationKey] || null;
   }
 
-  // La entidad efectiva de cada funcion: la del YAML si esta puesta (anulacion manual), si no la
-  // que la integracion publica para este mismo portero.
+  // La entidad efectiva de cada funcion: SIEMPRE la que la integracion publica para este mismo
+  // portero. (1.10.0, Iñaki 2026-09-26: la card no tiene configuracion.) Hasta la 1.9.8 las
+  // opciones `mode_entity`/`rec_entity`/`ring_entity`/`motion_entity` del YAML eran una anulacion
+  // manual; con dos porteros en la misma card una entidad escrita a mano solo podria ser de UNO, y
+  // aplicarla al otro seria enseñar el modo o el REC de un portero sobre el video del otro.
+  // `motion` es el binary_sensor de presencia de la integracion (translation_key 'visitor').
   _entityFor(kind) {
-    const cfg = this.config || {};
-    if (kind === 'mode') return cfg.mode_entity || this._autoEntity('mode');
-    if (kind === 'rec') return cfg.rec_entity || this._autoEntity('rec');
-    if (kind === 'ring') return cfg.ring_entity || (this._connInfo && this._connInfo.events_entity) || this._autoEntity('events');
+    if (kind === 'mode') return this._autoEntity('mode');
+    if (kind === 'rec') return this._autoEntity('rec');
+    if (kind === 'ring') return (this._connInfo && this._connInfo.events_entity) || this._autoEntity('events');
+    if (kind === 'motion') return this._autoEntity('visitor');
     return null;
   }
 
@@ -1482,7 +1463,10 @@ class IslautopiaIntercomCard extends HTMLElement {
     if (!this.modeRow) return;
     const entityId = this._entityFor('mode');
     const stateObj = entityId && this._hass ? this._hass.states[entityId] : null;
-    if (!stateObj) {
+    // (1.10.0) Con el portero fuera de alcance la entidad dice 'unavailable': el chip pintaba esa
+    // palabra como si fuera un modo. Con el selector de portero eso se ve en cuanto eliges uno
+    // apagado, asi que se trata igual que "sin entidad".
+    if (!stateObj || stateObj.state === 'unavailable' || stateObj.state === 'unknown') {
       this.modeRow.style.display = 'none';
       this._lastModeSig = null;
       this._toggleModeMenu(false);
@@ -1604,9 +1588,119 @@ class IslautopiaIntercomCard extends HTMLElement {
     menu.style.display = open ? 'flex' : 'none';
   }
 
+  // ══════════════════════════════════════════════════════════════════════════════════════════
+  //  SELECTOR DE PORTERO (1.10.0, Iñaki 2026-09-26: «una card, elegir entre los porteros en
+  //  tiempo real»). La LISTA y el CAMBIO son de la card (IslautopiaIntercomCard, mas abajo); esta
+  //  instancia solo pinta la capsula y avisa de lo elegido. Cambiar de portero NO se hace aqui
+  //  dentro: la card DESTRUYE esta instancia (_destruir) y crea otra para el portero nuevo. Ver el
+  //  porque en IslautopiaIntercomCard._cambiarA().
+  // ══════════════════════════════════════════════════════════════════════════════════════════
+  _setDoorbells(list, onPick) {
+    this._doorbells = Array.isArray(list) ? list : [];
+    this._onPickDoorbell = onPick || null;
+    this._paintPicker();
+  }
+
+  _paintPicker() {
+    if (!this._dbPill || !this.config) return;
+    const list = this._doorbells || [];
+    const me = list.find((d) => d.id === this.config.device_id);
+    // El nombre es el del portero (dname, que la integracion 0.7.7 pone como nombre del
+    // dispositivo). NUNCA el id hexadecimal: si no hay nombre, un texto generico traducido.
+    const name = (me && me.name) || getLocalText(this._hass, 'db_unnamed');
+    const many = list.length > 1;
+    const sig = `${name}|${many}|${list.map((d) => `${d.id}:${d.name}:${d.available}`).join(',')}`;
+    if (this._lastPickerSig === sig) return;
+    this._lastPickerSig = sig;
+    this._dbName.textContent = name;
+    // El galon y el toque van JUNTOS (regla de DoorbellCapsule de las apps): con un solo portero
+    // la capsula es el titulo, no un desplegable que no despliega nada.
+    this._dbChev.style.display = many ? '' : 'none';
+    this._dbPill.classList.toggle('pickable', many);
+    this._dbPill.setAttribute('aria-haspopup', many ? 'menu' : 'false');
+    this._dbPill.setAttribute('title', many ? getLocalText(this._hass, 'db_switch') : name);
+    if (!many) this._toggleDbMenu(false);
+    else if (this._dbMenu && this._dbMenu.style.display !== 'none') this._renderDbMenu();
+  }
+
+  _toggleDbMenu(force) {
+    if (!this._dbMenu) return;
+    const many = (this._doorbells || []).length > 1;
+    const open = many && ((typeof force === 'boolean') ? force : this._dbMenu.style.display === 'none');
+    if (open) { this._toggleModeMenu(false); this._renderDbMenu(); }
+    this._dbMenu.style.display = open ? 'flex' : 'none';
+  }
+
+  _renderDbMenu() {
+    const list = this._doorbells || [];
+    const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    const liveState = (this._dbDot && this._dbDot.dataset.state) || 'connecting';
+    this._dbMenu.innerHTML = `<div class="db-menu-title">${esc(getLocalText(this._hass, 'db_switch'))}</div>` + list.map((d) => {
+      const cur = d.id === this.config.device_id;
+      // La bolita de la fila vigente es la de la sesion (la misma que la capsula). La de los otros
+      // es un dato REAL de Home Assistant (sus entidades disponibles = el ultimo sondeo de la
+      // integracion respondio); si no se sabe, no se pinta: un color inventado anunciaria como
+      // caido un portero sano (regla de DoorbellCapsule de las apps).
+      const dot = cur ? liveState : (d.available === true ? 'avail' : d.available === false ? 'down' : '');
+      const name = d.name || getLocalText(this._hass, 'db_unnamed');
+      return `<button type="button" class="db-opt${cur ? ' sel' : ''}" data-id="${esc(d.id)}" role="menuitem">
+        <ha-icon class="db-check" icon="${cur ? 'mdi:check' : ''}"></ha-icon>
+        <span class="db-dot" data-state="${dot}"${dot ? '' : ' style="visibility:hidden"'}></span>
+        <span class="db-opt-name">${esc(name)}</span>
+      </button>`;
+    }).join('');
+    this._dbMenu.querySelectorAll('.db-opt').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        this._toggleDbMenu(false);
+        const id = btn.getAttribute('data-id');
+        if (id && id !== this.config.device_id && this._onPickDoorbell) this._onPickDoorbell(id);
+      });
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════════════════
+  //  DESTRUIR ESTA INSTANCIA (1.10.0) -- «cuando se cambia de portero, cambia TODO».
+  //
+  //  NO es disconnectedCallback(): salir del DOM es PAUSAR (live_pause, `bye` a los 15 s, y
+  //  reanudar si vuelve -- regla del 2026-09-25). Cambiar de portero es COLGAR YA: `bye`, cerrar el
+  //  peer, soltar micro y turno, parar cada temporizador y olvidar la pausa guardada de este
+  //  portero, para que volver a el sea una sesion nueva y no la reanudacion de esta.
+  //
+  //  Lo que esto NO tiene que hacer, y es a proposito: vaciar el estado de la instancia campo a
+  //  campo. La card no reutiliza este elemento -- crea otro --, asi que ningun dato de este portero
+  //  (lista de avisos, respuestas rapidas, rol de /api/whoami, turno, calidad, giro...) puede
+  //  aparecer en el otro: no hay una lista de "cosas a limpiar" que se pueda quedar corta, que es
+  //  exactamente como fallaron las apps (la bolita). Lo unico que hay que cortar es lo que sale
+  //  FUERA de la instancia: red, micro, temporizadores, oyentes de documento/ventana y el estado de
+  //  modulo (PAUSA_POR_PORTERO). `_destroyed` cierra ademas la puerta a cualquier callback en vuelo
+  //  que intente arrancar una sesion o reabrir el micro despues.
+  // ══════════════════════════════════════════════════════════════════════════════════════════
+  _destruir(motivo) {
+    if (this._destroyed) return;
+    console.info(`[islautopia-intercom-card] instancia de ${this.config && this.config.device_id} destruida (${motivo})`);
+    this._cancelarPausa();
+    if (this._livePauseAck) { clearTimeout(this._livePauseAck.timer); this._livePauseAck = null; }
+    this._clearReconnectTimer();
+    this._reconnecting = false;
+    this._clearIdleWakeLockTimer();
+    // Cierre real, con `bye` si hay sesion. Va ANTES de marcar `_destroyed` porque el `bye` sale por
+    // sendNativeSignal(), que a partir de la marca ya no manda nada.
+    this._teardownConnectionObjects();
+    this._destroyed = true;
+    if (this.config) delete PAUSA_POR_PORTERO[this.config.device_id];
+    if (this._flashTextTimer) { clearTimeout(this._flashTextTimer); this._flashTextTimer = null; }
+    if (this.videoEl) {
+      try { this.videoEl.pause(); } catch (err) { /* best effort */ }
+      this.videoEl.srcObject = null;
+    }
+    this._toggleDbMenu(false);
+    this._soltarListeners();
+  }
+
   _updateMotionPill() {
     if (!this.motionPill) return;
-    const entityId = this.config.motion_entity;
+    const entityId = this._entityFor('motion');
     const stateObj = entityId && this._hass ? this._hass.states[entityId] : null;
     // Regla acordada explicitamente (COORDINATION.md Q22-bis): nunca visible con el mic activo.
     const shouldShow = !!stateObj && stateObj.state === 'on' && !this.intercomActive;
@@ -1727,7 +1821,7 @@ class IslautopiaIntercomCard extends HTMLElement {
   _openRecordings() {
     const deviceId = this.config && this.config.device_id;
     if (!deviceId) return;
-    const mediaContentId = `media-source://islautopia_doorbell/${deviceId}`;
+    const mediaContentId = `media-source://${IG_DOMAIN}/${deviceId}`;
     const path = `/media-browser/browser/${encodeURIComponent(`video,${mediaContentId}`)}`;
     history.pushState(null, '', path);
     window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: false } }));
@@ -1771,7 +1865,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     const gen = (this._qrGen = (this._qrGen || 0) + 1);
     try {
       const res = await this._hass.connection.sendMessagePromise({
-        type: 'islautopia_doorbell/get_quick_replies',
+        type: `${IG_DOMAIN}/get_quick_replies`,
         device_id: deviceId,
       });
       if (gen !== this._qrGen) return;   // el panel se cerro y se reabrio mientras tanto
@@ -1846,7 +1940,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._qrNotice = null;
     this._renderQuickReplies();
     Promise.resolve(
-      this._hass.callService('islautopia_doorbell', 'play_sequence', { device_id: deviceId, seq_id: seqId })
+      this._hass.callService(IG_DOMAIN, 'play_sequence', { device_id: deviceId, seq_id: seqId })
     ).then(() => {
       this._qrPlaying = null;
       // El exito se cierra fuera de esta pantalla, igual que en las apps: quedarse aqui no aporta
@@ -1912,10 +2006,15 @@ class IslautopiaIntercomCard extends HTMLElement {
       : stateKey === 'paused' ? 'warn'
       : 'connecting';
     if (this.liveTag) this.liveTag.dataset.state = dataState;
-    // Tambien en .feed-wrap (no solo en .live-tag) para que las barras de señal del HUD
-    // (esquina inferior-dcha, ver COORDINATION.md Q22-bis) reaccionen por CSS puro al mismo
-    // estado, sin duplicar logica JS - mismo principio que ya usa .live-tag[data-state=...].
+    // Tambien en .feed-wrap: lo leen los bancos de prueba (las barras de señal que lo usaban por
+    // CSS se retiraron en la 1.10.0).
     if (this.feedWrap) this.feedWrap.dataset.state = dataState;
+    // ⚠️ LA BOLITA DEL SELECTOR DE PORTERO SALE DE AQUI, Y DE NINGUN OTRO SITIO (1.10.0).
+    // El fallo que tuvieron las DOS apps: la cabecera cambiaba de nombre al cambiar de portero y la
+    // bolita seguia en verde anunciando un portero sin sesion (en Android era un verde FIJO). Aqui
+    // la bolita es el MISMO estado que el live-tag -- la sesion de ESTA instancia, que es de UN
+    // portero -- y una instancia nueva nace en 'connecting'. Verde solo con video de verdad.
+    if (this._dbDot) this._dbDot.dataset.state = dataState;
   }
 
   // NOTA (2026-07-26): el antiguo _setMicLabel(active) desaparecio al introducirse el turno de
@@ -3083,6 +3182,7 @@ class IslautopiaIntercomCard extends HTMLElement {
   // UNA sola pausa para las dos reglas (1.9.1). `live_pause` YA; `bye` tras la gracia salvo con una
   // llamada en curso. Ver IDLE_GRACE_MS y la regla de Iñaki en _registerVisibilityStreamHandler.
   _pausar(motivo) {
+    if (this._destroyed) return;  // (1.10.0) instancia de un portero que ya no se mira: ver _destruir()
     if (this._pausa) {
       // Una pausa por inactividad no se degrada a "oculta": seguiria siendo de una persona.
       return;
@@ -3136,6 +3236,7 @@ class IslautopiaIntercomCard extends HTMLElement {
   // Volver: un toque, un timbrazo, o (solo para la de "oculta") volver a la vista. Dentro de la
   // gracia, `live_resume` con el rescate acotado y el micro/turno como estaban; despues, sesion nueva.
   _reanudar(motivo) {
+    if (this._destroyed) return;  // (1.10.0) instancia de un portero que ya no se mira: ver _destruir()
     const p = this._pausa;
     if (!p) return;
     this._pausa = null;
@@ -3279,13 +3380,13 @@ class IslautopiaIntercomCard extends HTMLElement {
   // ==============================================================================
   _applyDoorAvailability() {
     if (!this.unlockButton) return;
-    // Con `unlock_entity` configurada la apertura NO pasa por el portero, sino por una entidad de
-    // Home Assistant: lo que el portero opine de su propia cerradura es irrelevante ahi.
-    const hide = !this.config.unlock_entity && (
-      (this._doorMode !== null)
-        ? this._doorMode === 2          // dato autoritativo del portero: manda siempre
-        : this._noLockLegacy            // firmware anterior: lo unico que se sabe es que fallo
-    );
+    // (1.10.0) Ya no existe `unlock_entity`: la apertura va SIEMPRE por el portero (`open`), que es
+    // quien decide rele o entidad de Home Assistant (door_m=1, con la lista blanca de la integracion
+    // 0.7.6). Asi la puerta se abre igual desde la card, las apps y el panel, y se configura en un
+    // solo sitio.
+    const hide = (this._doorMode !== null)
+      ? this._doorMode === 2          // dato autoritativo del portero: manda siempre
+      : this._noLockLegacy;           // firmware anterior: lo unico que se sabe es que fallo
     const action = this.unlockButton.closest('.action') || this.unlockButton;
     action.style.display = hide ? 'none' : '';
     // Un boton que desaparece mientras esta "armado" dejaria el estado de confirmacion colgado.
@@ -3320,8 +3421,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     // debe obligar al usuario a empezar de cero, solo no debe abrir.
     if (now - this._doorArmedAt < 300) return;
     this._disarmDoorConfirm();
-    if (!this.config.unlock_entity) this.triggerNativeOpen();
-    else this.triggerUnlock();
+    this.triggerNativeOpen();
   }
 
   _armDoorConfirm() {
@@ -3343,7 +3443,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._doorArmedAt = 0;
     if (this.unlockButton) this.unlockButton.classList.remove('confirming');
     // Solo se devuelve el icono/etiqueta de reposo si la puerta no esta abierta ahora mismo: si
-    // esto se llama justo antes de abrir, quien manda es triggerNativeOpen()/triggerUnlock().
+    // esto se llama justo antes de abrir, quien manda es triggerNativeOpen().
     const abierta = this.unlockButton && this.unlockButton.classList.contains('active-unlock');
     if (!abierta) {
       if (this.unlockIcon) this.unlockIcon.setAttribute('icon', 'mdi:lock-open-variant');
@@ -3578,11 +3678,10 @@ class IslautopiaIntercomCard extends HTMLElement {
     return Math.max(0, vh - reservedTop - (panel ? 0 : 8));
   }
 
+  // (1.10.0) Sin tope: la opcion `height` del YAML (que desde la 1.9.7 solo era un tope) se retiro
+  // con el resto de la configuracion. El alto sale del hueco medido (_availableHeight).
   _feedCap() {
-    const h = this.config && this.config.height;
-    if (!h || h === 'auto') return Infinity;
-    const n = parseFloat(h);
-    return (Number.isFinite(n) && n > 0 && /px\s*$|^\d+(\.\d+)?$/.test(String(h).trim())) ? n : Infinity;
+    return Infinity;
   }
 
   _recallAspect() {
@@ -3618,19 +3717,20 @@ class IslautopiaIntercomCard extends HTMLElement {
     const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
     const gap = parseFloat(cs.rowGap) || 10;
     const visible = (el) => !!el && el.style.display !== 'none' && getComputedStyle(el).display !== 'none';
-    const topVisible = !!this.topRow && ((this.modeRow && this.modeRow.style.display !== 'none') ||
+    // (1.10.0) La cabecera ya no puede quedarse vacia: el selector de portero se ve siempre.
+    const topVisible = !!this.topRow && (!!this._dbPill || (this.modeRow && this.modeRow.style.display !== 'none') ||
       (this.recAction && this.recAction.style.display !== 'none') || (this._bellBtn && this._bellBtn.style.display !== 'none'));
     const topH = topVisible ? (this.topRow.offsetHeight || 32) : 0;
     const bottomH = visible(this.recordingsAction) ? (this.recordingsAction.offsetHeight || 54) : 0;
     const chrome = pad + (topH ? topH + gap : 0) + (bottomH ? bottomH + gap : 0);
-    const stackH = IslautopiaIntercomCard.STACK_CONTROLS_H + gap;
+    const stackH = IslautopiaIntercomView.STACK_CONTROLS_H + gap;
 
     const avail = this._availableHeight();
     const cap = this._feedCap();
     const feedOver = Math.min(natural, avail - chrome, cap);
     const feedStack = Math.min(natural, avail - chrome - stackH, cap);
     const stack = width < 520 || feedStack >= 0.85 * feedOver;
-    const feedH = Math.round(Math.max(IslautopiaIntercomCard.MIN_FEED_H, stack ? feedStack : feedOver));
+    const feedH = Math.round(Math.max(IslautopiaIntercomView.MIN_FEED_H, stack ? feedStack : feedOver));
 
     this.content.classList.toggle('ig-stack', stack);
     this._placeControls(stack);
@@ -3983,7 +4083,7 @@ class IslautopiaIntercomCard extends HTMLElement {
   //
   // _railActive (por-instancia, inicializado en el constructor) es la memoria que hace falta:
   // sin saber en que lado se esta ahora, no se sabe cual de los dos umbrales toca comparar.
-  static get RAIL_ENTER_MARGIN() { return IslautopiaIntercomCard.RAIL_WIDTH + 32; }
+  static get RAIL_ENTER_MARGIN() { return IslautopiaIntercomView.RAIL_WIDTH + 32; }
 
   // Contenido YA ORIENTADO como se veria en pantalla, aplicando la rotacion de software si la
   // hay: `videoWidth`/`videoHeight` son SIEMPRE la imagen cruda del sensor, tal cual llega, antes
@@ -4034,8 +4134,14 @@ class IslautopiaIntercomCard extends HTMLElement {
       // ocupa). Fuera del carril, hace falta el colchon extra para entrar - eso es lo que impide
       // que un sobrante que pasa raspando (medido: 116px, el caso de la tablet vertical) oscile
       // entre banda y carril de un redibujado a otro.
-      const umbral = this._railActive ? IslautopiaIntercomCard.RAIL_WIDTH : IslautopiaIntercomCard.RAIL_ENTER_MARGIN;
-      carril = sobranteCadaLado >= umbral;
+      const umbral = this._railActive ? IslautopiaIntercomView.RAIL_WIDTH : IslautopiaIntercomView.RAIL_ENTER_MARGIN;
+      // ⚠️ (1.10.0) CARRIL Y PILA SE EXCLUYEN. Con los dos activos a la vez (visto en el Panel de
+      // Iñaki en PC, con `height:` en el YAML, y en cualquier movil apaisado) las reglas
+      // `.ig-stack .actions-row` ganan el `position: static` pero NO anulan el `translateY(-50%)`,
+      // el ancho de 104 px ni la columna de `.ig-rail .actions-row`: la columna de botones acababa
+      // subida media altura, con el micro A CABALLO del borde inferior del video y el resto
+      // desperdigado. En pila los botones ya viven fuera de la imagen: no hay carril que poner.
+      carril = sobranteCadaLado >= umbral && !this.content.classList.contains('ig-stack');
       // ---- ANCLAJE AL BORDE DE LA IMAGEN, no al del marco (Iñaki, 2026-09-08, tras ver la
       // captura del wallpanel real) --------------------------------------------------------
       // El fallo de origen: estas reglas se trajeron de pantalla completa, donde el MARCO ES LA
@@ -4067,7 +4173,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       // ~104px de diferencia apenas se notan, pero mover la imagen de su centro SI se notaria,
       // siempre, en cada arranque. Si esta asimetria "se ve mal" en una revision futura, la
       // respuesta no es recentrar aqui: es la que ya se dio una vez.
-      if (carril) huecoTrasImagen = Math.max(0, sobranteCadaLado - IslautopiaIntercomCard.RAIL_WIDTH);
+      if (carril) huecoTrasImagen = Math.max(0, sobranteCadaLado - IslautopiaIntercomView.RAIL_WIDTH);
     }
     this._railActive = carril;
     if (this.content) {
@@ -4078,7 +4184,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       // .status-line mas abajo) y calcularlo con un "104" suelto en la hoja de estilos seria
       // duplicar la constante - justo el tipo de numero que se desincroniza si alguien cambia
       // RAIL_WIDTH aqui y no se acuerda de tocar el otro sitio.
-      this.content.style.setProperty('--ig-rail-width', `${IslautopiaIntercomCard.RAIL_WIDTH}px`);
+      this.content.style.setProperty('--ig-rail-width', `${IslautopiaIntercomView.RAIL_WIDTH}px`);
     }
 
     if (!rotSwap) {
@@ -4115,8 +4221,9 @@ class IslautopiaIntercomCard extends HTMLElement {
       // redondeado con HUD superpuesto DENTRO del propio video (EN VIVO + hora, "Audio activo",
       // "Movimiento detectado"), botones de accion asimetricos (mic protagonista/puerta
       // secundario), linea de estado bajo el video, y chips de modo. Los elementos del mockup
-      // que NO aplican a una card de HA (selector de dispositivo, cabecera de branding, fila de
-      // accesos a "pantallas") se han dejado fuera a proposito, ver esa misma entrada.
+      // que NO aplican a una card de HA (cabecera de branding, fila de accesos a "pantallas") se
+      // han dejado fuera a proposito, ver esa misma entrada. El selector de portero, que tambien
+      // estaba en esa lista ("una card = un dispositivo"), SI existe desde la 1.10.0.
       this.innerHTML = `
         <ha-card>
           <div class="intercom-container">
@@ -4134,7 +4241,20 @@ class IslautopiaIntercomCard extends HTMLElement {
                  que abrirla (la de la app abre una pantalla propia) - no se inventa una, ver
                  CLAUDE.md/COORDINATION.md de este repo. -->
             <div class="top-row" id="top-row">
-              <div class="mode-row" id="mode-row" style="display:none;"></div>
+              <div class="top-left">
+                <!-- Selector de portero (1.10.0): bolita + nombre (dname, nunca el id) + galon doble
+                     SOLO si hay donde elegir -- mismo patron que DoorbellCapsule/DoorbellPicker de
+                     las apps. La bolita es el estado de la sesion de ESTA instancia (_setLiveState). -->
+                <div class="db-picker" id="db-picker">
+                  <button type="button" class="db-pill" id="db-pill">
+                    <span class="db-dot" id="db-dot" data-state="connecting"></span>
+                    <span class="db-name" id="db-name"></span>
+                    <ha-icon class="db-chev" id="db-chev" icon="mdi:unfold-more-horizontal" style="display:none;"></ha-icon>
+                  </button>
+                  <div class="db-menu" id="db-menu" style="display:none;"></div>
+                </div>
+                <div class="mode-row" id="mode-row" style="display:none;"></div>
+              </div>
               <div class="top-right">
                 <div class="rec-action-wrap" id="rec-action" style="display:none;">
                   <button type="button" id="rec-button" class="rec-pill">
@@ -4189,7 +4309,9 @@ class IslautopiaIntercomCard extends HTMLElement {
                   <span>${getLocalText(this._hass, 'audio_active')}</span>
                 </div>
                 <div class="hud-bottom-right">
-                  <div class="hud-sig" id="hud-sig"><i></i><i></i><i></i><i></i></div>
+                  <!-- (1.10.0) Aqui estaban unas barras de "señal" (.hud-sig) que solo repetian por CSS
+                       el data-state de la conexion (ya visible en el live-tag): no eran RSSI ni el
+                       chip de calidad de las apps, y no respondian a nada. Retiradas (Iñaki). -->
                   <!-- Pantalla completa. Ultimo del cluster derecho, que es donde lo
                        espera cualquiera que haya usado un reproductor de video. Sigue visible
                        DENTRO del modo (cambiando a "salir"): es la unica salida garantizada,
@@ -4322,6 +4444,13 @@ class IslautopiaIntercomCard extends HTMLElement {
       this.qrButton = this.querySelector('#qr-button');
       this._qrPanel = this.querySelector('#qr-panel');
       this.topRow = this.querySelector('#top-row');
+      this._dbPill = this.querySelector('#db-pill');
+      this._dbDot = this.querySelector('#db-dot');
+      this._dbName = this.querySelector('#db-name');
+      this._dbChev = this.querySelector('#db-chev');
+      this._dbMenu = this.querySelector('#db-menu');
+      this._dbPill.addEventListener('click', (ev) => { ev.stopPropagation(); this._toggleDbMenu(); });
+      this._paintPicker();
       this.stackControls = this.querySelector('#stack-controls');
       this.actionsRow = this.querySelector('.actions-row');
       this._bellBtn = this.querySelector('#bell-btn');
@@ -4350,7 +4479,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       // (retirado) menu de calidad de versiones anteriores. Se guarda ligado a la instancia para
       // poder quitarlo en disconnectedCallback() y no acumular listeners si Home Assistant
       // reinserta esta misma card (cambio de vista de Lovelace, ver disconnectedCallback()).
-      this._onDocClickForModeMenu = () => this._toggleModeMenu(false);
+      this._onDocClickForModeMenu = () => { this._toggleModeMenu(false); this._toggleDbMenu(false); };
       document.addEventListener('click', this._onDocClickForModeMenu);
 
       // Grabaciones (v1.9.5): navega al navegador de medios NATIVO de Home Assistant (nunca un
@@ -4402,10 +4531,9 @@ class IslautopiaIntercomCard extends HTMLElement {
       }
       this._registerFitObservers();
 
-      // Camino primario: mensaje de senalizacion nativo 'open'/'open_result' (API_CONTRACT.md
-      // §3.3, funciona igual local y remoto). unlock_entity sigue disponible como alternativa
-      // explicita si el usuario prefiere que la apertura pase por una entidad/Automatizacion de
-      // HA (logging propio, condiciones, etc.) - ver ARCHITECTURE.md §5 en ig_hassio_addons.
+      // Unico camino: mensaje de senalizacion nativo 'open'/'open_result' (API_CONTRACT.md §3.3).
+      // `unlock_entity` se retiro en la 1.10.0: si la puerta es una entidad de HA, la acciona el
+      // propio portero (door_m=1), configurado en la integracion.
       // Doble pulsacion (§1.8): el click NO abre, arma; el segundo abre. Ver _onDoorPress().
       this.unlockButton.addEventListener('click', () => this._onDoorPress());
 
@@ -4448,6 +4576,7 @@ class IslautopiaIntercomCard extends HTMLElement {
   //  los cinco caminos lo disparo, que es la mitad util del dato.
   // ══════════════════════════════════════════════════════════════════════════════════════════
   async startWebRTC(motivo = 'sin motivo') {
+    if (this._destroyed) return;  // (1.10.0) instancia de un portero que ya no se mira: ver _destruir()
     // En pausa no se arranca nada: la levantan _reanudar() (que la borra antes) o nadie.
     if (this._pausa) {
       console.info(`[islautopia-intercom-card] en pausa (${this._pausa.motivo}): no se arranca (${motivo})`);
@@ -4476,6 +4605,9 @@ class IslautopiaIntercomCard extends HTMLElement {
     // queda relevado y recogera lo suyo en vez de escribirlo encima de lo nuestro.
     this._teardownConnectionObjects();
     this._pararRescate();
+    // (1.10.0) Toda sesion nueva nace en 'connecting' (p.ej. al volver de una pausa colgada el
+    // estado era 'paused'): 'live' solo lo pone la primera imagen, ver setupRemoteStream().
+    if (this._liveStateKey !== 'error_cam') this._setLiveState('connecting');
     this._livePauseWanted = false;
     const gen = this._connGen;
     this._arranqueEnVueloGen = gen;
@@ -4578,7 +4710,7 @@ class IslautopiaIntercomCard extends HTMLElement {
       let enviado = false;
       if (token && typeof fetch === 'function') {
         try {
-          fetch(`/api/islautopia_doorbell/signal/${this.config.device_id}`, {
+          fetch(`/api/${IG_DOMAIN}/signal/${this.config.device_id}`, {
             method: 'POST', keepalive: true, body: JSON.stringify(payload),
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           }).catch(() => {});
@@ -4640,7 +4772,7 @@ class IslautopiaIntercomCard extends HTMLElement {
 
     try {
       const info = await this._hass.connection.sendMessagePromise({
-        type: 'islautopia_doorbell/get_connection_info',
+        type: `${IG_DOMAIN}/get_connection_info`,
         device_id: this.config.device_id,
       });
       // Espera nº1 (WebSocket de HA) superada. Si nos relevaron aqui no hay nada abierto todavia:
@@ -4891,7 +5023,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     if (!this._hass || !this._hass.connection) return null;
     try {
       const res = await this._hass.connection.sendMessagePromise({
-        type: 'islautopia_doorbell/get_local_signal_url',
+        type: `${IG_DOMAIN}/get_local_signal_url`,
         device_id: this.config.device_id,
       });
       if (res && res.signal_url) {
@@ -4911,7 +5043,7 @@ class IslautopiaIntercomCard extends HTMLElement {
   async _classifyProxyFailure() {
     if (!this._hass || typeof this._hass.callApi !== 'function') return;
     try {
-      await this._hass.callApi('POST', `islautopia_doorbell/signal/${this.config.device_id}`, { type: 'bye' });
+      await this._hass.callApi('POST', `${IG_DOMAIN}/signal/${this.config.device_id}`, { type: 'bye' });
     } catch (err) {
       const status = err && (err.status_code || err.status);
       if (status === 401) {
@@ -5050,6 +5182,10 @@ class IslautopiaIntercomCard extends HTMLElement {
   sendNativeSignal(msg) {
     const payload = Object.assign({}, msg);
     if (!this.nativeSSE) return;
+    // (1.10.0) Una instancia destruida no habla con NINGUN portero: un callback en vuelo (un
+    // talk_request, un quality...) mandaria al portero viejo algo que ya nadie pidio. El `bye` del
+    // cierre sale antes de la marca, ver _destruir().
+    if (this._destroyed) return;
     // El "slot" recibido en la oferta es obligatorio en cada mensaje saliente (§1.4/§3.3).
     if (this._slot !== null) payload.slot = this._slot;
     else if (msg.type !== 'bye') {
@@ -5059,7 +5195,7 @@ class IslautopiaIntercomCard extends HTMLElement {
     // Por el proxy la peticion va autenticada como cualquier llamada del frontend a su propio
     // Home Assistant (callApi pone la cabecera Authorization). La credencial de emparejamiento la
     // añade la integracion en el servidor: nunca pasa por este navegador.
-    this._hass.callApi('POST', `islautopia_doorbell/signal/${this.config.device_id}`, payload)
+    this._hass.callApi('POST', `${IG_DOMAIN}/signal/${this.config.device_id}`, payload)
       .catch((err) => {
         const status = err && (err.status_code || err.status);
         if (status === 401) this._reportPairingRejected('proxy local de Home Assistant: 401 al enviar senalizacion');
@@ -5165,7 +5301,12 @@ class IslautopiaIntercomCard extends HTMLElement {
     // real medido (camino remoto, por el relay) tarda ~2,5s en ida. El doble de largo, para no
     // acusar de fallo a una red simplemente lenta.
     if (this._doorWaitTimer) clearTimeout(this._doorWaitTimer);
-    this._doorWaitTimer = setTimeout(() => this._doorOpenSinRespuesta(), 6000);
+    // 10 s y no 6 (1.10.0): con la cerradura en Home Assistant (door_m=1) el portero NO contesta
+    // `open_result` al instante, sino cuando HA confirma -- "como mucho ~8 s", y el contrato pide
+    // esperar ese margen (API_CONTRACT.md §3.3, fila open_result). Con 6 s la card decia "la puerta
+    // NO se ha abierto" mientras se abria. Pesa mas desde que `unlock_entity` desaparecio y toda
+    // apertura pasa por aqui.
+    this._doorWaitTimer = setTimeout(() => this._doorOpenSinRespuesta(), 10000);
   }
 
   // ==============================================================================
@@ -5206,14 +5347,16 @@ class IslautopiaIntercomCard extends HTMLElement {
     this._limpiarEsperaDePuerta();
     if (this.unlockIcon) this.unlockIcon.setAttribute('icon', 'mdi:lock-open-variant');
     this._setDoorLabel(false);
-    console.warn('[islautopia-intercom-card] no llego ningun open_result en 6s - NO se afirma que la puerta se haya abierto');
+    console.warn('[islautopia-intercom-card] no llego ningun open_result en 10s - NO se afirma que la puerta se haya abierto');
     this._flashStatusLine('door_no_answer', 6000);
   }
 
   handleNativeOpenResult(msg) {
     this._limpiarEsperaDePuerta();
     if (!this.unlockButton) return;
-    const duration = parseInt(this.config.unlock_duration) || 3;
+    // (1.10.0) Sin opcion `unlock_duration`: el portero no dice cuanto dura su pulso (`dur` vive en
+    // get_states, que la card no lee), y las apps pintan tambien una cuenta fija. Solo decora.
+    const duration = DOOR_OPEN_DISPLAY_S;
     if (msg.status === 'opened') {
       // Si el portero abre, es que SI tiene cerradura: se olvida lo aprendido a base de fallar
       // (solo aplica contra un firmware anterior, ver _applyDoorAvailability).
@@ -5268,7 +5411,18 @@ class IslautopiaIntercomCard extends HTMLElement {
         this._audioOnBeforeMic = this._audioOn;
         this._setAudioOn(true, 'micro');
         console.log('[islautopia-intercom-card DIAG audio] toggleIntercom: pidiendo getUserMedia({audio:true})...');
-        this.localAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const genMic = this._connGen;
+        const flujo = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // ⚠️ (1.10.0) El permiso de micro puede tardar lo que el usuario tarde en contestar al
+        // navegador, y mientras tanto la sesion puede haberse desmontado (reconexion) o el portero
+        // haberse CAMBIADO. Sin esta comprobacion, el micro se abria sobre una instancia muerta: el
+        // icono del sistema encendido y nadie escuchando -- o, peor, el turno del portero viejo.
+        if (this._destroyed || genMic !== this._connGen) {
+          flujo.getTracks().forEach((t) => t.stop());
+          console.info('[islautopia-intercom-card] getUserMedia resolvio tras un cambio de sesion/portero: micro soltado sin usar');
+          return;
+        }
+        this.localAudioStream = flujo;
         const realAudioTrack = this.localAudioStream.getAudioTracks()[0];
         console.log(
           '[islautopia-intercom-card DIAG audio] getUserMedia OK: ' +
@@ -5437,7 +5591,12 @@ class IslautopiaIntercomCard extends HTMLElement {
       this.videoEl.play().catch(() => {});
       this._paintAudioState();
 
-      this._setLiveState('live');
+      // ⚠️ (1.10.0) AQUI YA NO SE DECLARA 'live'. `ontrack` salta al aplicar la oferta, ANTES de
+      // que llegue un solo paquete (ICE puede no conectar nunca), y con eso el live-tag decia
+      // "En directo" -- y la bolita del selector de portero, que es el mismo estado, se ponia
+      // VERDE -- sobre una sesion sin imagen. Es exactamente el fallo de las apps que la bolita no
+      // debe repetir. 'live' lo pone _confirmLiveFromMedia(): 'timeupdate' del <video> (imagen que
+      // avanza de verdad, varias veces por segundo) o el vigilante de getStats (paquetes que suben).
       this.intercomButton.removeAttribute('disabled');
       if (this.unlockButton) this.unlockButton.removeAttribute('disabled');
 
@@ -5464,65 +5623,10 @@ class IslautopiaIntercomCard extends HTMLElement {
     }
   }
 
-  triggerUnlock() {
-    if (!this._hass || !this.config.unlock_entity) return;
-    const entityId = this.config.unlock_entity;
-    const domain = entityId.split('.')[0];
-
-    let duration = parseInt(this.config.unlock_duration) || 3;
-    // Bug real encontrado y corregido (2026-07-10, ver COORDINATION.md): el README/config ya
-    // anunciaba "cover" como dominio soportado para unlock_entity (p.ej. una verja/portón), pero
-    // este switch caia al "else" y llamaba a cover.turn_on - un servicio que NO EXISTE en el
-    // dominio cover de HA (lanza ServiceNotFound; el dominio cover usa open_cover/close_cover/
-    // stop_cover, nunca turn_on/turn_off, verificado contra la documentacion real de HA, no
-    // asumido). Cualquier usuario que configurara de verdad una entidad cover aqui habria visto
-    // fallar la apertura en silencio (error en el log de HA, sin feedback visible en la card).
-    let service;
-    if (domain === 'button') service = 'press';
-    else if (domain === 'lock') service = 'unlock';
-    else if (domain === 'cover') service = 'open_cover';
-    else service = 'turn_on'; // switch, light, y cualquier otro dominio generico con turn_on/off
-
-    // §1.0: se enseña "Abriendo" DESDE EL PRIMER INSTANTE y se espera a que Home Assistant acepte
-    // la llamada, en vez de pintar "Abierta" y cruzar los dedos. Aqui no hay un `open_result` del
-    // portero -- la apertura la hace una entidad de HA -- pero si hay algo que esperar: que el
-    // servicio se despache sin error. Un dominio equivocado o una entidad que ya no existe
-    // fallaban antes en SILENCIO, con el boton en verde y la puerta cerrada.
-    this._paintDoorOpening();
-    Promise.resolve(this._hass.callService(domain, service, { entity_id: entityId }))
-      .then(() => {
-        this._limpiarEsperaDePuerta();
-        this.unlockButton.classList.add('active-unlock');
-        this.unlockIcon.setAttribute('icon', 'mdi:door-open');
-        this._setDoorLabel(true);
-        this._startDoorCountdown(duration);
-        // El cierre automatico se programa DESDE AQUI, no en paralelo a la apertura: si la
-        // apertura fallo no hay nada que cerrar, y mandar un turn_off a una entidad que nunca se
-        // encendio es ruido en el registro de alguien que ya tiene un problema.
-        setTimeout(() => {
-          this.unlockButton.classList.remove('active-unlock');
-          this.unlockIcon.setAttribute('icon', 'mdi:lock-open-variant');
-          this._setDoorLabel(false);
-          if (domain === 'switch' || domain === 'light') {
-            this._hass.callService(domain, 'turn_off', { entity_id: entityId });
-          } else if (domain === 'cover') {
-            this._hass.callService(domain, 'close_cover', { entity_id: entityId });
-          }
-        }, duration * 1000);
-      })
-      .catch((err) => {
-        this._limpiarEsperaDePuerta();
-        this.unlockIcon.setAttribute('icon', 'mdi:lock-open-variant');
-        this._setDoorLabel(false);
-        console.error(`[islautopia-intercom-card] Home Assistant rechazo ${domain}.${service} sobre ${entityId}`, err);
-        this._flashStatusLine('door_no_answer', 6000);
-      });
-  }
-
   injectStyles() {
     const style = document.createElement('style');
     style.textContent = `
-      islautopia-intercom-card { display: block; width: 100%; box-sizing: border-box; }
+      ${CARD_TAG}, ${VIEW_TAG} { display: block; width: 100%; box-sizing: border-box; }
 
       /* Paleta exacta del mockup Figma (android_app/ios_app) - ver COORDINATION.md Q22-bis en
          ig_hassio_addons. Custom properties escopadas a .intercom-container (no a :root - esta
@@ -5554,6 +5658,46 @@ class IslautopiaIntercomCard extends HTMLElement {
       /* ---- cabecera: chip de modo desplegable + REC (v1.9.5, reemplaza la fila de 4 chips
          segmentados) ---- */
       .top-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      /* ---- selector de portero (1.10.0): capsula bolita + nombre + galon, como DoorbellCapsule
+         de las apps. Encoge con puntos suspensivos antes que empujar REC/campanita fuera. ---- */
+      .top-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 auto; }
+      .top-left .mode-row { flex: none; }
+      .db-picker { position: relative; min-width: 0; flex: 0 1 auto; }
+      .db-pill {
+        display: flex; align-items: center; gap: 8px; max-width: 100%; min-width: 0;
+        padding: 6px 12px; border-radius: 999px; background: var(--ig-surf1);
+        border: 1px solid rgba(255,255,255,0.14); color: var(--ig-text); font-family: inherit;
+        font-size: 13px; font-weight: 600; cursor: default; box-sizing: border-box;
+      }
+      .db-pill.pickable { cursor: pointer; }
+      .db-pill.pickable:hover { border-color: rgba(255,255,255,0.3); }
+      .db-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+      .db-chev { --mdc-icon-size: 16px; color: var(--ig-muted); flex: none; margin-right: -4px; }
+      .db-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--ig-dim); }
+      /* Verde SOLO con video de verdad (live/open). Conectando: ambar que respira. Error: rojo.
+         En pausa: gris. 'avail'/'down' son de las filas de OTROS porteros en el menu (dato de HA). */
+      .db-dot[data-state="live"], .db-dot[data-state="open"] { background: var(--ig-green); box-shadow: 0 0 6px var(--ig-green); }
+      .db-dot[data-state="connecting"] { background: var(--ig-amber); animation: ig-breathe 1.1s ease-in-out infinite; }
+      .db-dot[data-state="error"] { background: var(--ig-red); }
+      .db-dot[data-state="warn"] { background: var(--ig-dim); }
+      .db-dot[data-state="avail"] { background: var(--ig-green); }
+      .db-dot[data-state="down"] { background: var(--ig-red); }
+      @media (prefers-reduced-motion: reduce) { .db-dot[data-state="connecting"] { animation: none; } }
+      .db-menu {
+        position: absolute; top: calc(100% + 4px); left: 0; z-index: 25; display: none;
+        flex-direction: column; min-width: 220px; max-width: min(320px, 90vw); background: var(--ig-surf1);
+        border-radius: 12px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.08);
+      }
+      .db-menu-title { font-size: 11px; font-weight: 700; color: var(--ig-muted); padding: 6px 10px 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+      .db-opt {
+        display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 10px; border-radius: 8px;
+        border: none; background: transparent; color: var(--ig-text); font-size: 14px; font-weight: 500;
+        cursor: pointer; font-family: inherit; text-align: left;
+      }
+      .db-opt:hover { background: rgba(255,255,255,0.06); }
+      .db-opt.sel { font-weight: 700; }
+      .db-check { --mdc-icon-size: 16px; width: 16px; flex: none; color: var(--ig-lime); }
+      .db-opt-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
       .mode-row { display: none; position: relative; }
       /* Mismo aspecto que _ModePill de las apps: fondo oscuro translucido (nunca un velo, para
          que se lea sobre cualquier escena si algun dia vuelve a vivir sobre el video), borde e
@@ -5736,16 +5880,6 @@ class IslautopiaIntercomCard extends HTMLElement {
          (data-state, propagado tambien a .feed-wrap desde _setLiveState()) en vez de una metrica
          WiFi que esta card no tiene forma de conocer - una adaptacion honesta del elemento, no
          una imitacion literal de un dato que no existe aqui. */
-      .hud-sig { display: flex; align-items: flex-end; gap: 2px; height: 12px; background: rgba(7,13,26,0.55); border-radius: 999px; padding: 6px 8px; }
-      .hud-sig i { width: 3px; border-radius: 1px; background: rgba(255,255,255,0.2); display: block; }
-      .hud-sig i:nth-child(1) { height: 25%; }
-      .hud-sig i:nth-child(2) { height: 50%; }
-      .hud-sig i:nth-child(3) { height: 75%; }
-      .hud-sig i:nth-child(4) { height: 100%; }
-      .feed-wrap[data-state="live"] .hud-sig i, .feed-wrap[data-state="open"] .hud-sig i { background: var(--ig-text); }
-      .feed-wrap[data-state="connecting"] .hud-sig i:nth-child(-n+2) { background: rgba(232,240,254,0.6); }
-      .feed-wrap[data-state="error"] .hud-sig i:nth-child(1) { background: var(--ig-red); }
-      .feed-wrap[data-state="warn"] .hud-sig i:nth-child(-n+3) { background: var(--ig-amber); }
 
       .motion-pill {
         position: absolute; top: 44px; left: 50%; transform: translateX(-50%); z-index: 6;
@@ -5776,9 +5910,6 @@ class IslautopiaIntercomCard extends HTMLElement {
          ya esta en el live-tag de arriba), luego se encoge el slider de volumen, y en el ultimo
          escalon el selector de calidad se queda solo con el icono. Nada se oculta si es la unica
          forma de acceder a una funcion. */
-      @container igfeed (max-width: 460px) {
-        .hud-sig { display: none; }
-      }
 
       /* ---- linea de estado + botones de accion: SOBRE el video, no debajo ----
          Iñaki, 2026-09-07: "para una solucion universal para cualquier dispositivo, sera mejor
@@ -5927,7 +6058,7 @@ class IslautopiaIntercomCard extends HTMLElement {
          linea gana a cualquier regla normal de esta hoja. Es el caso justo para el que existe
          !important, no una pelea de especificidad inventada.
          ========================================================================== */
-      islautopia-intercom-card[data-fs] { height: 100%; background: #000; }
+      ${VIEW_TAG}[data-fs] { height: 100%; background: #000; }
       /* Red de seguridad para pantalla completa NATIVA (2026-09-25, ver el porque medido en
          _applyFullscreenUI()): fuerza el mismo position:fixed + inset:0 explicito que el respaldo
          CSS ya se daba a si mismo, en vez de confiar en que la hoja UA del navegador coloque
@@ -5936,14 +6067,14 @@ class IslautopiaIntercomCard extends HTMLElement {
          abajo con la barra de estado/navegacion del sistema ya ocultas (o sea, el hueco esta
          DENTRO del contenido web, no es del sistema operativo). Nunca se activa en el respaldo
          (.ig-fs-pseudo), que no necesita esto y no debe tocarse. */
-      islautopia-intercom-card.ig-fs-native-layout {
+      ${VIEW_TAG}.ig-fs-native-layout {
         position: fixed; inset: 0; width: 100%; height: 100%;
       }
       /* Contenedor de emergencia al que se traslada la card cuando un ancestro atrapa el
          position:fixed. No lleva estilos propios a proposito: quien se posiciona es el
          contenedor de la card, y un host con caja propia solo podria estorbar. */
       .ig-fs-host { display: contents; }
-      islautopia-intercom-card[data-fs] ha-card {
+      ${VIEW_TAG}[data-fs] ha-card {
         height: 100%; border-radius: 0; box-shadow: none; border: none;
       }
       .intercom-container.ig-fs {
@@ -6202,147 +6333,202 @@ class IslautopiaIntercomCard extends HTMLElement {
 }
 
 // ==============================================================================
-// EDITOR VISUAL TRADUCIDO (A prueba de condiciones de carrera)
+// LA CARD (1.10.0): SIN CONFIGURACION, CON SELECTOR DE PORTERO
+// ==============================================================================
+//
+// Iñaki, 2026-09-26: «una card, elegir entre los porteros en tiempo real» y «la card no tiene
+// configuracion: se configura en UN sitio, la integracion». `type: custom:islautopia-intercom-card`
+// es el YAML entero. Los porteros salen del registro de dispositivos de Home Assistant
+// (identificador ['islautopia_doorbell', <device_id>], el que registra la integracion), sus
+// entidades de los registros (IslautopiaIntercomView._autoEntity), y direccion/credencial como
+// siempre por la integracion (get_connection_info / proxy de señalizacion, SIEMPRE local).
+//
+// ⚠️ POR QUE UNA INSTANCIA POR PORTERO Y NO "CAMBIAR EL device_id" DE LA QUE HAY.
+// El fallo conocido de las DOS apps al cambiar de portero: la cabecera cambiaba de nombre y la
+// bolita seguia en verde anunciando un portero sin sesion. Es la forma tipica de un cambio hecho
+// "limpiando campo a campo": la lista de cosas a limpiar siempre se queda corta en uno. Esta card
+// tiene decenas de campos por sesion (turno, calidad, rol, avisos, respuestas rapidas, giro,
+// pausa...) y temporizadores repartidos por todo el fichero. Aqui el cambio es ESTRUCTURAL: la
+// instancia del portero viejo se destruye (cuelga con `bye` y suelta todo lo que cuelga fuera de
+// ella, ver _destruir) y se crea una nueva, que nace en blanco por construccion. Un callback
+// rezagado del viejo escribe, como mucho, en un elemento que ya no esta en la pagina.
+//
+// Las opciones de versiones anteriores (device_id, unlock_entity, ring_entity, rec_entity,
+// mode_entity, motion_entity, unlock_duration, height, idle_release_seconds) se IGNORAN en
+// silencio: lanzar un error romperia el dashboard existente de quien actualice.
+// ==============================================================================
+const SELECCION_KEY = 'islautopia-intercom-card-selected';
+
+function porteroDeDispositivo(dev) {
+  if (!dev || dev.disabled_by || !Array.isArray(dev.identifiers)) return null;
+  const par = dev.identifiers.find((x) => Array.isArray(x) && x[0] === IG_DOMAIN && x[1]);
+  return par ? String(par[1]) : null;
+}
+
+class IslautopiaIntercomCard extends HTMLElement {
+  static async getConfigElement() {
+    return document.createElement(EDITOR_TAG);
+  }
+
+  static getStubConfig() {
+    return {};
+  }
+
+  setConfig(config) {
+    this.style.display = 'block';
+    this.style.width = '100%';
+    this.style.boxSizing = 'border-box';
+    const legado = Object.keys(config || {}).filter((k) => !['type', 'view_layout', 'grid_options', 'visibility', 'layout_options'].includes(k));
+    if (legado.length && !this._legadoAvisado) {
+      this._legadoAvisado = true;
+      console.info(`[islautopia-intercom-card] this card has no options since 1.10.0; ignoring: ${legado.join(', ')} (everything is configured in the Islautopia Doorbell integration)`);
+    }
+    this.config = {};
+    this._onPick = this._onPick || ((id) => this._elegir(id));
+    this._sync();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    if (this._view) this._view.hass = hass;
+    this._sync();
+  }
+
+  get hass() { return this._hass; }
+
+  getCardSize() { return 4; }
+
+  connectedCallback() { this._sync(); }
+
+  // La lista de porteros: cacheada por identidad de hass.devices/hass.entities (Home Assistant
+  // solo los sustituye cuando cambia el registro); la disponibilidad se lee en cada tick de los
+  // estados, que es barato (una lectura por entidad del portero).
+  _porteros() {
+    const hass = this._hass;
+    if (!hass || !hass.devices) return [];
+    if (!this._cache || this._cache.devices !== hass.devices || this._cache.entities !== hass.entities) {
+      const base = [];
+      for (const haId of Object.keys(hass.devices)) {
+        const dev = hass.devices[haId];
+        const id = porteroDeDispositivo(dev);
+        if (!id || base.some((d) => d.id === id)) continue;
+        let name = String(dev.name_by_user || dev.name || '').trim();
+        if (name === id) name = '';            // nunca el id hexadecimal como nombre
+        const ents = [];
+        const all = hass.entities || {};
+        for (const eid of Object.keys(all)) {
+          const e = all[eid];
+          if (e && e.device_id === haId && e.platform === IG_DOMAIN) ents.push(eid);
+        }
+        base.push({ id, name, ents });
+      }
+      base.sort((a, b) => (a.name || '~').localeCompare(b.name || '~') || a.id.localeCompare(b.id));
+      this._cache = { devices: hass.devices, entities: hass.entities, base };
+    }
+    const states = hass.states || {};
+    return this._cache.base.map((d) => {
+      const conocidas = d.ents.map((e) => states[e]).filter(Boolean);
+      const available = conocidas.length ? conocidas.some((st) => st.state !== 'unavailable') : null;
+      return { id: d.id, name: d.name, available };
+    });
+  }
+
+  _porDefecto(list) {
+    let guardado = null;
+    try { guardado = localStorage.getItem(SELECCION_KEY); } catch (err) { /* sin almacenamiento */ }
+    if (guardado && list.some((d) => d.id === guardado)) return guardado;
+    return list[0].id;
+  }
+
+  _sync() {
+    if (!this._hass || !this.config) return;
+    const list = this._porteros();
+    if (!list.length) {
+      // Sin porteros: si ya hay uno a la vista se deja (un registro momentaneamente vacio al
+      // arrancar Home Assistant no debe colgar una llamada); si no, se explica que falta.
+      if (!this._view) this._pintarVacio();
+      return;
+    }
+    this._quitarVacio();
+    const cur = this._view && this._view.config ? this._view.config.device_id : null;
+    if (cur && list.some((d) => d.id === cur)) {
+      this._view._setDoorbells(list, this._onPick);
+      return;
+    }
+    if (!this.isConnected) return;      // se monta al entrar en la pagina, no antes
+    this._cambiarA(this._porDefecto(list), cur ? 'el portero vigente ya no esta en Home Assistant' : 'arranque');
+  }
+
+  // El usuario elige en el selector. Se recuerda por navegador (localStorage), no en el YAML: la
+  // card no tiene configuracion y dos pantallas de la casa pueden querer mirar porteros distintos.
+  _elegir(id) {
+    const list = this._porteros();
+    if (!list.some((d) => d.id === id)) return;
+    try { localStorage.setItem(SELECCION_KEY, id); } catch (err) { /* sin almacenamiento: solo esta sesion */ }
+    this._cambiarA(id, 'elegido en el selector');
+  }
+
+  // Sincrono de principio a fin A PROPOSITO: entre destruir el viejo y crear el nuevo no hay ningun
+  // `await` en el que un segundo cambio (A->B->A rapido) pueda colarse y dejar dos sesiones.
+  _cambiarA(id, motivo) {
+    const viejo = this._view;
+    if (viejo && viejo.config && viejo.config.device_id === id) return;
+    this._view = null;
+    if (viejo) {
+      viejo._destruir(`cambio de portero: ${motivo}`);
+      viejo.remove();
+    }
+    if (!id) return;
+    console.info(`[islautopia-intercom-card] portero a la vista: ${id} (${motivo})`);
+    const v = document.createElement(VIEW_TAG);
+    v.hass = this._hass;
+    v._setDoorbells(this._porteros(), this._onPick);
+    // Al DOM ANTES de setConfig(): al reves, render() arranca una sesion y connectedCallback()
+    // otra (nota del arnes de 2026-08-03 en CLAUDE.md).
+    this.appendChild(v);
+    v.setConfig({ device_id: id });
+    this._view = v;
+  }
+
+  _pintarVacio() {
+    if (!this._vacio) {
+      this._vacio = document.createElement('ha-card');
+      this._vacio.style.cssText = 'display:block;padding:16px;';
+      this.appendChild(this._vacio);
+    }
+    this._vacio.textContent = getLocalText(this._hass, 'no_doorbells');
+  }
+
+  _quitarVacio() {
+    if (this._vacio) { this._vacio.remove(); this._vacio = null; }
+  }
+}
+
+// ==============================================================================
+// EDITOR VISUAL (1.10.0): no hay nada que configurar aqui
 // ==============================================================================
 class IslautopiaIntercomCardEditor extends HTMLElement {
-  set hass(hass) { 
+  set hass(hass) {
     this._hass = hass;
-    this.render(); // Dejamos que render() decida si tiene todo lo necesario
+    this.render();
   }
 
   setConfig(config) {
     this._config = Object.assign({}, config);
-    this.render(); // Dejamos que render() decida si tiene todo lo necesario
+    this.render();
   }
 
   render() {
-    // 🚀 EL FIX: Solo pintamos si tenemos config, hass, y no hemos pintado ya.
-    if (!this._config || !this._hass || this._rendered) return;
-    
+    const lang = (this._hass && this._hass.language) || 'en';
+    if (this._pintado === lang) return;
+    this._pintado = lang;
     this.innerHTML = `
-      <div style="display: flex; flex-direction: column; gap: 16px; padding: 8px 0;">
-        <div style="display: flex; flex-direction: column;">
-          <div id="device-picker-slot"></div>
-          <input type="text" id="device_id_fallback" value="${this._config.device_id || ''}"
-                 placeholder="${getLocalText(this._hass, 'ed_device_id')}"
-                 style="display:none; margin-top:6px; padding: 10px; border: 1px solid var(--divider-color, #ccc); border-radius: 4px; background: var(--card-background-color, #fff); color: var(--primary-text-color);">
-        </div>
-        <div style="display: flex; flex-direction: column;">
-          <label style="font-size: 14px; margin-bottom: 4px; color: var(--primary-text-color);">${getLocalText(this._hass, 'ed_entity')}</label>
-          <input type="text" id="unlock_entity" value="${this._config.unlock_entity || ''}" style="padding: 10px; border: 1px solid var(--divider-color, #ccc); border-radius: 4px; background: var(--card-background-color, #fff); color: var(--primary-text-color);">
-        </div>
-        <div style="display: flex; flex-direction: column;">
-          <label style="font-size: 14px; margin-bottom: 4px; color: var(--primary-text-color);">${getLocalText(this._hass, 'ed_mode_entity')}</label>
-          <input type="text" id="mode_entity" value="${this._config.mode_entity || ''}" style="padding: 10px; border: 1px solid var(--divider-color, #ccc); border-radius: 4px; background: var(--card-background-color, #fff); color: var(--primary-text-color);">
-        </div>
-        <div style="display: flex; flex-direction: column;">
-          <label style="font-size: 14px; margin-bottom: 4px; color: var(--primary-text-color);">${getLocalText(this._hass, 'ed_motion_entity')}</label>
-          <input type="text" id="motion_entity" value="${this._config.motion_entity || ''}" style="padding: 10px; border: 1px solid var(--divider-color, #ccc); border-radius: 4px; background: var(--card-background-color, #fff); color: var(--primary-text-color);">
-        </div>
-        <div style="display: flex; flex-direction: column;">
-          <label style="font-size: 14px; margin-bottom: 4px; color: var(--primary-text-color);">${getLocalText(this._hass, 'ed_ring_entity')}</label>
-          <input type="text" id="ring_entity" value="${this._config.ring_entity || ''}" style="padding: 10px; border: 1px solid var(--divider-color, #ccc); border-radius: 4px; background: var(--card-background-color, #fff); color: var(--primary-text-color);">
-        </div>
-        <div style="display: flex; flex-direction: column;">
-          <label style="font-size: 14px; margin-bottom: 4px; color: var(--primary-text-color);">${getLocalText(this._hass, 'ed_rec_entity')}</label>
-          <input type="text" id="rec_entity" value="${this._config.rec_entity || ''}" style="padding: 10px; border: 1px solid var(--divider-color, #ccc); border-radius: 4px; background: var(--card-background-color, #fff); color: var(--primary-text-color);">
-        </div>
-        <div style="display: flex; flex-direction: column;">
-          <label style="font-size: 14px; margin-bottom: 4px; color: var(--primary-text-color);">${getLocalText(this._hass, 'ed_duration')}</label>
-          <input type="number" id="unlock_duration" min="1" max="20" value="${this._config.unlock_duration || 3}" style="padding: 10px; border: 1px solid var(--divider-color, #ccc); border-radius: 4px; background: var(--card-background-color, #fff); color: var(--primary-text-color);">
-        </div>
-        <div style="display: flex; flex-direction: column;">
-          <label style="font-size: 14px; margin-bottom: 4px; color: var(--primary-text-color);">${getLocalText(this._hass, 'ed_height')}</label>
-          <input type="text" id="height" value="${this._config.height || 'auto'}" style="padding: 10px; border: 1px solid var(--divider-color, #ccc); border-radius: 4px; background: var(--card-background-color, #fff); color: var(--primary-text-color);">
-        </div>
+      <div style="padding: 8px 0; color: var(--primary-text-color); line-height: 1.5;">
+        <ha-icon icon="mdi:information-outline" style="--mdc-icon-size:20px; vertical-align:middle; margin-right:6px; color: var(--secondary-text-color);"></ha-icon>
+        <span>${getLocalText(this._hass, 'ed_nothing')}</span>
       </div>
     `;
-
-    // device_id_fallback se gestiona aparte (mountDevicePicker) porque su valor real va a la
-    // clave "device_id" de la config, no a "device_id_fallback" - se excluye del bucle generico.
-    const inputs = this.querySelectorAll('input:not(#device_id_fallback)');
-    inputs.forEach(input => {
-      input.addEventListener('input', (e) => {
-        this.updateConfigValue(e.target.id, e.target.value);
-      });
-    });
-
-    this.mountDevicePicker();
-
-    // Marcamos como dibujado SOLAMENTE cuando hemos puesto los inputs en pantalla
-    this._rendered = true;
   }
-
-  updateConfigValue(key, value) {
-    if (!this._config) return;
-    const newConfig = Object.assign({}, this._config);
-    if (value === '') delete newConfig[key];
-    else newConfig[key] = value;
-
-    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: newConfig }, bubbles: true, composed: true }));
-  }
-
-  // Picker nativo de HA (mismo componente que usa el propio Home Assistant en sus formularios),
-  // filtrado a los dispositivos de la integracion islautopia_doorbell - el usuario elige su
-  // doorbell por nombre, sin copiar/pegar ningun device_id a mano. Requiere que la integracion
-  // registre el dispositivo en el device registry (ver __init__.py::async_setup_entry en
-  // islautopia-doorbell-integration) para que aparezca en la lista.
-  mountDevicePicker() {
-    const slot = this.querySelector('#device-picker-slot');
-    const fallbackInput = this.querySelector('#device_id_fallback');
-    if (!slot) return;
-
-    if (!customElements.get('ha-selector')) {
-      // Defensivo: si por lo que sea el frontend de HA no tiene ha-selector disponible, no
-      // dejamos al usuario sin forma de configurar la card - se cae al campo de texto manual.
-      console.warn('[islautopia-intercom-card] ha-selector no disponible, usando campo de texto manual para device_id');
-      if (fallbackInput) {
-        fallbackInput.style.display = '';
-        fallbackInput.addEventListener('input', (e) => this.updateConfigValue('device_id', e.target.value));
-      }
-      return;
-    }
-
-    const picker = document.createElement('ha-selector');
-    picker.hass = this._hass;
-    picker.selector = { device: { filter: { integration: 'islautopia_doorbell' } } };
-    picker.label = getLocalText(this._hass, 'ed_device_id');
-    picker.value = findHaDeviceIdForOurDeviceId(this._hass, this._config.device_id);
-
-    picker.addEventListener('value-changed', (e) => {
-      e.stopPropagation();
-      const haDeviceId = e.detail.value;
-      const ourDeviceId = findOurDeviceIdForHaDeviceId(this._hass, haDeviceId);
-      this.updateConfigValue('device_id', ourDeviceId || '');
-    });
-
-    slot.appendChild(picker);
-  }
-}
-
-// Resuelve entre el device_id propio del doorbell (el que usan websocket_api.py y el resto del
-// API_CONTRACT.md) y el ID interno del device registry de HA (el que devuelve <ha-selector>) -
-// via el identifier ["islautopia_doorbell", "<device_id>"] que el backend registra en cada
-// dispositivo (__init__.py). Nunca se guarda el ID interno de HA en la config de la card: es
-// menos estable a largo plazo que el device_id propio (derivado de la MAC del doorbell).
-function findHaDeviceIdForOurDeviceId(hass, ourDeviceId) {
-  if (!hass || !hass.devices || !ourDeviceId) return '';
-  for (const haId in hass.devices) {
-    const device = hass.devices[haId];
-    if (device && Array.isArray(device.identifiers) &&
-        device.identifiers.some((pair) => pair[0] === 'islautopia_doorbell' && pair[1] === ourDeviceId)) {
-      return haId;
-    }
-  }
-  return '';
-}
-
-function findOurDeviceIdForHaDeviceId(hass, haDeviceId) {
-  if (!hass || !hass.devices || !haDeviceId) return '';
-  const device = hass.devices[haDeviceId];
-  if (!device || !Array.isArray(device.identifiers)) return '';
-  const match = device.identifiers.find((pair) => pair[0] === 'islautopia_doorbell');
-  return match ? match[1] : '';
 }
 
 // Guardas de idempotencia (encontrado en pruebas reales 2026-07-09, ver COORDINATION.md): si
@@ -6354,22 +6540,32 @@ function findOurDeviceIdForHaDeviceId(hass, haDeviceId) {
 // probando). No sustituye a la solucion real (dejar activo solo un recurso a la vez, o publicar
 // una release nueva en HACS antes de retirar el resource manual) pero evita el crash y hace
 // que quede claro por consola cual copia esta realmente activa.
-if (!customElements.get('islautopia-intercom-card-editor')) {
-  customElements.define('islautopia-intercom-card-editor', IslautopiaIntercomCardEditor);
+if (!customElements.get(EDITOR_TAG)) {
+  customElements.define(EDITOR_TAG, IslautopiaIntercomCardEditor);
 } else {
   console.warn('[islautopia-intercom-card] islautopia-intercom-card-editor ya estaba registrado (probablemente hay dos recursos de esta card cargados a la vez, p.ej. HACS + /local/) - esta copia del script no se activa');
 }
 
-if (!customElements.get('islautopia-intercom-card')) {
-  customElements.define('islautopia-intercom-card', IslautopiaIntercomCard);
+// La vista de UN portero (1.10.0): la crea la card, nunca Home Assistant. Se registra ANTES que
+// la card para que el primer `createElement('islautopia-intercom-view')` ya la encuentre definida.
+if (!customElements.get(VIEW_TAG)) {
+  customElements.define(VIEW_TAG, IslautopiaIntercomView);
+} else {
+  console.warn('[islautopia-intercom-card] islautopia-intercom-view ya estaba registrado (dos recursos de esta card cargados a la vez) - esta copia del script no se activa');
+}
+
+if (!customElements.get(CARD_TAG)) {
+  customElements.define(CARD_TAG, IslautopiaIntercomCard);
 
   window.customCards = window.customCards || [];
-  if (!window.customCards.some((c) => c.type === 'islautopia-intercom-card')) {
+  if (!window.customCards.some((c) => c.type === CARD_TAG)) {
     window.customCards.push({
-      type: "islautopia-intercom-card",
+      type: CARD_TAG,
       name: "Islautopia Intercom",
-      preview: true,
-      description: "Tarjeta de videoportero WebRTC bidireccional optimizada para el ecosistema Islautopia Garage."
+      // Sin vista previa (1.10.0): sin configuracion, la previa del selector de cards abriria una
+      // sesion de video REAL contra un portero solo por hojear la lista, y ocuparia una de sus plazas.
+      preview: false,
+      description: "Live video, two-way audio and door control for Islautopia (IG Doorbell) doorbells. No options: everything is configured in the Islautopia Doorbell integration."
     });
   }
 } else {

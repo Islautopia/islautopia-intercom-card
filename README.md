@@ -4,31 +4,44 @@ A lightning-fast, custom WebRTC 2-way audio intercom card for Home Assistant, pu
 Islautopia Doorbell hardware. Visual language (colors, video frame, HUD, action buttons) matches
 the official Islautopia mobile apps.
 
-Set `device_id` and this card talks the doorbell's own WebRTC protocol (ICE-Lite + DTLS-SRTP +
-RTP) straight to the doorbell on your local network. Signalling goes through your own Home
+Add the card — it has **no options** — and it talks the doorbell's own WebRTC protocol (ICE-Lite +
+DTLS-SRTP + RTP) straight to the doorbell on your local network. It shows **every doorbell** paired
+with the `islautopia_doorbell` integration and lets you **switch between them live** from the card
+itself. Signalling goes through your own Home
 Assistant (the `islautopia_doorbell` integration, >= 0.7.0), which adds the pairing credential on
 the server side: **the credential never reaches the browser.** **Local only (since 1.9.0):** no
 cloud relay, no STUN/TURN — the live view works wherever the browser can reach the doorbell on your
 network, and not from outside.
 
-> **Breaking change (2026-07-10):** the legacy `go2rtc`/`stream`/`go2rtc_url` configuration mode
-> (for third-party RTSP intercoms served through `go2rtc`) has been removed entirely. This card
-> now only speaks the native IG Doorbell WebRTC protocol, and `device_id` is required. If you were
-> relying on the legacy mode, pin to a card version prior to this change — it will not come back.
+> **1.10.0 — the card has no configuration.** `type: custom:islautopia-intercom-card` is the whole
+> YAML. Every option of earlier versions (`device_id`, `unlock_entity`, `unlock_duration`,
+> `ring_entity`, `rec_entity`, `mode_entity`, `motion_entity`, `height`, `idle_release_seconds`) is
+> **ignored silently** (an existing dashboard keeps loading). Everything is configured in one
+> place: the integration (*Settings › Devices & services › Islautopia Doorbell › Configure*).
 
 ## ✨ Features
 
+* **Doorbell switcher (since 1.10.0):** a capsule in the header — status dot + the doorbell's name
+  (its own name, never its hex id) + a double chevron — lists every doorbell of the
+  `islautopia_doorbell` integration and switches between them live, the same picker the mobile apps
+  have. With a single doorbell it is just the title (no chevron, nothing to open). **Switching
+  changes everything**: the old doorbell's session is hung up at once (`bye`, peer connection,
+  microphone and talk turn, timers) and a brand-new view is built for the new one — notices, quick
+  replies, role, recordings, rotation, pause state; nothing of the old doorbell can leak into the
+  new one. The dot is the *session's* state and turns green only once the new doorbell's video is
+  actually playing (in the menu, the other doorbells show whether Home Assistant can reach them).
+  The last doorbell you chose is remembered per browser; otherwise the first one (by name).
 * **Native visual language:** same color palette, rounded video frame with an in-video HUD ("LIVE" tag, "Audio active"/"Motion detected" pills), asymmetric action buttons (speaker, large mic, door — same order as the mobile apps) and a door-status line, matching the official Islautopia apps.
-* **Mode dropdown chip (automatic since 1.9.3; dropdown since 1.9.5):** a single pill — icon + the current mode's label + a caret — that opens a small menu to switch Normal/Away/Do not disturb/Custom without leaving the card, matching the mobile apps' own mode pill. The card finds the doorbell's own mode `select` by itself (see *Entities found automatically* below); `mode_entity` is only a manual override.
-* **REC pill (admins only, since 1.9.2; automatic since 1.9.3; header pill since 1.9.5):** a small red-dot capsule in the header — same look as the mobile apps' REC indicator, "REC" always shown untranslated — that starts/stops a manual recording through the manual-recording `switch` published by the `islautopia_doorbell` integration (>= 0.7.2), found automatically for the card's own doorbell. The card never talks recording protocol to the doorbell directly — "the card shows, the integration exposes" — it only calls the entity's own service, and the blinking state always reflects what the *entity* says, never the last tap. Visible only when the doorbell paired this Home Assistant as an admin (`_connInfo.role`, not the Home Assistant user). `rec_entity` is only a manual override.
+* **Mode dropdown chip (automatic since 1.9.3; dropdown since 1.9.5):** a single pill — icon + the current mode's label + a caret — that opens a small menu to switch Normal/Away/Do not disturb/Custom without leaving the card, matching the mobile apps' own mode pill. The card finds the doorbell's own mode `select` by itself (see *Configuration* below).
+* **REC pill (admins only, since 1.9.2; automatic since 1.9.3; header pill since 1.9.5):** a small red-dot capsule in the header — same look as the mobile apps' REC indicator, "REC" always shown untranslated — that starts/stops a manual recording through the manual-recording `switch` published by the `islautopia_doorbell` integration (>= 0.7.2), found automatically for the card's own doorbell. The card never talks recording protocol to the doorbell directly — "the card shows, the integration exposes" — it only calls the entity's own service, and the blinking state always reflects what the *entity* says, never the last tap. Visible only when the doorbell paired this Home Assistant as an admin (`_connInfo.role`, not the Home Assistant user).
 * **Recordings button (admins only, since 1.9.5):** below the video, same look as the mobile apps' "Recordings" button — opens Home Assistant's own native media browser against the recordings this doorbell already exposes as a `media_source` (`islautopia_doorbell` integration), never a card-built player. Same admin gating as REC. There is no "Settings" button here on purpose — configuration lives in the integration and its entities.
 * **Quick replies (any user, since 1.9.8):** shares the same row as Recordings, split into two buttons ("Grabaciones"/"Respuestas rápidas") so the card doesn't grow any taller. Opens the doorbell's quick-reply list (read fresh over the LAN by the `islautopia_doorbell` integration >= 0.7.5, never cached on a server) and plays the chosen one through the doorbell's street speaker with the existing `play_sequence` service — the same message the mobile apps use, including its behaviour during an active ring (cuts the announcement without triggering the "nobody answered" follow-up).
-* **Motion badge (optional):** point `motion_entity` at a presence/motion `binary_sensor.*` to show an amber "Motion detected" badge over the video — automatically hidden whenever the mic is active, so it never competes with the audio indicator.
+* **Presence badge:** while the integration's presence `binary_sensor` (the doorbell's visitor detection) is on, an amber "Motion detected" badge shows over the video — automatically hidden whenever the mic is active, so it never competes with the audio indicator.
 * **Ultra-Fast Video Loading:** Uses `recvonly` initialization and a dummy audio track to load video streams in ~1 second without waiting for microphone permissions.
 * **Flawless 2-Way Audio (Hot-Swap):** Replaces tracks on the fly. No SDP renegotiation, no ICE restarts, and no dropped connections when you toggle the microphone.
 * **Background Lifecycle Management:** Automatically closes connections when you navigate away from the Lovelace tab to save resources, instantly revives the stream when you return, and auto-reconnects (with backoff) if the live connection drops mid-session.
-* **Visual Lovelace Editor:** Fully configurable via the Home Assistant UI. No YAML required.
-* **Native door open:** sends the doorbell's own `open`/`open_result` signaling message — works local and remote, distinguishes "opened" from "no lock configured", with a live "Door open · Closing in Ns" countdown under the video. `unlock_entity` (below) remains available as an explicit alternative if you'd rather route door-open through an HA entity/Automation.
+* **Nothing to configure:** the visual editor only says so, and where the settings live (the integration).
+* **Native door open:** sends the doorbell's own `open`/`open_result` signaling message, always — distinguishes "opened" from "no lock configured", with a "Door open · Closing in Ns" countdown under the video. If the door is a Home Assistant entity, the *doorbell* actuates it (lock type "Home Assistant", chosen from the integration's allow-list), so the door opens the same way from the card, the apps and the street panel; the card waits up to 10 s for that confirmation. (`unlock_entity` was removed in 1.10.0.)
 * **Voice turn-taking (multi-client):** the doorbell has a *single* voice channel. The card asks for the turn before unmuting and only opens the mic once the doorbell grants it. If someone else is already talking you get a clear "voice channel busy" message and stay in **listen-only** — you still hear the door, you just can't talk yet — and the card tells you the moment the channel frees up. If the doorbell takes the turn back (silence timeout, or another user), you're told which of the two happened instead of being cut off mid-sentence.
 * **Connected-viewer counter:** a `👥 N` pill shows how many WebRTC clients are watching this doorbell right now (RTSP/NVR recorders are not counted — they're not people). It highlights when there's more than one.
 * **Quality stays automatic on Home Assistant (since 1.9.2):** the picker to force Low/Audio-only was removed from this card — on a dashboard the choice is always automatic (or high once the doorbell is at full quality), the same as the mobile apps' behaviour for a home-network viewer. Automatic changes made by the doorbell itself are still shown with their reason (packet loss / bandwidth) if the picture degrades.
@@ -43,7 +56,7 @@ network, and not from outside.
 * **Pinch to zoom (since 1.9.3):** two fingers zoom into the picture (up to ×5), one finger pans once zoomed, a double tap zooms ×2.5 at that point or, if already zoomed, fits the picture back. Works in fullscreen and embedded in the dashboard (where one finger still scrolls the dashboard until you zoom). Ctrl + mouse wheel / trackpad pinch does the same on a desktop. Zoom resets when entering or leaving fullscreen.
 * **No door button when there's no door:** if the doorbell has no lock configured, the open button isn't drawn at all instead of being offered and failing. The doorbell reports its lock type over the signaling channel every few seconds, so the button is correct from the first frame — and if you change the lock type from the doorbell's own dashboard while the card is open, the button appears or disappears within seconds, with nothing to reload. Against older doorbell firmware that doesn't report it, the card falls back to hiding the button after a genuine "no lock configured" reply.
 * **Upright picture, wherever the camera is mounted:** the camera module inside the doorbell is fitted rotated 90° on purpose — vertically it fits a whole person *and* a parcel on the ground, which landscape does not. Rotating on the doorbell itself was measured at 65–71 ms per frame against a 66.7 ms budget at 15 fps, so it is the client that straightens the picture, which is free. The doorbell reports the angle on the signaling channel and the card applies it, switching the frame to 9:16 so a portrait video is *big* on a phone. It never crops to fill: zooming until the width is covered throws away the top and the bottom, which is exactly what the rotated sensor was for. In fullscreen on a landscape screen — a wall tablet — the two buttons move to a narrow side rail and the video keeps the full height. The last known angle for that doorbell is remembered, so the card reserves the right shape before the first frame instead of visibly jumping on every start.
-* **Watching is not listening:** the speaker starts **muted**. A wall panel showing the street 24/7 must not pipe the street into your living room 24/7. Sound turns on when *you* turn it on, or by itself when somebody rings — by default the card listens to the integration's events entity (only `ring` counts); `ring_entity` overrides it. Listening and talking are independent: you can hear the visitor without taking the voice turn, and closing the mic puts the sound back the way it was. The speaker toggle lives in the main action row now (since 1.9.2, same place as the mobile apps); the volume slider that used to sit next to it was removed — volume is the device's own, no client in this product has one in its live view.
+* **Watching is not listening:** the speaker starts **muted**. A wall panel showing the street 24/7 must not pipe the street into your living room 24/7. Sound turns on when *you* turn it on, or by itself when somebody rings — the card listens to the integration's events entity (only `ring` counts). Listening and talking are independent: you can hear the visitor without taking the voice turn, and closing the mic puts the sound back the way it was. The speaker toggle lives in the main action row now (since 1.9.2, same place as the mobile apps); the volume slider that used to sit next to it was removed — volume is the device's own, no client in this product has one in its live view.
 * **Door-open asks twice:** the open button arms on the first press and only opens on the second, with an inline message and a countdown ring — no modal to dismiss with somebody waiting at the door. The confirmation **expires after ~3 s** (otherwise an accidental press leaves the door armed and the next accidental press opens it) and a fast double-tap under ~300 ms doesn't count (a phone in a pocket, or a bouncing finger, produces exactly that). Not configurable, on purpose: a safety mechanism you can switch off stops being one.
 * **Nothing happens in silence:** anything that isn't instant shows that it's running, from the first moment, and always ends. Opening the door shows **Opening…** while the doorbell is asked, and only turns green and says **Open** once the doorbell has actually confirmed it — a timeout is a timeout, never an "opened". (Until now the button went green the instant you pressed it, so a reply that never arrived left you looking at a button reading "Open" with the door shut. On a video intercom that isn't a UI detail: it's somebody walking away believing they let the visitor in.) When Home Assistant cannot reach the doorbell on the network the card says so instead of leaving a black rectangle, and a reconnection shows the countdown to the next attempt rather than a spinner that turns forever with no explanation.
 * **Tells you when it needs re-pairing:** if the doorbell rejects the pairing credential — after a factory reset, or a revoked app instance — the card says so in plain language instead of retrying in silence behind a permanent "Connecting…". It keeps retrying anyway, and clears the notice by itself the moment video comes back.
@@ -96,82 +109,32 @@ relay (call answered/missed, doorbell offline) never reach Home Assistant and do
 
 ## ⚙️ Configuration
 
-The easiest way to configure the card is using the **Visual Editor** in your Lovelace dashboard. Just click "Add Card", search for "Islautopia Intercom", and fill in the fields.
-
-### Entities found automatically (since 1.9.3)
-
-Only `device_id` is needed. From it the card finds the Home Assistant device registered by the
-`islautopia_doorbell` integration for that doorbell, and takes the integration's own entities of
-that device by their **translation key** (never by entity_id, which you may rename): the mode
-`select` (`mode`), the manual-recording `switch` (`rec`) and the events entity (`events`, for the
-ring). `mode_entity`, `rec_entity` and `ring_entity` still work, as manual overrides.
-
-### YAML Configuration Example
+There is none. The whole YAML is:
 
 ```yaml
 type: custom:islautopia-intercom-card
-# REQUIRED: the doorbell's device_id, as shown in
-# Settings > Devices & services > Islautopia Doorbell after pairing it.
-device_id: a1b2c3d4e5f60718
-
-# LIVE VIEW TIMEOUT (1.9.0): set it with the integration's entity
-# `number.<doorbell>_live_view_timeout` (default 120 s, 0 = never) — an automation or any dashboard
-# can change it. When it expires with nobody touching the card, the card does what the apps do in
-# the background: `live_pause` at once, and after 15 s it hangs up and FREES THE DOORBELL'S SLOT.
-# It never expires with the microphone open, a tap resumes, and a new ring wakes it by itself.
-#
-# LEAVING THE VIEW (1.9.1): switching dashboard view or tab, or the screen turning off, pauses the
-# live view at once (`live_pause`) and coming back resumes it in the same state (sound, microphone
-# and talk turn), call or no call. Without a call the doorbell's slot is freed after 15 s away.
-#
-# `idle_release_seconds` below is only the fallback for an integration older than 0.7.0.
-#
-# OPTIONAL: seconds without any interaction (touch, pointer or keyboard) before the card releases
-# the video stream, letting the screen turn off. Default 120. Set to 0 to disable.
-#
-# WHY THIS EXISTS: while video is playing the card holds a screen wake lock so the display does
-# not dim mid-conversation. On a phone that lasts as long as the call. On a WALL PANEL it does
-# not: after a doorbell ring the screen stayed on forever, and the wake lock also overrode Home
-# Assistant's `command_screen_off` — measured on a Galaxy Tab. That is a deadlock: releasing the
-# stream requires hiding the card, and the wake lock would not let the screen turn off to hide it.
-#
-# With this, an untouched panel lets go after a minute, the OS turns the screen off on its own
-# timeout, the card becomes hidden and the stream is released. A touch brings it all back.
-idle_release_seconds: 120
-
-# OPTIONAL: a switch/light/lock/cover/button entity to trigger door-open through Home
-# Assistant instead of the doorbell's own native open/open_result signaling message.
-unlock_entity: switch.front_door_relay
-
-# OPTIONAL: auto-turn off unlock_entity after X seconds, only used if unlock_entity is set
-unlock_duration: 3
-
-# OPTIONAL OVERRIDE: since 1.9.3 the card finds the doorbell's own mode select.* by itself.
-# Set this only to show the chips of a different select.* entity.
-mode_entity: select.front_door_mode
-
-# OPTIONAL: a binary_sensor.* entity (e.g. presence/motion detection) to show an amber
-# "Motion detected" badge over the video while it's "on". Never shown while the mic is active.
-motion_entity: binary_sensor.front_door_motion
-
-# OPTIONAL: the doorbell's chime entity. The speaker starts muted -- watching is not
-# listening -- and this is the one thing that turns sound on by itself: somebody ringing.
-# Works with a binary_sensor.* (transition to "on") or an event.* entity.
-ring_entity: binary_sensor.front_door_chime
-
-# OPTIONAL OVERRIDE: since 1.9.3 the card finds the manual-recording switch.* of the
-# islautopia_doorbell integration (>= 0.7.2) by itself. The REC button is visible only to
-# Home Assistant administrators. The card
-# never talks recording protocol to the doorbell itself: it calls this entity's own service, and
-# the blinking state always reflects what the ENTITY says, never the last tap (so two admins
-# watching the same door see the same state, and an automatic recording blinks too).
-rec_entity: switch.front_door_rec
-
-# OPTIONAL: MAXIMUM height of the video frame in px (e.g., 650px). Since 1.9.7 the card sizes
-# itself: it measures the space the dashboard gives it, keeps the controls and Recordings on
-# screen, and gives the video what is left at its real aspect ratio. This value only caps it.
-height: auto
 ```
+
+What the card needs, and where it comes from:
+
+| What | Where it comes from |
+|---|---|
+| Which doorbells | Home Assistant's device registry: every device registered by the `islautopia_doorbell` integration (identifier `["islautopia_doorbell", <device_id>]`). Add or remove doorbells in the integration and the card follows. |
+| Which one is shown | The one last chosen in the card's own switcher **in this browser** (`localStorage`), otherwise the first by name. |
+| Address, pairing credential, role | The integration, over Home Assistant's WebSocket (`get_connection_info`, signalling proxy). Always local, never through the cloud relay. |
+| Mode chip, REC, ring, presence badge | The integration's own entities of that doorbell's device, found by **translation key** (never by entity_id, which you may rename): `mode` (select), `rec` (switch), `events` (event), `visitor` (binary_sensor). |
+| Door | The doorbell's own `open` message; the lock type (relay / Home Assistant entity / none) is the doorbell's setting. |
+| Live view timeout | The integration's `number.<doorbell>_live_view_timeout` entity (default 120 s, 0 = never). |
+| Size | Measured: the card fits the space the dashboard gives it (since 1.9.7); the old `height` cap is gone. |
+
+**Upgrading from 1.9.x:** nothing to do. The old options are ignored without an error, so the
+dashboard keeps working; you can delete them from the YAML whenever you like.
+
+**Behaviour you get without configuring it** (kept from earlier versions): leaving the view,
+switching tab or the screen turning off pauses the live view at once (`live_pause`) and coming back
+resumes it in the same state; without a call the doorbell's slot is freed after 15 s away. When the
+live view timeout expires with nobody touching the card, it pauses the same way — never with the
+microphone open — and a tap or a new ring brings it back.
 
 ## 🧠 How it Works (The Magic)
 
