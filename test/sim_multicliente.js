@@ -29,7 +29,7 @@ function fakeEl() {
     removeAttribute(k) { delete this._attrs[k]; },
     getAttribute(k) { return this._attrs[k]; },
     querySelectorAll() { return []; },
-    style: {}, textContent: '', title: '', innerHTML: '',
+    style: { setProperty() {}, removeProperty() {} }, textContent: '', title: '', innerHTML: '',
   };
 }
 
@@ -43,7 +43,7 @@ const sandbox = {
   window: { addEventListener() {}, removeEventListener() {} },
   customElements: {
     get: () => undefined,
-    define: (name, cls) => { if (name === 'islautopia-intercom-card') CardClass = cls; },
+    define: (name, cls) => { if (name === 'islautopia-intercom-view') CardClass = cls; },
   },
 };
 sandbox.window.customCards = [];
@@ -369,7 +369,9 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   c = cardConMarco();
   await c.handleNativeSignal({ type: 'session_info', clients: 1, slot: 0, talker: -1, rot: 90 });
   check('rot=90 leido de session_info', c._rot === 90);
-  check('  -> el marco pasa a vertical (9/16)', c.feedWrap.style.aspectRatio === '9/16');
+  // Desde la 1.9.7 el marco ya no lleva aspect-ratio en linea (_fitToSpace le da un alto medido);
+  // la forma reservada sin imagen es la de _recallAspect(), que sale del giro conocido.
+  check('  -> el marco pasa a vertical (forma reservada 9:16)', c._recallAspect() < 1);
   check('  -> el video se gira 90° en sentido horario', /rotate\(90deg\)/.test(c.videoEl.style.transform));
   // Con 90/270 hay que INTERCAMBIAR ancho y alto, o la imagen girada no cubre el hueco.
   check('  -> caja con ancho y alto intercambiados', c.videoEl.style.width === '711px' && c.videoEl.style.height === '400px');
@@ -378,7 +380,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   check('rot=180 gira sin intercambiar medidas', c.videoEl.style.transform === 'rotate(180deg)' && c.videoEl.style.width === '');
 
   await c.handleNativeSignal({ type: 'session_info', clients: 1, slot: 0, talker: -1, rot: 0 });
-  check('rot=0 no gira nada', c.videoEl.style.transform === '' && c.feedWrap.style.aspectRatio === '16/9');
+  check('rot=0 no gira nada', c.videoEl.style.transform === '' && c._recallAspect() > 1);
 
   // Un valor raro se ignora en vez de pintarse: pintar torcido sin que nada lo explique es peor
   // que no girar (mismo criterio que el firmware, que tampoco lo guarda).
@@ -414,7 +416,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   // El timbre es el UNICO motivo por el que el sonido se enciende solo.
   c = newCard();
   c._audioOn = false; c.videoEl.muted = true;
-  c.config.ring_entity = 'binary_sensor.timbre';
+  c._connInfo = { events_entity: 'binary_sensor.timbre' };  // 1.10.0: sin ring_entity en el YAML, la da la integracion
   c._hass.states['binary_sensor.timbre'] = { state: 'off' };
   c._updateRingState();
   check('primera lectura del timbre: no dispara nada', c._audioOn === false);
@@ -425,7 +427,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   // Un binary_sensor que YA estaba en 'on' al abrir el dashboard no es una llamada de ahora.
   c = newCard();
   c._audioOn = false; c.videoEl.muted = true;
-  c.config.ring_entity = 'binary_sensor.timbre';
+  c._connInfo = { events_entity: 'binary_sensor.timbre' };  // 1.10.0: sin ring_entity en el YAML, la da la integracion
   c._hass.states['binary_sensor.timbre'] = { state: 'on' };
   c._updateRingState();
   check('un timbre que ya estaba sonando al abrir no desmutea', c._audioOn === false);

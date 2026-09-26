@@ -16,6 +16,62 @@ Fuente de verdad de la interfaz del propio doorbell (WebRTC, señalización, `pa
 `app_turn_credentials`, etc.): `C:\Proyectos_espressif\IG_Doorbell\API_CONTRACT.md`. No la
 dupliques aquí.
 
+**v1.10.0 (2026-09-26) — no configuration, live doorbell switcher.** (Written in English, per the
+project's documentation rule; older entries below are Spanish.)
+
+- **Two elements now.** `islautopia-intercom-card` (class `IslautopiaIntercomCard`, the one HA
+  creates) is a thin SHELL: lists the doorbells from `hass.devices` (identifier
+  `[IG_DOMAIN, id]`, disabled devices skipped, sorted by name), picks the default (localStorage
+  `islautopia-intercom-card-selected`, else first) and hosts ONE `islautopia-intercom-view`
+  (class `IslautopiaIntercomView` = the whole former card) per doorbell being watched. Tests that
+  poke internals must use the VIEW tag (all harnesses were updated).
+- **Switching = destroy + create, never "change device_id".** `_cambiarA()` is synchronous:
+  `viejo._destruir()` (hang up with `bye`, stop mic/turn/timers/listeners, forget
+  `PAUSA_POR_PORTERO[id]`, set `_destroyed`) then a new view. Why: the apps' bug (name changed, dot
+  stayed green) is what "reset field by field" produces; a fresh instance has no stale state by
+  construction, and a late callback of the old one writes into a detached element.
+  `_destroyed` guards `startWebRTC`, `_scheduleReconnect`, `_pausar`, `_reanudar`,
+  `connectedCallback`, `sendNativeSignal`; `disconnectedCallback` on a destroyed view does nothing
+  (it would otherwise PAUSE, i.e. `bye` only after 15 s). `_startIntercom` drops a getUserMedia that
+  resolves after the session generation changed.
+- **The dot and "live".** The picker dot is painted in `_setLiveState` = the live tag's state.
+  Since 1.10.0 `setupRemoteStream` (ontrack) no longer sets 'live': ontrack fires when the offer is
+  applied, before any packet. 'live' comes from `_confirmLiveFromMedia` (video `timeupdate` or
+  getStats progress); `startWebRTC` resets to 'connecting'. Measured on real HA: Ermita went green
+  863 ms after the switch, with a decoded frame.
+- **Config keys, where each went:** device_id → registry + picker; entities → `_autoEntity` by
+  translation_key (`mode`, `rec`, `events`, `visitor` for the presence badge); unlock_entity →
+  gone, the door is always the doorbell's `open` (door_m=1 lets the doorbell drive a HA entity from
+  the integration's allow-list); unlock_duration → constant `DOOR_OPEN_DISPLAY_S` = 3 (apps use a
+  fixed value too); height → gone (`_feedCap` = Infinity); idle_release_seconds → the integration's
+  `number.*_live_view_timeout` (fallback 120 s). Nothing needed the integration's options flow; the
+  integration was NOT changed. Legacy keys are ignored silently (a throw would break Iñaki's
+  dashboard on update).
+- Also fixed: rail + stack both active (mic straddling the video edge — `carril` now requires
+  `!ig-stack`); door wait 6 → 10 s (door_m=1 answers when HA confirms, up to ~8 s, contract §3.3);
+  mode chip showing "unavailable". Removed the `.hud-sig` bars (CSS-only echo of the live state).
+- Rename prep: `IG_DOMAIN`, `CARD_TAG`, `VIEW_TAG`, `EDITOR_TAG` constants at the top are the only
+  places with those names in code (localStorage keys keep the old prefix on purpose: renaming them
+  forgets saved prefs).
+- **Verification.** `test/ui_v1_10_0` (Playwright, real dist/, fake doorbells that hand out slots
+  and a real SDP offer): zero-config, legacy keys, default memory (incl. localStorage throwing),
+  the apps' dot bug, old session hung up, 6 rapid switches → 1 session/1 pc/1 view, late
+  get_connection_info of the old doorbell, late mic permission, panels/armed door not carried,
+  menu dots, single doorbell, i18n, editor. **Built-in positive controls**: three mutants of dist/
+  (sticky dot, no destroy, no mic check) must each turn their check red — they do.
+  `test/real_ha_1_10_0/run.js`: injects dist/ under `-dev` tags into HA's profile page (no
+  dashboard touched) and measures sessions at each doorbell's `/api/debug/cores`: Waveshare → Ermita
+  → Waveshare → burst W→E→W→E→W; always exactly one session, on the right doorbell; all 0 after.
+- **Layout analysis (analysis only, Iñaki decides):** `test/layout_matrix_1_9_8/` (README, run.js,
+  metrics.json; 4 view types × 5 sizes, portrait/landscape stream). The 31 screenshots are
+  gitignored ON PURPOSE: they are frames of real doorbell cameras and this repo is public
+  (privacy principle). Re-run `run.js` to regenerate them locally. Main findings:
+  `getCardSize()` returns 4 (card is 700-1000 px); no `getGridOptions()`; Panel on wide screens
+  with a portrait stream uses ~31-35 % of the area (rail mode, controls far from the image); phone
+  landscape clips the rail buttons; touch targets < 44 px (mode pill 32, REC 24, bell 30).
+- Old sim `test/sim_multicliente.js` is green again (DOM double lacked `style.setProperty` since
+  1.9.6; two aspect checks were stale since 1.9.7; ring test now uses the integration's entity).
+
 **v1.9.8 (2026-09-25, madrugada) — Respuesta rápida, integrada en la misma fila de Grabaciones.**
 
 - Encargo: llevar a la card la fila «Respuesta rápida ›» que ya tienen las apps, debajo de los tres

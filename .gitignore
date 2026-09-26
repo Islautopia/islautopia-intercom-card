@@ -1,1 +1,8 @@
 node_modules/
+
+# Screenshots of real doorbell cameras never go into this PUBLIC repo (privacy principle:
+# no image leaves the device). They stay local for whoever runs the benches.
+test/layout_matrix_1_9_8/*.png
+test/real_ha_1_10_0/*.png
+test/real_ha_1_10_0/console.log.txt
+test/ui_v1_10_0/*.png
